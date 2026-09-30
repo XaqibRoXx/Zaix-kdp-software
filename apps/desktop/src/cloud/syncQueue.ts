@@ -92,7 +92,7 @@ export async function pendingSyncCount(): Promise<number> {
 }
 
 export async function removePendingSnapshot(projectId: string): Promise<void> {
-  await withStore<IDBValidKey | undefined>("readwrite", (store) => store.delete(projectId));
+  await withStore<undefined>("readwrite", (store) => store.delete(projectId));
 }
 
 async function markAttempt(item: PendingProjectSync, error?: string): Promise<void> {
