@@ -46,6 +46,16 @@ export interface CloudAsset {
   }>;
 }
 
+export interface ProjectLockInfo {
+  project_id: string;
+  user_id: number | string;
+  client_id: string;
+  client_name: string;
+  user_name?: string;
+  acquired_at?: string;
+  expires_at: string;
+}
+
 export class CloudApiError extends Error {
   constructor(
     message: string,
@@ -57,6 +67,8 @@ export class CloudApiError extends Error {
 }
 
 export class ZaxisCloudApi {
+  private readonly clientId = getDesktopClientId();
+
   constructor(
     private readonly baseUrl: string,
     private readonly token?: string
@@ -111,6 +123,40 @@ export class ZaxisCloudApi {
 
   async getProject(projectId: string): Promise<CloudProjectResponse> {
     return this.request<CloudProjectResponse>("/api/v1/projects/" + encodeURIComponent(projectId));
+  }
+
+  async getProjectLock(projectId: string) {
+    return this.request<{ ok: boolean; lock: ProjectLockInfo | null }>(
+      "/api/v1/projects/" + encodeURIComponent(projectId) + "/lock"
+    );
+  }
+
+  async acquireProjectLock(
+    projectId: string,
+    clientName = "Windows Desktop",
+    ttlSeconds = 120
+  ) {
+    return this.request<{ ok: boolean; lock: ProjectLockInfo }>(
+      "/api/v1/projects/" + encodeURIComponent(projectId) + "/lock",
+      {
+        method: "POST",
+        body: {
+          client_id: this.clientId,
+          client_name: clientName,
+          ttl_seconds: ttlSeconds
+        }
+      }
+    );
+  }
+
+  async releaseProjectLock(projectId: string) {
+    return this.request<{ ok: boolean; released: boolean }>(
+      "/api/v1/projects/" + encodeURIComponent(projectId) + "/lock",
+      {
+        method: "DELETE",
+        body: { client_id: this.clientId }
+      }
+    );
   }
 
   async pushSnapshot(
@@ -176,7 +222,8 @@ export class ZaxisCloudApi {
     const url = this.baseUrl.replace(/\/+$/, "") + "/api/v1/assets";
     const headers: Record<string, string> = {
       Accept: "application/json",
-      "X-Zaxis-Client": "desktop/0.1.0"
+      "X-Zaxis-Client": "desktop/0.1.0",
+      "X-Zaxis-Client-Id": this.clientId
     };
 
     if (this.token) {
@@ -223,7 +270,8 @@ export class ZaxisCloudApi {
       encodeURIComponent(variant);
 
     const headers: Record<string, string> = {
-      "X-Zaxis-Client": "desktop/0.1.0"
+      "X-Zaxis-Client": "desktop/0.1.0",
+      "X-Zaxis-Client-Id": this.clientId
     };
 
     if (this.token) {
@@ -250,7 +298,8 @@ export class ZaxisCloudApi {
     const url = this.baseUrl.replace(/\/+$/, "") + path;
     const headers: Record<string, string> = {
       Accept: "application/json",
-      "X-Zaxis-Client": "desktop/0.1.0"
+      "X-Zaxis-Client": "desktop/0.1.0",
+      "X-Zaxis-Client-Id": this.clientId
     };
 
     if (options.body !== undefined) {
@@ -289,6 +338,33 @@ export class ZaxisCloudApi {
     }
 
     return payload as T;
+  }
+}
+
+const CLIENT_ID_KEY = "zaxis-kdp:client-id";
+let fallbackClientId = "";
+
+export function getDesktopClientId() {
+  try {
+    let clientId = window.localStorage.getItem(CLIENT_ID_KEY);
+
+    if (!clientId) {
+      clientId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : "client-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+
+      window.localStorage.setItem(CLIENT_ID_KEY, clientId);
+    }
+
+    return clientId;
+  } catch {
+    if (!fallbackClientId) {
+      fallbackClientId =
+        "client-session-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+    }
+
+    return fallbackClientId;
   }
 }
 
