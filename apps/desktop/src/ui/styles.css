@@ -29,3 +29,10 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .image-object{overflow:hidden;background:#f2f2f2}
 .image-object img{width:100%;height:100%;display:block;pointer-events:none}
 .inspector-field select{width:100%;background:#111513;color:#fff;border:1px solid #2b3330;border-radius:6px;padding:7px}
+
+.hidden-input{display:none}
+.design-object{touch-action:none}
+.resize-handle{position:absolute;right:-7px;bottom:-7px;width:13px;height:13px;border:2px solid #020202;border-radius:2px;background:#00f6ac;cursor:nwse-resize;padding:0;z-index:4}
+.alignment-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:10px}
+.alignment-grid button{border:1px solid #252c29;background:#0c100e;color:#aeb7b3;border-radius:6px;padding:6px 4px;font-size:10px;cursor:pointer}
+.alignment-grid button:hover{border-color:#00f6ac;color:#00f6ac}
