@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use ZaxisKdp\AssetStorage;
 use ZaxisKdp\Auth;
 use ZaxisKdp\Database;
 use ZaxisKdp\Http;
@@ -101,6 +102,124 @@ try {
             'expires_at' => $pairing['expires_at'],
             'request_id' => $requestId,
         ], 201);
+    }
+
+    if ($method === 'GET' && $path === '/api/v1/assets') {
+        $projectId = isset($_GET['project_id']) ? trim((string) $_GET['project_id']) : '';
+
+        $sql =
+            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, created_at
+             FROM assets
+             WHERE owner_user_id = :owner AND deleted_at IS NULL';
+        $params = ['owner' => $user['id']];
+
+        if ($projectId !== '') {
+            $sql .= ' AND project_id = :project_id';
+            $params['project_id'] = $projectId;
+        }
+
+        $sql .= ' ORDER BY created_at DESC LIMIT 500';
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+
+        $assets = array_map(
+            static fn (array $asset): array => AssetStorage::decorateAsset($db, $asset),
+            $stmt->fetchAll()
+        );
+
+        Http::json([
+            'ok' => true,
+            'assets' => $assets,
+            'request_id' => $requestId,
+        ]);
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/assets') {
+        $projectId = trim((string) ($_POST['project_id'] ?? ''));
+
+        if ($projectId !== '') {
+            $projectStmt = $db->prepare(
+                'SELECT id FROM projects
+                 WHERE id = :id AND owner_user_id = :owner AND deleted_at IS NULL
+                 LIMIT 1'
+            );
+            $projectStmt->execute(['id' => $projectId, 'owner' => $user['id']]);
+
+            if (!$projectStmt->fetch()) {
+                Http::json([
+                    'ok' => false,
+                    'error' => 'Project not found.',
+                    'request_id' => $requestId,
+                ], 404);
+            }
+        }
+
+        if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Multipart file field "file" is required.',
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        try {
+            $asset = AssetStorage::storeUpload(
+                $db,
+                (int) $user['id'],
+                $projectId !== '' ? $projectId : null,
+                $_FILES['file']
+            );
+        } catch (RuntimeException $error) {
+            Http::json([
+                'ok' => false,
+                'error' => $error->getMessage(),
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        Http::json([
+            'ok' => true,
+            'asset' => $asset,
+            'request_id' => $requestId,
+        ], 201);
+    }
+
+    if ($method === 'GET' && preg_match('#^/api/v1/assets/([^/]+)/content$#', $path, $matches)) {
+        $assetId = rawurldecode($matches[1]);
+        $variant = isset($_GET['variant']) && $_GET['variant'] === 'proxy' ? 'proxy' : 'original';
+        $content = AssetStorage::resolveContent($db, (int) $user['id'], $assetId, $variant);
+
+        if (!$content) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Asset content not found.',
+                'request_id' => $requestId,
+            ], 404);
+        }
+
+        header('Content-Type: ' . $content['mime_type']);
+        header('Content-Length: ' . (string) filesize($content['path']));
+        header('Cache-Control: private, max-age=3600');
+        header('X-Content-Type-Options: nosniff');
+        $safeName = preg_replace('/[^A-Za-z0-9._-]/', '_', $content['original_name']) ?: 'asset';
+        header('Content-Disposition: inline; filename="' . $safeName . '"');
+        readfile($content['path']);
+        exit;
+    }
+
+    if ($method === 'DELETE' && preg_match('#^/api/v1/assets/([^/]+)$#', $path, $matches)) {
+        $assetId = rawurldecode($matches[1]);
+        $stmt = $db->prepare(
+            'UPDATE assets SET deleted_at = NOW()
+             WHERE id = :id AND owner_user_id = :owner AND deleted_at IS NULL'
+        );
+        $stmt->execute(['id' => $assetId, 'owner' => $user['id']]);
+
+        Http::json([
+            'ok' => true,
+            'deleted' => $stmt->rowCount() > 0,
+            'request_id' => $requestId,
+        ]);
     }
 
     if ($method === 'GET' && $path === '/api/v1/projects') {
