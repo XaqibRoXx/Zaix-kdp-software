@@ -44,6 +44,12 @@ import {
   saveCustomFont
 } from "../state/fontStore";
 import {
+  CloudApiError,
+  ZaxisCloudApi,
+  makeClientEventId,
+  type CloudProjectSummary
+} from "../cloud/apiClient";
+import {
   deleteProjectFromLibrary,
   listProjectSummaries,
   loadActiveProject,
@@ -90,6 +96,7 @@ export function App() {
   const [projectSummaries, setProjectSummaries] = useState<ProjectSummary[]>(() => listProjectSummaries());
   const [appSettings, setAppSettings] = useState<AppSettings>(() => loadAppSettings());
   const [revisions, setRevisions] = useState<ProjectRevision[]>(() => listRevisions(project.id));
+  const [cloudToken, setCloudToken] = useState("");
   const fontInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new SnapshotHistory(project));
 
@@ -417,7 +424,16 @@ export function App() {
           <Placeholder title="Asset Library" copy="Cloud assets, linked files, font library, proxies and background-removal tools will live here." />
         )}
         {screen === "cloud" && (
-          <Placeholder title="Cloud & Server" copy="The configurable cPanel/VPS connection wizard, health checks, storage, share domain and worker settings will live here." />
+          <CloudScreen
+            settings={appSettings}
+            onSettingsChange={(next) => {
+              setAppSettings(next);
+              saveAppSettings(next);
+            }}
+            token={cloudToken}
+            onTokenChange={setCloudToken}
+            project={project}
+          />
         )}
         {screen === "settings" && (
           <SettingsScreen
@@ -1534,6 +1550,191 @@ function SettingsScreen({
           </div>
         </div>
         <button className="secondary danger" onClick={onClearCache}>Clear Local Recovery Cache</button>
+      </div>
+    </section>
+  );
+}
+
+function CloudScreen({
+  settings,
+  onSettingsChange,
+  token,
+  onTokenChange,
+  project
+}: {
+  settings: AppSettings;
+  onSettingsChange: (settings: AppSettings) => void;
+  token: string;
+  onTokenChange: (token: string) => void;
+  project: ZaxisProject;
+}) {
+  const [status, setStatus] = useState("Not tested");
+  const [identity, setIdentity] = useState("");
+  const [cloudProjects, setCloudProjects] = useState<CloudProjectSummary[]>([]);
+  const [syncStatus, setSyncStatus] = useState("");
+
+  function api() {
+    return new ZaxisCloudApi(settings.cloudApiUrl.trim(), token.trim() || undefined);
+  }
+
+  async function testHealth() {
+    if (!settings.cloudApiUrl.trim()) {
+      setStatus("Enter the server API URL first.");
+      return;
+    }
+
+    setStatus("Testing...");
+
+    try {
+      const result = await api().health();
+      setStatus(result.ok ? "API connected • DB " + result.database : "API returned an unhealthy state");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Connection failed");
+    }
+  }
+
+  async function verifyToken() {
+    if (!settings.cloudApiUrl.trim() || !token.trim()) {
+      setIdentity("API URL and token are required.");
+      return;
+    }
+
+    setIdentity("Verifying...");
+
+    try {
+      const result = await api().me();
+      setIdentity("Connected as " + result.user.name + " • " + result.user.email);
+    } catch (error) {
+      setIdentity(error instanceof Error ? error.message : "Token verification failed");
+    }
+  }
+
+  async function refreshProjects() {
+    if (!settings.cloudApiUrl.trim() || !token.trim()) {
+      setSyncStatus("API URL and token are required.");
+      return;
+    }
+
+    setSyncStatus("Loading cloud projects...");
+
+    try {
+      const result = await api().listProjects();
+      setCloudProjects(result.projects);
+      setSyncStatus(result.projects.length + " cloud project" + (result.projects.length === 1 ? "" : "s") + " found.");
+    } catch (error) {
+      setSyncStatus(error instanceof Error ? error.message : "Could not load cloud projects");
+    }
+  }
+
+  async function syncCurrentProject() {
+    if (!settings.cloudApiUrl.trim() || !token.trim()) {
+      setSyncStatus("API URL and token are required.");
+      return;
+    }
+
+    setSyncStatus("Syncing current project...");
+
+    const client = api();
+
+    try {
+      let baseRevision = 0;
+
+      try {
+        const remote = await client.getProject(project.id);
+        baseRevision = Number(remote.project.current_revision) || 0;
+      } catch (error) {
+        if (error instanceof CloudApiError && error.status === 404) {
+          const created = await client.createProject(project);
+          baseRevision = created.revision;
+          setSyncStatus("Project created in cloud at revision " + created.revision + ".");
+          await refreshProjects();
+          return;
+        }
+
+        throw error;
+      }
+
+      const pushed = await client.pushSnapshot(
+        project,
+        baseRevision,
+        makeClientEventId(),
+        "Desktop manual sync"
+      );
+
+      setSyncStatus("Cloud sync complete • revision " + pushed.revision);
+      await refreshProjects();
+    } catch (error) {
+      if (error instanceof CloudApiError && error.status === 409) {
+        setSyncStatus("Revision conflict detected. Automatic conflict workflow is the next sync step.");
+      } else {
+        setSyncStatus(error instanceof Error ? error.message : "Cloud sync failed");
+      }
+    }
+  }
+
+  return (
+    <section className="content">
+      <div className="panel">
+        <span className="eyebrow">CLOUD & SERVER</span>
+        <h2>Connection</h2>
+        <div className="settings-grid">
+          <label>API URL
+            <input
+              value={settings.cloudApiUrl}
+              onChange={(event) => onSettingsChange({ ...settings, cloudApiUrl: event.target.value })}
+              placeholder="https://kdp.example.com"
+            />
+          </label>
+          <label>Share Domain
+            <input
+              value={settings.shareDomain}
+              onChange={(event) => onSettingsChange({ ...settings, shareDomain: event.target.value })}
+              placeholder="https://files.example.com"
+            />
+          </label>
+          <label>Desktop API Token
+            <input
+              type="password"
+              value={token}
+              onChange={(event) => onTokenChange(event.target.value)}
+              placeholder="Session only for now"
+            />
+          </label>
+        </div>
+        <p className="muted">The token is currently kept only in this app session. Windows secure credential storage is the next connection-hardening step.</p>
+        <div className="hero-actions">
+          <button className="secondary" onClick={() => void testHealth()}>Test API</button>
+          <button className="secondary" onClick={() => void verifyToken()}>Verify Token</button>
+          <button className="primary" onClick={() => void syncCurrentProject()}>Sync Current Project</button>
+        </div>
+        <div className="cloud-status-grid">
+          <div><small>Health</small><strong>{status}</strong></div>
+          <div><small>Identity</small><strong>{identity || "Not verified"}</strong></div>
+          <div><small>Sync</small><strong>{syncStatus || "Not synced"}</strong></div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">CLOUD PROJECTS</span>
+            <h3>Server Library</h3>
+          </div>
+          <button className="secondary" onClick={() => void refreshProjects()}>Refresh</button>
+        </div>
+        <div className="project-list">
+          {cloudProjects.length === 0 ? (
+            <div className="empty-projects">No cloud projects loaded yet.</div>
+          ) : cloudProjects.map((item) => (
+            <div className="project-row" key={item.id}>
+              <div className="project-main">
+                <strong>{item.name}</strong>
+                <small>{item.mode} • revision {item.current_revision}</small>
+              </div>
+              <span className="cloud-project-date">{new Date(item.updated_at).toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
