@@ -68,7 +68,7 @@ Last updated: 2026-09-30
 - [x] Initial bulk artboard resize (apply active size/unit to all). Advanced content behavior remains Phase 1 work.
 - [ ] Graphic-design presets.
 - [ ] KDP/book presets in project creation.
-- [ ] Keyboard shortcuts including Ctrl+Z / Redo.
+- [x] Undo/Redo keyboard shortcuts: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z.
 - [ ] Local bounded cache controls.
 - [ ] First Windows installer/test build.
 
@@ -93,7 +93,7 @@ Last updated: 2026-09-30
 - [ ] Final documentation and release QA.
 
 ## Blocked
-None currently.
+- GitHub Actions runner is currently failing before workflow steps start (zero steps reported), so CI has not yet provided a compile verdict. Source implementation continues while this runner-level issue is tracked.
 
 ## Rule
 Every implemented feature must move from Pending → In Progress → Done here. Significant architecture decisions must also be recorded in docs/ARCHITECTURE.md or docs/DECISIONS.md.
