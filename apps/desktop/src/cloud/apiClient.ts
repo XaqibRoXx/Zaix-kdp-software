@@ -28,6 +28,15 @@ export interface SnapshotPushResponse {
   revision: number;
   snapshot_hash?: string;
   idempotent_replay?: boolean;
+  sync_mode?: "full" | "delta";
+}
+
+export interface ProjectDeltaPayload {
+  version: 1;
+  project: Partial<Pick<ZaxisProject, "name" | "mode" | "kdpSettings" | "updatedAt">>;
+  changed_artboards: ZaxisProject["artboards"];
+  removed_artboard_ids: string[];
+  artboard_order: string[];
 }
 
 export interface CloudAsset {
@@ -174,6 +183,27 @@ export class ZaxisCloudApi {
           client_event_id: clientEventId,
           label,
           snapshot: project
+        }
+      }
+    );
+  }
+
+  async pushDelta(
+    projectId: string,
+    baseRevision: number,
+    clientEventId: string,
+    delta: ProjectDeltaPayload,
+    label?: string
+  ): Promise<SnapshotPushResponse> {
+    return this.request<SnapshotPushResponse>(
+      "/api/v1/projects/" + encodeURIComponent(projectId) + "/snapshot",
+      {
+        method: "PATCH",
+        body: {
+          base_revision: baseRevision,
+          client_event_id: clientEventId,
+          label,
+          delta
         }
       }
     );
