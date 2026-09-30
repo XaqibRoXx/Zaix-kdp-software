@@ -142,6 +142,16 @@ export function App() {
   }, [appSettings.cacheLocation, appSettings.cacheLimitMb]);
 
   useEffect(() => {
+    invoke<string | null>("load_cloud_token")
+      .then((storedToken) => {
+        if (storedToken) setCloudToken(storedToken);
+      })
+      .catch(() => {
+        // Browser preview or a machine without the Windows bridge keeps session-only token state.
+      });
+  }, []);
+
+  useEffect(() => {
     setSaveState("saving");
 
     const timer = window.setTimeout(() => {
@@ -1735,9 +1745,36 @@ function CloudScreen({
   const [identity, setIdentity] = useState("");
   const [cloudProjects, setCloudProjects] = useState<CloudProjectSummary[]>([]);
   const [syncStatus, setSyncStatus] = useState("");
+  const [credentialStatus, setCredentialStatus] = useState("");
 
   function api() {
     return new ZaxisCloudApi(settings.cloudApiUrl.trim(), token.trim() || undefined);
+  }
+
+  async function saveTokenSecurely() {
+    if (!token.trim()) {
+      setCredentialStatus("Enter a token first.");
+      return;
+    }
+
+    setCredentialStatus("Saving securely...");
+
+    try {
+      await invoke("store_cloud_token", { token: token.trim() });
+      setCredentialStatus("Token saved with Windows user-bound encryption.");
+    } catch {
+      setCredentialStatus("Secure token storage is available in the Windows app.");
+    }
+  }
+
+  async function clearStoredToken() {
+    try {
+      await invoke("clear_cloud_token");
+      onTokenChange("");
+      setCredentialStatus("Stored token cleared.");
+    } catch {
+      setCredentialStatus("Could not clear the stored token.");
+    }
   }
 
   async function testHealth() {
@@ -1860,14 +1897,17 @@ function CloudScreen({
               type="password"
               value={token}
               onChange={(event) => onTokenChange(event.target.value)}
-              placeholder="Session only for now"
+              placeholder="Stored securely on this Windows account"
             />
           </label>
         </div>
-        <p className="muted">The token is currently kept only in this app session. Windows secure credential storage is the next connection-hardening step.</p>
+        <p className="muted">API tokens are not saved in localStorage. In the Windows app they can be encrypted with the current Windows user account and restored automatically on next launch.</p>
+        {credentialStatus && <p className="muted">{credentialStatus}</p>}
         <div className="hero-actions">
           <button className="secondary" onClick={() => void testHealth()}>Test API</button>
           <button className="secondary" onClick={() => void verifyToken()}>Verify Token</button>
+          <button className="secondary" onClick={() => void saveTokenSecurely()}>Save Token Securely</button>
+          <button className="secondary danger" onClick={() => void clearStoredToken()}>Clear Stored Token</button>
           <button className="secondary" onClick={() => void onFlushQueue()}>Flush Autosave Queue</button>
           <button className="primary" onClick={() => void syncCurrentProject()}>Sync Current Project</button>
         </div>
