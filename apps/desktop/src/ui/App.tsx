@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   SnapshotHistory,
   addArtboard,
@@ -57,7 +58,18 @@ export function App() {
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [selectedArtboardId, setSelectedArtboardId] = useState(project.artboards[0].id);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [systemFonts, setSystemFonts] = useState<string[]>(["Arial", "Calibri", "Segoe UI", "Times New Roman"]);
   const historyRef = useRef(new SnapshotHistory(project));
+
+  useEffect(() => {
+    invoke<string[]>("list_system_fonts")
+      .then((fonts) => {
+        if (fonts.length > 0) setSystemFonts(fonts);
+      })
+      .catch(() => {
+        // Browser development preview uses the built-in fallback list.
+      });
+  }, []);
 
   useEffect(() => {
     setSaveState("saving");
@@ -231,6 +243,7 @@ export function App() {
             onRedo={redo}
             canUndo={historyRef.current.canUndo}
             canRedo={historyRef.current.canRedo}
+            systemFonts={systemFonts}
           />
         )}
         {screen === "assets" && (
@@ -309,6 +322,7 @@ interface EditorShellProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  systemFonts: string[];
 }
 
 function EditorShell({
@@ -321,7 +335,8 @@ function EditorShell({
   onUndo,
   onRedo,
   canUndo,
-  canRedo
+  canRedo,
+  systemFonts
 }: EditorShellProps) {
   const artboard = useMemo(
     () => project.artboards.find((item) => item.id === selectedArtboardId) ?? project.artboards[0],
@@ -504,6 +519,7 @@ function EditorShell({
             <ObjectInspector
               object={selectedObject}
               onChange={(input) => onCommit(updateObject(project, artboard.id, selectedObject.id, input))}
+              systemFonts={systemFonts}
             />
             <div className="artboard-actions">
               <button className="secondary" onClick={() => onCommit(moveObjectLayer(project, artboard.id, selectedObject.id, "up"))}>Bring Up</button>
@@ -598,10 +614,12 @@ function CanvasObject({
 
 function ObjectInspector({
   object,
-  onChange
+  onChange,
+  systemFonts
 }: {
   object: DesignObject;
   onChange: (input: Parameters<typeof updateObject>[3]) => void;
+  systemFonts: string[];
 }) {
   return (
     <div className="object-inspector">
@@ -641,7 +659,10 @@ function ObjectInspector({
             <textarea value={object.text} onChange={(event) => onChange({ text: event.target.value })} />
           </label>
           <label className="inspector-field">Font
-            <input value={object.fontFamily} onChange={(event) => onChange({ fontFamily: event.target.value })} />
+            <select value={object.fontFamily} onChange={(event) => onChange({ fontFamily: event.target.value })}>
+              {!systemFonts.includes(object.fontFamily) && <option value={object.fontFamily}>{object.fontFamily}</option>}
+              {systemFonts.map((font) => <option key={font} value={font}>{font}</option>)}
+            </select>
           </label>
           <label className="inspector-field">Font Size
             <input type="number" value={object.fontSize} onChange={(event) => onChange({ fontSize: Number(event.target.value) })} />
