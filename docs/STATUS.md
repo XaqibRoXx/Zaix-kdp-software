@@ -180,6 +180,15 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Phase 2 marked active in the desktop UI.
+- [x] Cloud autosave queue stores project snapshots in IndexedDB.
+- [x] Offline edits remain queued and flush when connectivity returns.
+- [x] Base revision metadata is stored per project.
+- [x] Queue coalescing preserves the original base revision until sync succeeds.
+- [x] Remote revision mismatch now produces a conflict instead of silently overwriting newer cloud work.
+- [x] Successful sync updates the local last-known cloud revision.
+- [x] API token can be encrypted with Windows user-bound DPAPI and restored automatically on launch.
+- [x] API token is not stored in localStorage.
 - [x] cPanel-ready PHP 8.2 API foundation.
 - [x] Environment configuration and PDO/MySQL connection layer.
 - [x] Bearer-token authentication with SHA-256 token hashes.
@@ -195,10 +204,10 @@ Last updated: 2026-09-30
 - [x] Manual current-project cloud sync.
 - [x] Cloud project list refresh.
 - [x] PHP syntax CI workflow.
-- [ ] Windows secure credential storage for API token.
-- [ ] Automatic Canva-style cloud autosave queue.
-- [ ] Offline operation queue and reconnect flush.
-- [ ] Automatic conflict resolution/merge workflow.
+- [x] Windows user-bound encrypted API token storage with save/load/clear commands.
+- [x] Automatic Canva-style cloud autosave queue.
+- [x] Offline operation queue and automatic reconnect flush.
+- [ ] Automatic merge UI remains. Sync queue now tracks true base revisions and blocks silent overwrite on remote revision changes.
 - [ ] Server installer/connection-code wizard.
 - [ ] Asset upload/proxy endpoints.
 
