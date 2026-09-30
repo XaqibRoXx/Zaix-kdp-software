@@ -180,6 +180,21 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Centralized versioned KDP paperback rules module.
+- [x] KDP project settings stored in the project model and migrated for older local projects.
+- [x] Live KDP preflight engine.
+- [x] Page-count minimum/maximum checks by current ink/paper setup.
+- [x] Trim/custom-size range validation.
+- [x] Bleed-aware page-size validation across every artboard.
+- [x] Minimum 7 pt text check.
+- [x] Blank-page and missing-image checks.
+- [x] Page-count-based inside/outside margin calculation.
+- [x] Paperback spine width calculator for white/cream/groundwood/color paper rules.
+- [x] Full paperback cover width/height calculation including bleed.
+- [x] Spine-text eligibility indicator at 80+ pages.
+- [x] KDP Book & Preflight panel in the editor.
+- [x] Apply KDP page size to all artboards.
+- [x] Clicking a page-level preflight issue opens that page.
 - [x] Cloud conflict review panel.
 - [x] Conflict inspector loads queued local snapshot and current cloud snapshot/revision.
 - [x] Use Cloud resolution removes queued local conflict, updates sync base, and creates a local safety revision before replacement.
@@ -241,7 +256,7 @@ Last updated: 2026-09-30
 - [x] Initial cPanel connection wizard and secure pairing API.
 - [ ] Canva-style cloud autosave and offline sync.
 - [ ] Cloud revisions remain Phase 2. Local named revision history and restore points are now working.
-- [ ] KDP book tools, cover/spine and preflight.
+- [ ] Advanced cover creator remains. Live KDP book settings, preflight, margins and paperback spine/cover calculator foundation are working.
 - [ ] PDF export/compression/merge/split/compare.
 - [ ] Save destination: Server / Laptop / Both.
 
