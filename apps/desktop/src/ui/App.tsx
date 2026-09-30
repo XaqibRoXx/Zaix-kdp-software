@@ -5,6 +5,7 @@ import {
   SnapshotHistory,
   alignObject,
   analyzeKdpProject,
+  calculatePaperbackCoverSize,
   addArtboard,
   addImageObject,
   addPathObject,
@@ -978,6 +979,9 @@ function EditorShell({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="safe-area" />
+            {artboard.role === "cover" && project.kdpSettings && (
+              <KdpCoverGuides project={project} />
+            )}
             {smartGuide.vertical && <div className="smart-guide vertical" />}
             {smartGuide.horizontal && <div className="smart-guide horizontal" />}
 
@@ -1146,6 +1150,39 @@ function EditorShell({
         )}
       </aside>
     </section>
+  );
+}
+
+function KdpCoverGuides({ project }: { project: ZaxisProject }) {
+  const settings = project.kdpSettings;
+  if (!settings) return null;
+
+  const pageCount = project.artboards.filter((item) => (item.role ?? "page") === "page").length;
+  const cover = calculatePaperbackCoverSize(pageCount, settings);
+  const totalWidth = cover.widthIn || 1;
+  const bleed = KDP_RULES.bleedIn;
+  const backStart = (bleed / totalWidth) * 100;
+  const spineStart = ((bleed + settings.trimWidthIn) / totalWidth) * 100;
+  const frontStart = ((bleed + settings.trimWidthIn + cover.spineWidthIn) / totalWidth) * 100;
+  const rightTrim = ((bleed + settings.trimWidthIn + cover.spineWidthIn + settings.trimWidthIn) / totalWidth) * 100;
+
+  return (
+    <div className="cover-guides" aria-hidden="true">
+      <div className="cover-line bleed-left" style={{ left: backStart + "%" }} />
+      <div className="cover-line spine-left" style={{ left: spineStart + "%" }} />
+      <div className="cover-line spine-right" style={{ left: frontStart + "%" }} />
+      <div className="cover-line bleed-right" style={{ left: rightTrim + "%" }} />
+
+      <div className="cover-zone back" style={{ left: backStart + "%", width: (spineStart - backStart) + "%" }}>
+        <span>BACK COVER</span>
+      </div>
+      <div className="cover-zone spine" style={{ left: spineStart + "%", width: (frontStart - spineStart) + "%" }}>
+        <span>SPINE</span>
+      </div>
+      <div className="cover-zone front" style={{ left: frontStart + "%", width: (rightTrim - frontStart) + "%" }}>
+        <span>FRONT COVER</span>
+      </div>
+    </div>
   );
 }
 
