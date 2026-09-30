@@ -3,7 +3,7 @@
 Last updated: 2026-09-30
 
 ## Overall
-- Phase 1: **IN PROGRESS**
+- Phase 1: **BASELINE COMPLETE**
 - Phase 2: **IN PROGRESS**
 - Phase 3: **PENDING**
 - Phase 4: **PENDING**
@@ -47,6 +47,9 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification. Previous Windows build failed on the same revision-handler compile issue; fix has been pushed and rebuild is being verified.
 
 ## Newly Completed in Current Implementation
+- [x] Windows installer workflow completed successfully.
+- [x] zaxis-kdp-windows build artifact generated and verified.
+- [x] Phase 1 baseline exit criteria reached: usable editor core + local recovery + Windows build.
 - [x] Image mask type: None / Ellipse / Custom Polygon.
 - [x] Custom polygon mask point model.
 - [x] Polygon mask X/Y inspector editing.
@@ -160,7 +163,7 @@ Last updated: 2026-09-30
 - [x] Apply active artboard dimensions to all artboards.
 - [x] Current project restores from local recovery storage on restart.
 
-## Pending — Phase 1
+## Phase 1 — Non-blocking Follow-up Polish
 - [x] Local dashboard project CRUD and recent projects. Cloud project library remains Phase 2.
 - [ ] Advanced asymmetric smooth-handle controls remain. Cubic Bezier rendering, Smooth/Corner anchor conversion, mirrored smooth handles, direct handle dragging, anchor drag, exact anchor X/Y editing and anchor add/delete are working.
 - [ ] Advanced text engine remains. Font family/size/weight/color, alignment, line height and letter spacing are working.
@@ -174,7 +177,7 @@ Last updated: 2026-09-30
 - [x] Initial KDP/book presets: 5×8, 5.25×8, 5.5×8.5, 6×9, 7×10, 8×10, 8.5×11.
 - [x] Undo/Redo keyboard shortcuts: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z.
 - [x] Native Windows disk-cache manager now creates configured cache path, reports size/files, trims oldest files to the configured limit and supports native clear. Project/asset cache usage will expand with later asset/cloud work.
-- [ ] First Windows installer/test build. App executable now builds; MSI bundler icon lookup blocker fixed by generating icon in CARGO_MANIFEST_DIR and registering `icons/icon.ico` in Tauri bundle config. Fresh MSI/NSIS build is being verified.
+- [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
 - [x] cPanel-ready PHP 8.2 API foundation.
