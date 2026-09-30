@@ -180,6 +180,12 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Cloud revision snapshot retrieval endpoint.
+- [x] Desktop Cloud Revision History list for the active project.
+- [x] Restore old cloud revision as a new current revision without deleting newer history.
+- [x] Local safety revision is created before cloud replacement.
+- [x] Cloud restore updates base revision and uses the conflict-safe autosave queue.
+- [x] Cloud-origin restore no longer immediately reuploads the same snapshot unless restore-as-new explicitly requests it.
 - [x] Dedicated PDF Tools screen added to desktop navigation.
 - [x] Real multi-file PDF merge with drag-order style up/down reordering controls.
 - [x] Extract selected PDF pages/ranges into a new PDF.
@@ -272,7 +278,7 @@ Last updated: 2026-09-30
 ## Pending — Phase 2
 - [x] Initial cPanel connection wizard and secure pairing API.
 - [ ] Canva-style cloud autosave and offline sync.
-- [ ] Cloud revisions remain Phase 2. Local named revision history and restore points are now working.
+- [x] Cloud revision history metadata, snapshot retrieval and restore-as-new workflow are working. Local named revisions remain separate.
 - [ ] Advanced cover creator remains. Live KDP book settings, preflight, margins and paperback spine/cover calculator foundation are working.
 - [ ] Advanced compression, visual diff compare and full split batching remain. Real PDF export, Merge, Extract/Range, Rotate and structural Compare foundations are working.
 - [x] PDF save destination supports Laptop / Cloud / Both.
