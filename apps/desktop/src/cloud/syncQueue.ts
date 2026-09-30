@@ -1,5 +1,10 @@
 import type { ZaxisProject } from "@zaxis-kdp/editor-core";
-import { CloudApiError, ZaxisCloudApi, makeClientEventId } from "./apiClient";
+import {
+  CloudApiError,
+  ZaxisCloudApi,
+  makeClientEventId,
+  type ProjectDeltaPayload
+} from "./apiClient";
 
 export interface PendingProjectSync {
   projectId: string;
@@ -15,10 +20,13 @@ export interface ProjectSyncMeta {
   projectId: string;
   lastKnownRevision: number;
   lastSyncedAt?: string;
+  lastSyncedSnapshot?: ZaxisProject;
 }
 
 export interface QueueFlushResult {
   synced: number;
+  deltaSynced: number;
+  fullSynced: number;
   conflicts: number;
   locked: number;
   failed: number;
@@ -82,11 +90,20 @@ export async function getSyncMeta(projectId: string): Promise<ProjectSyncMeta | 
   return result ?? null;
 }
 
-export async function setSyncRevision(projectId: string, revision: number): Promise<void> {
+export async function setSyncRevision(
+  projectId: string,
+  revision: number,
+  snapshot?: ZaxisProject
+): Promise<void> {
+  const existing = await getSyncMeta(projectId);
+
   const meta: ProjectSyncMeta = {
     projectId,
     lastKnownRevision: Math.max(0, revision),
-    lastSyncedAt: new Date().toISOString()
+    lastSyncedAt: new Date().toISOString(),
+    lastSyncedSnapshot: snapshot
+      ? structuredClone(snapshot)
+      : existing?.lastSyncedSnapshot
   };
 
   await withStore(META_STORE, "readwrite", (store) => store.put(meta));
@@ -119,7 +136,6 @@ export async function getPendingSnapshot(projectId: string): Promise<PendingProj
 
   if (!result) return null;
 
-  // Backward-compatible migration for queue entries created before baseRevision existed.
   if (typeof result.baseRevision !== "number") {
     const meta = await getSyncMeta(projectId);
     return { ...result, baseRevision: meta?.lastKnownRevision ?? 0 };
@@ -158,21 +174,76 @@ async function markAttempt(item: PendingProjectSync, error?: string): Promise<vo
   await withStore(QUEUE_STORE, "readwrite", (store) => store.put(updated));
 }
 
+export function buildProjectDelta(
+  base: ZaxisProject,
+  current: ZaxisProject
+): ProjectDeltaPayload {
+  const project: ProjectDeltaPayload["project"] = {};
+
+  if (base.name !== current.name) project.name = current.name;
+  if (base.mode !== current.mode) project.mode = current.mode;
+  if (JSON.stringify(base.kdpSettings ?? null) !== JSON.stringify(current.kdpSettings ?? null)) {
+    project.kdpSettings = current.kdpSettings;
+  }
+  if (base.updatedAt !== current.updatedAt) project.updatedAt = current.updatedAt;
+
+  const baseById = new Map(base.artboards.map((artboard) => [artboard.id, artboard]));
+  const currentById = new Map(current.artboards.map((artboard) => [artboard.id, artboard]));
+
+  const changedArtboards = current.artboards.filter((artboard) => {
+    const previous = baseById.get(artboard.id);
+    return !previous || JSON.stringify(previous) !== JSON.stringify(artboard);
+  });
+
+  const removedArtboardIds = base.artboards
+    .filter((artboard) => !currentById.has(artboard.id))
+    .map((artboard) => artboard.id);
+
+  return {
+    version: 1,
+    project,
+    changed_artboards: changedArtboards,
+    removed_artboard_ids: removedArtboardIds,
+    artboard_order: current.artboards.map((artboard) => artboard.id)
+  };
+}
+
+function shouldUseDelta(
+  base: ZaxisProject | undefined,
+  current: ZaxisProject
+): { useDelta: boolean; delta?: ProjectDeltaPayload } {
+  if (!base || base.id !== current.id) {
+    return { useDelta: false };
+  }
+
+  const delta = buildProjectDelta(base, current);
+  const fullBytes = JSON.stringify(current).length;
+  const deltaBytes = JSON.stringify(delta).length;
+
+  return {
+    useDelta: deltaBytes < fullBytes * 0.8,
+    delta
+  };
+}
+
 export async function flushPendingSnapshots(api: ZaxisCloudApi): Promise<QueueFlushResult> {
   const queue = await listPendingSnapshots();
 
   let synced = 0;
+  let deltaSynced = 0;
+  let fullSynced = 0;
   let conflicts = 0;
   let locked = 0;
   let failed = 0;
 
   for (const item of queue) {
     try {
+      let remoteExists = true;
+
       try {
         const remote = await api.getProject(item.projectId);
         const remoteRevision = Number(remote.project.current_revision) || 0;
 
-        // Never silently overwrite edits made by another device/session.
         if (remoteRevision !== item.baseRevision) {
           conflicts += 1;
           await markAttempt(
@@ -183,26 +254,50 @@ export async function flushPendingSnapshots(api: ZaxisCloudApi): Promise<QueueFl
         }
       } catch (error) {
         if (error instanceof CloudApiError && error.status === 404) {
-          const created = await api.createProject(item.snapshot);
-          await setSyncRevision(item.projectId, created.revision);
-          await removePendingSnapshot(item.projectId);
-          synced += 1;
-          continue;
+          remoteExists = false;
+        } else {
+          throw error;
         }
-
-        throw error;
       }
 
-      const pushed = await api.pushSnapshot(
-        item.snapshot,
-        item.baseRevision,
-        item.eventId,
-        "Automatic cloud autosave"
-      );
+      if (!remoteExists) {
+        const created = await api.createProject(item.snapshot);
+        await setSyncRevision(item.projectId, created.revision, item.snapshot);
+        await removePendingSnapshot(item.projectId);
+        synced += 1;
+        fullSynced += 1;
+        continue;
+      }
 
-      await setSyncRevision(item.projectId, pushed.revision);
+      const meta = await getSyncMeta(item.projectId);
+      const baseSnapshot =
+        meta?.lastKnownRevision === item.baseRevision
+          ? meta.lastSyncedSnapshot
+          : undefined;
+      const choice = shouldUseDelta(baseSnapshot, item.snapshot);
+
+      const pushed =
+        choice.useDelta && choice.delta
+          ? await api.pushDelta(
+              item.projectId,
+              item.baseRevision,
+              item.eventId,
+              choice.delta,
+              "Incremental cloud autosave"
+            )
+          : await api.pushSnapshot(
+              item.snapshot,
+              item.baseRevision,
+              item.eventId,
+              "Automatic cloud autosave"
+            );
+
+      await setSyncRevision(item.projectId, pushed.revision, item.snapshot);
       await removePendingSnapshot(item.projectId);
+
       synced += 1;
+      if (choice.useDelta) deltaSynced += 1;
+      else fullSynced += 1;
     } catch (error) {
       if (error instanceof CloudApiError && error.status === 409) {
         conflicts += 1;
@@ -216,6 +311,47 @@ export async function flushPendingSnapshots(api: ZaxisCloudApi): Promise<QueueFl
         continue;
       }
 
+      // Older servers can reject PATCH until upgraded. Fall back to full snapshot
+      // only when the delta endpoint is explicitly unavailable/invalid.
+      if (
+        error instanceof CloudApiError &&
+        (error.status === 404 || error.status === 405 || error.status === 422)
+      ) {
+        try {
+          const pushed = await api.pushSnapshot(
+            item.snapshot,
+            item.baseRevision,
+            item.eventId,
+            "Automatic cloud autosave fallback"
+          );
+
+          await setSyncRevision(item.projectId, pushed.revision, item.snapshot);
+          await removePendingSnapshot(item.projectId);
+          synced += 1;
+          fullSynced += 1;
+          continue;
+        } catch (fallbackError) {
+          if (fallbackError instanceof CloudApiError && fallbackError.status === 423) {
+            locked += 1;
+            await markAttempt(item, "Project locked by another editor");
+            continue;
+          }
+
+          if (fallbackError instanceof CloudApiError && fallbackError.status === 409) {
+            conflicts += 1;
+            await markAttempt(item, "Revision conflict");
+            continue;
+          }
+
+          failed += 1;
+          await markAttempt(
+            item,
+            fallbackError instanceof Error ? fallbackError.message : "Full sync fallback failed"
+          );
+          continue;
+        }
+      }
+
       failed += 1;
       await markAttempt(
         item,
@@ -226,6 +362,8 @@ export async function flushPendingSnapshots(api: ZaxisCloudApi): Promise<QueueFl
 
   return {
     synced,
+    deltaSynced,
+    fullSynced,
     conflicts,
     locked,
     failed,
