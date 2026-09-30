@@ -51,6 +51,7 @@ import {
   saveCustomFont
 } from "../state/fontStore";
 import {
+  CloudApiError,
   ZaxisCloudApi,
   makeClientEventId,
   type CloudAsset,
@@ -102,6 +103,15 @@ type CloudSaveState =
   | "saved"
   | "offline"
   | "conflict"
+  | "locked"
+  | "error";
+
+type ProjectLockState =
+  | "disabled"
+  | "acquiring"
+  | "owned"
+  | "blocked"
+  | "offline"
   | "error";
 
 const navigation: Array<{ id: Screen; label: string }> = [
@@ -139,6 +149,8 @@ export function App() {
     appSettings.cloudApiUrl.trim() ? "queued" : "disabled"
   );
   const [pendingCloudCount, setPendingCloudCount] = useState(0);
+  const [projectLockState, setProjectLockState] = useState<ProjectLockState>("disabled");
+  const [projectLockMessage, setProjectLockMessage] = useState("Local-only project");
   const [pdfExportOpen, setPdfExportOpen] = useState(false);
   const fontInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new SnapshotHistory(project));
@@ -231,6 +243,8 @@ export function App() {
 
       if (result.conflicts > 0) {
         setCloudSaveState("conflict");
+      } else if (result.locked > 0) {
+        setCloudSaveState("locked");
       } else if (result.failed > 0) {
         setCloudSaveState(navigator.onLine ? "error" : "offline");
       } else {
@@ -321,6 +335,107 @@ export function App() {
       window.removeEventListener("offline", onOffline);
     };
   }, [appSettings.cloudApiUrl, flushCloudQueue]);
+
+
+  useEffect(() => {
+    const apiUrl = appSettings.cloudApiUrl.trim();
+    const token = cloudToken.trim();
+
+    if (screen !== "editor" || !apiUrl || !token) {
+      setProjectLockState("disabled");
+      setProjectLockMessage(
+        !apiUrl || !token ? "Cloud lock not active" : "Lock acquired only while Editor is open"
+      );
+      return;
+    }
+
+    if (!navigator.onLine) {
+      setProjectLockState("offline");
+      setProjectLockMessage("Offline — local edits stay queued");
+      return;
+    }
+
+    const api = new ZaxisCloudApi(apiUrl, token);
+    let disposed = false;
+    let hasOwnedLock = false;
+
+    async function acquireOrRefreshLock() {
+      if (!hasOwnedLock) {
+        setProjectLockState("acquiring");
+        setProjectLockMessage("Acquiring cloud edit lock...");
+      }
+
+      try {
+        const result = await api.acquireProjectLock(project.id, "Zaxis KDP Windows", 120);
+
+        if (disposed) return;
+
+        hasOwnedLock = true;
+        setProjectLockState("owned");
+        setProjectLockMessage(
+          "Owned until " + new Date(result.lock.expires_at).toLocaleTimeString()
+        );
+
+        if (cloudSaveState === "locked") {
+          void flushCloudQueue();
+        }
+      } catch (error) {
+        if (disposed) return;
+
+        if (error instanceof CloudApiError && error.status === 404) {
+          hasOwnedLock = false;
+          setProjectLockState("disabled");
+          setProjectLockMessage("Cloud project will be locked after first sync");
+          return;
+        }
+
+        if (error instanceof CloudApiError && error.status === 423) {
+          hasOwnedLock = false;
+          const payload =
+            error.payload && typeof error.payload === "object"
+              ? (error.payload as { lock?: { client_name?: string; user_name?: string; expires_at?: string } })
+              : undefined;
+          const lock = payload?.lock;
+          const owner = lock?.user_name || lock?.client_name || "another editor";
+          const expiry = lock?.expires_at
+            ? " until " + new Date(lock.expires_at).toLocaleTimeString()
+            : "";
+
+          setProjectLockState("blocked");
+          setProjectLockMessage("Locked by " + owner + expiry);
+          setCloudSaveState("locked");
+          return;
+        }
+
+        hasOwnedLock = false;
+        setProjectLockState("error");
+        setProjectLockMessage(error instanceof Error ? error.message : "Project lock error");
+      }
+    }
+
+    void acquireOrRefreshLock();
+    const interval = window.setInterval(() => {
+      if (navigator.onLine) {
+        void acquireOrRefreshLock();
+      }
+    }, 60_000);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+
+      if (hasOwnedLock && navigator.onLine) {
+        void api.releaseProjectLock(project.id).catch(() => undefined);
+      }
+    };
+  }, [
+    screen,
+    project.id,
+    appSettings.cloudApiUrl,
+    cloudToken,
+    cloudSaveState,
+    flushCloudQueue
+  ]);
 
   useEffect(() => {
     if (!project.artboards.some((item) => item.id === selectedArtboardId)) {
@@ -575,6 +690,9 @@ export function App() {
             <span className={"save-state cloud-" + cloudSaveState}>
               Cloud: {cloudSaveLabel(cloudSaveState, pendingCloudCount)}
             </span>
+            <span className={"save-state lock-" + projectLockState} title={projectLockMessage}>
+              Lock: {projectLockLabel(projectLockState)}
+            </span>
             <button className="secondary" onClick={() => setPdfExportOpen(true)}>Export PDF</button>
             <input
               ref={fontInputRef}
@@ -691,8 +809,18 @@ function cloudSaveLabel(state: CloudSaveState, pendingCount: number) {
   if (state === "offline") return "Offline — " + pendingCount + " queued";
   if (state === "queued") return pendingCount + " queued";
   if (state === "conflict") return "Conflict — review needed";
+  if (state === "locked") return "Locked — " + pendingCount + " queued";
   if (state === "error") return "Sync error — queued";
   return "Saved to Cloud";
+}
+
+function projectLockLabel(state: ProjectLockState) {
+  if (state === "acquiring") return "Acquiring...";
+  if (state === "owned") return "This device";
+  if (state === "blocked") return "Another editor";
+  if (state === "offline") return "Offline";
+  if (state === "error") return "Error";
+  return "Inactive";
 }
 
 function titleFor(screen: Screen) {
