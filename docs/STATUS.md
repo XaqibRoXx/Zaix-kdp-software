@@ -180,6 +180,12 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] KDP Trim / Bleed / Safe overlay toggles in the editor toolbar.
+- [x] Bleed-aware trim boundaries on interior artboards.
+- [x] Page-count-based safe-area overlay uses current KDP inside/outside margin rules.
+- [x] Odd/right pages place the gutter on the left; even/left pages place the gutter on the right.
+- [x] Page side/number indicator shown directly on KDP guide overlay.
+- [x] Generic Phase 1 safe border is hidden on KDP pages to avoid conflicting guidance.
 - [x] Incremental cloud sync endpoint applies versioned project deltas to the latest full snapshot.
 - [x] Revision history still stores a complete snapshot after every delta for recovery.
 - [x] Desktop remembers the last successfully synced full snapshot in IndexedDB.
