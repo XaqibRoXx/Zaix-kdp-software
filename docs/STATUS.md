@@ -47,6 +47,12 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification.
 
 ## Newly Completed in Current Implementation
+- [x] Canvas drag/move for unlocked objects with live preview.
+- [x] Bottom-right resize handle with live preview.
+- [x] One Undo/Redo history entry per completed drag/resize gesture.
+- [x] Align selected object: left/center/right/top/middle/bottom.
+- [x] Fit selected object inside artboard.
+- [x] Session-level custom font import for TTF/OTF/WOFF/WOFF2/TTC via FontFace API.
 - [x] Native Windows font-folder discovery through Tauri.
 - [x] Installed TTF/OTF/TTC font names exposed to the text inspector.
 - [x] Text font selector uses system-font results with development fallbacks.
@@ -80,9 +86,9 @@ Last updated: 2026-09-30
 - [ ] Advanced text engine. Basic editable text objects, font family/size/color are working.
 - [ ] Advanced vector paths/bezier editor. Rectangle and ellipse objects are working.
 - [ ] Advanced image crop/masks. Clipboard paste plus contain/cover/fill image fit are working.
-- [ ] Alignment/distribution/guides/grid/snap.
-- [ ] Transform controls.
-- [ ] Custom/cloud font upload/install. Windows installed-font discovery is working.
+- [ ] Distribution/guides/grid/snap. Single-object artboard alignment controls are working.
+- [ ] Advanced transforms. Canvas drag/move, resize handle, rotation/opacity inspector controls are working.
+- [ ] Persistent custom/cloud font install. Session-level custom font import plus Windows installed-font discovery are working.
 - [x] Initial bulk artboard resize (apply active size/unit to all). Advanced content behavior remains Phase 1 work.
 - [ ] Graphic-design presets.
 - [ ] KDP/book presets in project creation.
