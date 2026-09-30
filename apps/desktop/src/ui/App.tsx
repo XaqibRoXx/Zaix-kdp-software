@@ -45,13 +45,17 @@ import {
 } from "../state/fontStore";
 import {
   ZaxisCloudApi,
+  makeClientEventId,
   type CloudAsset,
   type CloudProjectSummary
 } from "../cloud/apiClient";
 import {
   flushPendingSnapshots,
+  getPendingSnapshot,
   pendingSyncCount,
-  queueProjectSnapshot
+  queueProjectSnapshot,
+  removePendingSnapshot,
+  setSyncRevision
 } from "../cloud/syncQueue";
 import {
   deleteProjectFromLibrary,
@@ -479,6 +483,22 @@ export function App() {
     setRevisions(listRevisions(restored.id));
   }
 
+  function replaceProjectFromCloud(snapshot: ZaxisProject) {
+    const normalized: ZaxisProject = {
+      ...snapshot,
+      updatedAt: new Date().toISOString()
+    };
+
+    createRevision(project, "Before cloud conflict resolution");
+    historyRef.current.reset(normalized);
+    setProject(normalized);
+    setSelectedArtboardId(normalized.artboards[0]?.id ?? "");
+    setSelectedObjectId(null);
+    saveProject(normalized);
+    setProjectSummaries(listProjectSummaries());
+    setRevisions(listRevisions(normalized.id));
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -593,6 +613,7 @@ export function App() {
             automaticState={cloudSaveState}
             pendingCount={pendingCloudCount}
             onFlushQueue={flushCloudQueue}
+            onReplaceProject={replaceProjectFromCloud}
           />
         )}
         {screen === "settings" && (
@@ -1872,7 +1893,8 @@ function CloudScreen({
   project,
   automaticState,
   pendingCount,
-  onFlushQueue
+  onFlushQueue,
+  onReplaceProject
 }: {
   settings: AppSettings;
   onSettingsChange: (settings: AppSettings) => void;
@@ -1882,6 +1904,7 @@ function CloudScreen({
   automaticState: CloudSaveState;
   pendingCount: number;
   onFlushQueue: () => Promise<void>;
+  onReplaceProject: (snapshot: ZaxisProject) => void;
 }) {
   const [status, setStatus] = useState("Not tested");
   const [identity, setIdentity] = useState("");
@@ -1890,6 +1913,12 @@ function CloudScreen({
   const [credentialStatus, setCredentialStatus] = useState("");
   const [connectionCode, setConnectionCode] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
+  const [conflictInfo, setConflictInfo] = useState<{
+    remoteRevision: number;
+    remote: ZaxisProject | null;
+    local: ZaxisProject;
+    queuedAt: string;
+  } | null>(null);
 
   function api() {
     return new ZaxisCloudApi(settings.cloudApiUrl.trim(), token.trim() || undefined);
@@ -2024,6 +2053,73 @@ function CloudScreen({
     }
   }
 
+  async function inspectConflict() {
+    if (!settings.cloudApiUrl.trim() || !token.trim()) return;
+
+    try {
+      const pending = await getPendingSnapshot(project.id);
+      const remote = await api().getProject(project.id);
+
+      if (!pending) {
+        setConflictInfo(null);
+        setSyncStatus("No pending local conflict snapshot exists.");
+        return;
+      }
+
+      setConflictInfo({
+        remoteRevision: Number(remote.project.current_revision) || 0,
+        remote: remote.snapshot,
+        local: pending.snapshot,
+        queuedAt: pending.queuedAt
+      });
+      setSyncStatus("Conflict details loaded. Choose which version to keep.");
+    } catch (error) {
+      setSyncStatus(error instanceof Error ? error.message : "Could not inspect conflict.");
+    }
+  }
+
+  async function useCloudVersion() {
+    if (!conflictInfo?.remote) {
+      setSyncStatus("Cloud snapshot is not available.");
+      return;
+    }
+
+    if (!window.confirm("Replace the local project with the cloud version? A local safety revision will be created first.")) {
+      return;
+    }
+
+    onReplaceProject(conflictInfo.remote);
+    await removePendingSnapshot(project.id);
+    await setSyncRevision(project.id, conflictInfo.remoteRevision);
+    setConflictInfo(null);
+    setSyncStatus("Cloud version restored locally.");
+  }
+
+  async function keepLocalVersion() {
+    if (!conflictInfo) return;
+
+    if (!window.confirm("Explicitly replace the newer cloud project with your queued local version?")) {
+      return;
+    }
+
+    try {
+      const pushed = await api().pushSnapshot(
+        conflictInfo.local,
+        conflictInfo.remoteRevision,
+        makeClientEventId(),
+        "Conflict resolved: keep local"
+      );
+
+      await setSyncRevision(project.id, pushed.revision);
+      await removePendingSnapshot(project.id);
+      setConflictInfo(null);
+      setSyncStatus("Local version saved to cloud at revision " + pushed.revision + ".");
+      await refreshProjects();
+    } catch (error) {
+      setSyncStatus(error instanceof Error ? error.message : "Conflict resolution failed.");
+    }
+  }
+
   return (
     <section className="content">
       <div className="panel">
@@ -2082,6 +2178,27 @@ function CloudScreen({
             <strong>{cloudSaveLabel(automaticState, pendingCount)}</strong>
           </div>
         </div>
+        {(automaticState === "conflict" || conflictInfo) && (
+          <div className="conflict-panel">
+            <div>
+              <strong>Cloud Sync Conflict</strong>
+              <small>Another device/session changed this project after your local copy was based on an older revision.</small>
+            </div>
+            {conflictInfo && (
+              <div className="conflict-summary">
+                <span>Cloud revision {conflictInfo.remoteRevision}</span>
+                <span>Local queued {new Date(conflictInfo.queuedAt).toLocaleString()}</span>
+                <span>Local artboards {conflictInfo.local.artboards.length}</span>
+                <span>Cloud artboards {conflictInfo.remote?.artboards.length ?? 0}</span>
+              </div>
+            )}
+            <div className="hero-actions">
+              <button className="secondary" onClick={() => void inspectConflict()}>Review Conflict</button>
+              <button className="secondary" disabled={!conflictInfo?.remote} onClick={() => void useCloudVersion()}>Use Cloud</button>
+              <button className="primary" disabled={!conflictInfo} onClick={() => void keepLocalVersion()}>Keep Local</button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="panel">
