@@ -21,6 +21,7 @@ import {
   addTextObject,
   createBlankProject,
   createOrUpdateKdpCoverArtboard,
+  createOrUpdateTocArtboard,
   deleteArtboard,
   deleteObject,
   deletePathPoint,
@@ -1285,7 +1286,10 @@ function EditorShell({
           >
             <span>{item.role === "cover" ? "C" : index + 1}</span>
             <div style={{ aspectRatio: String(item.width) + " / " + String(item.height) }} />
-            <small>{item.role === "cover" ? "Cover • " : ""}{item.width} × {item.height} {item.unit}</small>
+            <small>
+              {item.role === "cover" ? "Cover • " : item.kind === "toc" ? "TOC • " : ""}
+              {item.width} × {item.height} {item.unit}
+            </small>
           </button>
         ))}
 
@@ -2054,6 +2058,12 @@ function KdpBookPanel({
     if (result.artboardId) onOpenArtboard(result.artboardId);
   };
 
+  const generateToc = () => {
+    const result = createOrUpdateTocArtboard(project);
+    onCommit(result.project);
+    if (result.artboardId) onOpenArtboard(result.artboardId);
+  };
+
   const addChapter = () => {
     const title = window.prompt("Chapter title", "Chapter " + (structure.chapters.length + 1));
     if (!title?.trim()) return;
@@ -2224,7 +2234,10 @@ function KdpBookPanel({
       <div className="kdp-subsection">
         <div className="kdp-subsection-head">
           <strong>Chapters & TOC</strong>
-          <button className="secondary" onClick={addChapter}>+ Chapter</button>
+          <div className="hero-actions">
+            <button className="secondary" onClick={addChapter}>+ Chapter</button>
+            <button className="secondary" onClick={generateToc}>Generate / Update TOC</button>
+          </div>
         </div>
 
         <label className="inspector-field">TOC Title
