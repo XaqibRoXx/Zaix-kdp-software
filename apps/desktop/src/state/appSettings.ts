@@ -4,6 +4,8 @@ export interface AppSettings {
   autosaveDelayMs: number;
   gridDefault: boolean;
   snapDefault: boolean;
+  cloudApiUrl: string;
+  shareDomain: string;
 }
 
 const SETTINGS_KEY = "zaxis-kdp:settings";
@@ -13,7 +15,9 @@ export const defaultSettings: AppSettings = {
   cacheLocation: "System Default",
   autosaveDelayMs: 450,
   gridDefault: true,
-  snapDefault: true
+  snapDefault: true,
+  cloudApiUrl: "",
+  shareDomain: ""
 };
 
 export function loadAppSettings(): AppSettings {
