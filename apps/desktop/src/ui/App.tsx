@@ -6,11 +6,13 @@ import {
   addArtboard,
   addImageObject,
   addPathObject,
+  addPathPoint,
   addShapeObject,
   addTextObject,
   createBlankProject,
   deleteArtboard,
   deleteObject,
+  deletePathPoint,
   distributeObjects,
   duplicateArtboard,
   fitObjectInsideArtboard,
@@ -805,6 +807,42 @@ function EditorShell({
               onChange={(input) => onCommit(updateObject(project, artboard.id, selectedObject.id, input))}
               systemFonts={systemFonts}
             />
+            {selectedObject.type === "path" && (
+              <div className="path-point-tools">
+                <button className="secondary full" onClick={() => onCommit(addPathPoint(project, artboard.id, selectedObject.id))}>+ Add Anchor Point</button>
+                <div className="path-point-list">
+                  {selectedObject.points.map((point, index) => (
+                    <div className="path-point-row" key={point.id}>
+                      <span>P{index + 1}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={point.x}
+                        onChange={(event) => {
+                          const points = selectedObject.points.map((item) => item.id === point.id ? { ...item, x: Number(event.target.value) } : item);
+                          onCommit(updateObject(project, artboard.id, selectedObject.id, { points }));
+                        }}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={point.y}
+                        onChange={(event) => {
+                          const points = selectedObject.points.map((item) => item.id === point.id ? { ...item, y: Number(event.target.value) } : item);
+                          onCommit(updateObject(project, artboard.id, selectedObject.id, { points }));
+                        }}
+                      />
+                      <button
+                        disabled={selectedObject.points.length <= 2}
+                        onClick={() => onCommit(deletePathPoint(project, artboard.id, selectedObject.id, point.id))}
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="alignment-grid">
               <button onClick={() => onCommit(alignObject(project, artboard.id, selectedObject.id, "left"))}>Left</button>
               <button onClick={() => onCommit(alignObject(project, artboard.id, selectedObject.id, "center"))}>Center</button>
