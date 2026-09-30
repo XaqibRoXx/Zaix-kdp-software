@@ -270,6 +270,30 @@ export function App() {
     setSelectedObjectId(null);
   }
 
+  function makeRevision() {
+    const label = window.prompt("Version name", "Manual Version");
+    if (!label?.trim()) return;
+    createRevision(project, label);
+    setRevisions(listRevisions(project.id));
+  }
+
+  function restoreRevision(revision: ProjectRevision) {
+    createRevision(project, "Before restore");
+
+    const restored: ZaxisProject = {
+      ...revision.snapshot,
+      updatedAt: new Date().toISOString()
+    };
+
+    historyRef.current.reset(restored);
+    setProject(restored);
+    setSelectedArtboardId(restored.artboards[0]?.id ?? "");
+    setSelectedObjectId(null);
+    saveProject(restored);
+    setProjectSummaries(listProjectSummaries());
+    setRevisions(listRevisions(restored.id));
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
