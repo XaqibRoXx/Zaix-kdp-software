@@ -820,7 +820,8 @@ function EditorShell({
                         max="100"
                         value={point.x}
                         onChange={(event) => {
-                          const points = selectedObject.points.map((item) => item.id === point.id ? { ...item, x: Number(event.target.value) } : item);
+                          const nextX = Number(event.target.value);
+                          const points = selectedObject.points.map((item) => item.id === point.id ? { ...item, x: nextX } : item);
                           onCommit(updateObject(project, artboard.id, selectedObject.id, { points }));
                         }}
                       />
@@ -830,10 +831,27 @@ function EditorShell({
                         max="100"
                         value={point.y}
                         onChange={(event) => {
-                          const points = selectedObject.points.map((item) => item.id === point.id ? { ...item, y: Number(event.target.value) } : item);
+                          const nextY = Number(event.target.value);
+                          const points = selectedObject.points.map((item) => item.id === point.id ? { ...item, y: nextY } : item);
                           onCommit(updateObject(project, artboard.id, selectedObject.id, { points }));
                         }}
                       />
+                      <button
+                        className={point.smooth ? "curve-toggle active" : "curve-toggle"}
+                        onClick={() => {
+                          const points = selectedObject.points.map((item) => {
+                            if (item.id !== point.id) return item;
+                            const smooth = !item.smooth;
+                            return {
+                              ...item,
+                              smooth,
+                              handleIn: smooth ? (item.handleIn ?? { x: Math.max(0, item.x - 10), y: item.y }) : undefined,
+                              handleOut: smooth ? (item.handleOut ?? { x: Math.min(100, item.x + 10), y: item.y }) : undefined
+                            };
+                          });
+                          onCommit(updateObject(project, artboard.id, selectedObject.id, { points }));
+                        }}
+                      >{point.smooth ? "S" : "C"}</button>
                       <button
                         disabled={selectedObject.points.length <= 2}
                         onClick={() => onCommit(deletePathPoint(project, artboard.id, selectedObject.id, point.id))}
@@ -1062,10 +1080,24 @@ function CanvasObject({
           }
 
           if (kind === "in") {
-            return { ...point, handleIn: { x, y } };
+            return {
+              ...point,
+              handleIn: { x, y },
+              handleOut: point.smooth ? {
+                x: Math.max(0, Math.min(100, point.x * 2 - x)),
+                y: Math.max(0, Math.min(100, point.y * 2 - y))
+              } : point.handleOut
+            };
           }
 
-          return { ...point, handleOut: { x, y } };
+          return {
+            ...point,
+            handleOut: { x, y },
+            handleIn: point.smooth ? {
+              x: Math.max(0, Math.min(100, point.x * 2 - x)),
+              y: Math.max(0, Math.min(100, point.y * 2 - y))
+            } : point.handleIn
+          };
         });
 
         onChange({ points });
