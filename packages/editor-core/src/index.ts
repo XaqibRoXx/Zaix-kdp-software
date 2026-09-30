@@ -1,5 +1,10 @@
 import type { Unit } from "@zaxis-kdp/shared";
-import { createDefaultKdpSettings, type KdpSettings } from "./kdpRules";
+import {
+  KDP_RULES,
+  calculatePaperbackCoverSize,
+  createDefaultKdpSettings,
+  type KdpSettings
+} from "./kdpRules";
 
 export * from "./kdpRules";
 
@@ -84,6 +89,7 @@ export type DesignObject = TextObject | ShapeObject | ImageObject | PathObject;
 export interface Artboard {
   id: string;
   name: string;
+  role?: "page" | "cover";
   width: number;
   height: number;
   unit: Unit;
@@ -188,6 +194,7 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
     kdpSettings,
     artboards: project.artboards.map((artboard) => ({
       ...artboard,
+      role: artboard.role ?? "page",
       objects: (Array.isArray(artboard.objects) ? artboard.objects : []).map((object) => {
         object = {
           ...object,
@@ -254,6 +261,7 @@ export function createBlankProject(input: BlankProjectInput): ZaxisProject {
       {
         id: id("artboard"),
         name: "Artboard 1",
+        role: "page",
         width: input.width,
         height: input.height,
         unit: input.unit,
@@ -289,6 +297,64 @@ export function updateKdpSettings(
   };
 }
 
+export function createOrUpdateKdpCoverArtboard(
+  project: ZaxisProject
+): { project: ZaxisProject; artboardId: string } {
+  if (project.mode !== "kdp") {
+    return { project, artboardId: project.artboards[0]?.id ?? "" };
+  }
+
+  const settings =
+    project.kdpSettings ??
+    createDefaultKdpSettings(
+      project.artboards.find((item) => (item.role ?? "page") === "page")?.width ?? 6,
+      project.artboards.find((item) => (item.role ?? "page") === "page")?.height ?? 9,
+      project.artboards.find((item) => (item.role ?? "page") === "page")?.unit ?? "in"
+    );
+
+  const pageCount = project.artboards.filter((item) => (item.role ?? "page") === "page").length;
+   const cover = calculatePaperbackCoverSize(pageCount, settings);
+  const existing = project.artboards.find((item) => item.role === "cover");
+
+  if (existing) {
+    const artboards = project.artboards.map((artboard) =>
+      artboard.id === existing.id
+        ? {
+            ...artboard,
+            name: "Paperback Cover",
+            role: "cover" as const,
+            width: cover.widthIn,
+            height: cover.heightIn,
+            unit: "in" as Unit
+          }
+        : artboard
+    );
+
+    return {
+      project: touch(project, artboards),
+      artboardId: existing.id
+    };
+  }
+
+  const artboardId = id("artboard");
+  const coverArtboard: Artboard = {
+    id: artboardId,
+    name: "Paperback Cover",
+    role: "cover",
+    width: cover.widthIn,
+    height: cover.heightIn,
+    unit: "in",
+    bleed: KDP_RULES.bleedIn,
+    background: "#ffffff",
+    objects: []
+  };
+
+  return {
+    project: touch(project, [...project.artboards, coverArtboard]),
+    artboardId
+  };
+}
+
 export function addArtboard(
   project: ZaxisProject,
   source?: Partial<Pick<Artboard, "width" | "height" | "unit" | "bleed" | "background">>
@@ -299,6 +365,7 @@ export function addArtboard(
   const artboard: Artboard = {
     id: id("artboard"),
     name: "Artboard " + nextNumber,
+    role: "page",
     width: source?.width ?? previous?.width ?? 7,
     height: source?.height ?? previous?.height ?? 10,
     unit: source?.unit ?? previous?.unit ?? "in",
