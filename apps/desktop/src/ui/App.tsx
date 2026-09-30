@@ -5,6 +5,7 @@ import {
   alignObject,
   addArtboard,
   addImageObject,
+  addPathObject,
   addShapeObject,
   addTextObject,
   createBlankProject,
@@ -563,6 +564,7 @@ function EditorShell({
   const [gridVisible, setGridVisible] = useState(appSettings.gridDefault);
   const [snapEnabled, setSnapEnabled] = useState(appSettings.snapDefault);
   const [smartGuide, setSmartGuide] = useState<{ vertical: boolean; horizontal: boolean }>({ vertical: false, horizontal: false });
+  const [activeTool, setActiveTool] = useState<"select" | "direct">("select");
 
   const artboard = useMemo(
     () => project.artboards.find((item) => item.id === selectedArtboardId) ?? project.artboards[0],
@@ -619,6 +621,13 @@ function EditorShell({
     onSelectObject(result.objectId);
   }
 
+  function createPath() {
+    const result = addPathObject(project, artboard.id);
+    onCommit(result.project);
+    onSelectObject(result.objectId);
+    setActiveTool("direct");
+  }
+
   function createShape(type: "rectangle" | "ellipse") {
     const result = addShapeObject(project, artboard.id, type);
     onCommit(result.project);
@@ -634,12 +643,12 @@ function EditorShell({
   return (
     <section className="editor-layout">
       <aside className="tools">
-        <button title="Select">S</button>
-        <button title="Direct Select">D</button>
+        <button className={activeTool === "select" ? "active-tool" : ""} title="Select" onClick={() => setActiveTool("select")}>S</button>
+        <button className={activeTool === "direct" ? "active-tool" : ""} title="Direct Select" onClick={() => setActiveTool("direct")}>D</button>
         <button title="Text" onClick={createText}>T</button>
         <button title="Rectangle" onClick={() => createShape("rectangle")}>R</button>
         <button title="Ellipse" onClick={() => createShape("ellipse")}>O</button>
-        <button title="Pen">P</button>
+        <button title="Pen / Path" onClick={createPath}>P</button>
         <button title="Image — use Ctrl+V to paste">I</button>
         <button title="Hand">H</button>
         <button title="Zoom">Z</button>
@@ -712,6 +721,7 @@ function EditorShell({
                 onChange={(input) => onCommit(updateObject(project, artboard.id, object.id, input))}
                 snap={snapEnabled}
                 onGuideChange={setSmartGuide}
+                directEdit={activeTool === "direct"}
               />
             ))}
 
@@ -809,7 +819,8 @@ function CanvasObject({
   onSelect,
   onChange,
   snap,
-  onGuideChange
+  onGuideChange,
+  directEdit
 }: {
   object: DesignObject;
   selected: boolean;
@@ -817,6 +828,7 @@ function CanvasObject({
   onChange: (input: Parameters<typeof updateObject>[3]) => void;
   snap: boolean;
   onGuideChange: (guide: { vertical: boolean; horizontal: boolean }) => void;
+  directEdit: boolean;
 }) {
   const [preview, setPreview] = useState<null | { x: number; y: number; width: number; height: number }>(null);
   const frame = preview ?? { x: object.x, y: object.y, width: object.width, height: object.height };
@@ -919,6 +931,70 @@ function CanvasObject({
     <button className="resize-handle" aria-label="Resize object" onPointerDown={beginResize} />
   ) : null;
 
+  if (object.type === "path") {
+    const pathData = object.points
+      .map((point, index) => (index === 0 ? "M " : "L ") + point.x + " " + point.y)
+      .join(" ") + (object.closed ? " Z" : "");
+
+    function beginPointDrag(event: React.PointerEvent<HTMLButtonElement>, pointId: string) {
+      if (!directEdit || object.locked || object.type !== "path") return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      onSelect();
+
+      const frameElement = event.currentTarget.closest(".design-object");
+      if (!(frameElement instanceof HTMLElement)) return;
+
+      const rect = frameElement.getBoundingClientRect();
+      const originalPoints = object.points.map((point) => ({ ...point }));
+      const pointIndex = originalPoints.findIndex((point) => point.id === pointId);
+      if (pointIndex < 0) return;
+
+      function finish(pointerEvent: PointerEvent) {
+        const x = Math.max(0, Math.min(100, ((pointerEvent.clientX - rect.left) / rect.width) * 100));
+        const y = Math.max(0, Math.min(100, ((pointerEvent.clientY - rect.top) / rect.height) * 100));
+        const points = originalPoints.map((point, index) => index === pointIndex ? { ...point, x, y } : point);
+        onChange({ points });
+        window.removeEventListener("pointerup", finish);
+      }
+
+      window.addEventListener("pointerup", finish, { once: true });
+    }
+
+    return (
+      <div
+        className={selected ? "design-object path-object selected" : "design-object path-object"}
+        style={commonStyle}
+        onPointerDown={directEdit ? undefined : beginDrag}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelect();
+        }}
+      >
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+          <path
+            d={pathData}
+            fill={object.closed ? object.fill : "none"}
+            stroke={object.stroke}
+            strokeWidth={object.strokeWidth}
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+        {selected && directEdit && object.points.map((point) => (
+          <button
+            key={point.id}
+            className="path-node"
+            style={{ left: point.x + "%", top: point.y + "%" }}
+            onPointerDown={(event) => beginPointDrag(event, point.id)}
+            title="Drag anchor point"
+          />
+        ))}
+        {handle}
+      </div>
+    );
+  }
+
   if (object.type === "image") {
     return (
       <div
@@ -1007,7 +1083,26 @@ function ObjectInspector({
         <input type="number" min="0" max="1" step="0.05" value={object.opacity} onChange={(event) => onChange({ opacity: Number(event.target.value) })} />
       </label>
 
-      {object.type === "image" ? (
+      {object.type === "path" ? (
+        <>
+          <label className="inspector-field">Closed Path
+            <select value={object.closed ? "yes" : "no"} onChange={(event) => onChange({ closed: event.target.value === "yes" })}>
+              <option value="no">Open</option>
+              <option value="yes">Closed</option>
+            </select>
+          </label>
+          <label className="inspector-field">Fill
+            <input type="color" value={object.fill === "transparent" ? "#ffffff" : object.fill} onChange={(event) => onChange({ fill: event.target.value })} />
+          </label>
+          <label className="inspector-field">Stroke
+            <input type="color" value={object.stroke} onChange={(event) => onChange({ stroke: event.target.value })} />
+          </label>
+          <label className="inspector-field">Stroke Width
+            <input type="number" min="0" value={object.strokeWidth} onChange={(event) => onChange({ strokeWidth: Number(event.target.value) })} />
+          </label>
+          <Property label="Anchor Points" value={String(object.points.length)} />
+        </>
+      ) : object.type === "image" ? (
         <>
           <label className="inspector-field">Fit
             <select value={object.fit} onChange={(event) => onChange({ fit: event.target.value as "contain" | "cover" | "fill" })}>
