@@ -14,7 +14,6 @@ import {
   fitObjectInsideArtboard,
   moveArtboard,
   moveObjectLayer,
-  normalizeProject,
   resizeAllArtboards,
   resizeArtboard,
   setObjectLocked,
@@ -24,6 +23,15 @@ import {
   type ZaxisProject
 } from "@zaxis-kdp/editor-core";
 import type { SaveState, Unit } from "@zaxis-kdp/shared";
+import {
+  deleteProjectFromLibrary,
+  listProjectSummaries,
+  loadActiveProject,
+  loadProject,
+  renameProjectInLibrary,
+  saveProject,
+  type ProjectSummary
+} from "../state/projectLibrary";
 
 type Screen = "dashboard" | "editor" | "assets" | "cloud" | "settings";
 
@@ -35,18 +43,10 @@ const navigation: Array<{ id: Screen; label: string }> = [
   { id: "settings", label: "Settings" }
 ];
 
-const STORAGE_KEY = "zaxis-kdp:current-project";
 const units: Unit[] = ["px", "in", "cm", "mm", "pt", "pc"];
 
 function initialProject(): ZaxisProject {
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored) return normalizeProject(JSON.parse(stored) as ZaxisProject);
-  } catch {
-    // Recovery storage should never block app startup.
-  }
-
-  return createBlankProject({
+  return loadActiveProject() ?? createBlankProject({
     name: "Untitled Design",
     width: 7,
     height: 10,
@@ -61,6 +61,7 @@ export function App() {
   const [selectedArtboardId, setSelectedArtboardId] = useState(project.artboards[0].id);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [systemFonts, setSystemFonts] = useState<string[]>(["Arial", "Calibri", "Segoe UI", "Times New Roman"]);
+  const [projectSummaries, setProjectSummaries] = useState<ProjectSummary[]>(() => listProjectSummaries());
   const fontInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new SnapshotHistory(project));
 
@@ -79,7 +80,8 @@ export function App() {
 
     const timer = window.setTimeout(() => {
       try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+        saveProject(project);
+        setProjectSummaries(listProjectSummaries());
         setSaveState("saved");
       } catch {
         setSaveState("error");
@@ -192,11 +194,63 @@ export function App() {
       height: 10,
       unit: "in"
     });
+    saveProject(next);
+    setProjectSummaries(listProjectSummaries());
     historyRef.current.reset(next);
     setProject(next);
     setSelectedArtboardId(next.artboards[0].id);
     setSelectedObjectId(null);
     setScreen("editor");
+  }
+
+  function openProject(projectId: string) {
+    const next = loadProject(projectId);
+    if (!next) return;
+
+    historyRef.current.reset(next);
+    setProject(next);
+    setSelectedArtboardId(next.artboards[0]?.id ?? "");
+    setSelectedObjectId(null);
+    setScreen("editor");
+  }
+
+  function renameProject(projectId: string) {
+    const target = loadProject(projectId);
+    if (!target) return;
+
+    const name = window.prompt("Project name", target.name);
+    if (!name?.trim()) return;
+
+    const next = renameProjectInLibrary(target, name);
+    setProjectSummaries(listProjectSummaries());
+
+    if (project.id === projectId) {
+      historyRef.current.reset(next);
+      setProject(next);
+    }
+  }
+
+  function removeProject(projectId: string) {
+    if (!window.confirm("Delete this local project recovery copy?")) return;
+
+    deleteProjectFromLibrary(projectId);
+    const summaries = listProjectSummaries();
+    setProjectSummaries(summaries);
+
+    if (project.id !== projectId) return;
+
+    const replacement = loadActiveProject() ?? createBlankProject({
+      name: "Untitled Design",
+      width: 7,
+      height: 10,
+      unit: "in"
+    });
+
+    saveProject(replacement);
+    historyRef.current.reset(replacement);
+    setProject(replacement);
+    setSelectedArtboardId(replacement.artboards[0]?.id ?? "");
+    setSelectedObjectId(null);
   }
 
   return (
@@ -256,7 +310,17 @@ export function App() {
           </div>
         </header>
 
-        {screen === "dashboard" && <Dashboard project={project} onOpen={() => setScreen("editor")} />}
+        {screen === "dashboard" && (
+          <Dashboard
+            project={project}
+            projects={projectSummaries}
+            onOpen={() => setScreen("editor")}
+            onOpenProject={openProject}
+            onRenameProject={renameProject}
+            onDeleteProject={removeProject}
+            onNewProject={createNewProject}
+          />
+        )}
         {screen === "editor" && (
           <EditorShell
             project={project}
@@ -304,15 +368,31 @@ function titleFor(screen: Screen) {
   return "Zaxis KDP";
 }
 
-function Dashboard({ project, onOpen }: { project: ZaxisProject; onOpen: () => void }) {
+function Dashboard({
+  project,
+  projects,
+  onOpen,
+  onOpenProject,
+  onRenameProject,
+  onDeleteProject,
+  onNewProject
+}: {
+  project: ZaxisProject;
+  projects: ProjectSummary[];
+  onOpen: () => void;
+  onOpenProject: (id: string) => void;
+  onRenameProject: (id: string) => void;
+  onDeleteProject: (id: string) => void;
+  onNewProject: () => void;
+}) {
   const objectCount = project.artboards.reduce((total, artboard) => total + artboard.objects.length, 0);
 
   return (
     <section className="content">
       <div className="metric-grid">
-        <Metric label="Active Project" value={project.name} />
-        <Metric label="Artboards" value={String(project.artboards.length)} />
-        <Metric label="Objects" value={String(objectCount)} />
+        <Metric label="Local Projects" value={String(projects.length)} />
+        <Metric label="Active Artboards" value={String(project.artboards.length)} />
+        <Metric label="Active Objects" value={String(objectCount)} />
         <Metric label="Phase" value="1 / 4" />
       </div>
 
@@ -320,9 +400,37 @@ function Dashboard({ project, onOpen }: { project: ZaxisProject; onOpen: () => v
         <div>
           <span className="eyebrow">START DESIGNING</span>
           <h2>Book layouts and full graphic design in one cloud-first Windows workspace.</h2>
-          <p>Core layers, text and shape objects are now part of the editor model.</p>
+          <p>Local project recovery library is active now; cloud project sync comes in Phase 2.</p>
         </div>
-        <button className="primary" onClick={onOpen}>Open Editor</button>
+        <div className="hero-actions">
+          <button className="secondary" onClick={onOpen}>Open Active</button>
+          <button className="primary" onClick={onNewProject}>Create Project</button>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">RECENT PROJECTS</span>
+            <h3>Local Project Library</h3>
+          </div>
+          <span className="pill">{projects.length} saved</span>
+        </div>
+
+        <div className="project-list">
+          {projects.length === 0 ? (
+            <div className="empty-projects">No saved local projects yet.</div>
+          ) : projects.map((item) => (
+            <div className={item.id === project.id ? "project-row active" : "project-row"} key={item.id}>
+              <button className="project-main" onClick={() => onOpenProject(item.id)}>
+                <strong>{item.name}</strong>
+                <small>{item.artboardCount} artboard{item.artboardCount === 1 ? "" : "s"} • {item.mode === "kdp" ? "KDP" : "Graphic Design"}</small>
+              </button>
+              <button onClick={() => onRenameProject(item.id)}>Rename</button>
+              <button className="danger-text" onClick={() => onDeleteProject(item.id)}>Delete</button>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="panel">
@@ -333,8 +441,8 @@ function Dashboard({ project, onOpen }: { project: ZaxisProject; onOpen: () => v
           </div>
           <span className="pill">In Progress</span>
         </div>
-        <div className="progress"><span style={{ width: "46%" }} /></div>
-        <p className="muted">Artboards, layers, selectable objects, basic text/shapes, Undo/Redo and local recovery autosave are wired.</p>
+        <div className="progress"><span style={{ width: "58%" }} /></div>
+        <p className="muted">Artboards, objects, drag/resize, fonts, image paste, local multi-project recovery and Undo/Redo are now wired.</p>
       </div>
     </section>
   );
