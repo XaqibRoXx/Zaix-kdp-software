@@ -31,6 +31,11 @@ import {
   type AppSettings
 } from "../state/appSettings";
 import {
+  createRevision,
+  listRevisions,
+  type ProjectRevision
+} from "../state/revisionStore";
+import {
   deleteProjectFromLibrary,
   listProjectSummaries,
   loadActiveProject,
@@ -70,6 +75,7 @@ export function App() {
   const [systemFonts, setSystemFonts] = useState<string[]>(["Arial", "Calibri", "Segoe UI", "Times New Roman"]);
   const [projectSummaries, setProjectSummaries] = useState<ProjectSummary[]>(() => listProjectSummaries());
   const [appSettings, setAppSettings] = useState<AppSettings>(() => loadAppSettings());
+  const [revisions, setRevisions] = useState<ProjectRevision[]>(() => listRevisions(project.id));
   const fontInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new SnapshotHistory(project));
 
@@ -221,6 +227,7 @@ export function App() {
     setProject(next);
     setSelectedArtboardId(next.artboards[0]?.id ?? "");
     setSelectedObjectId(null);
+    setRevisions(listRevisions(next.id));
     setScreen("editor");
   }
 
@@ -349,6 +356,9 @@ export function App() {
             canRedo={historyRef.current.canRedo}
             systemFonts={systemFonts}
             appSettings={appSettings}
+            revisions={revisions}
+            onCreateRevision={makeRevision}
+            onRestoreRevision={restoreRevision}
           />
         )}
         {screen === "assets" && (
@@ -503,6 +513,9 @@ interface EditorShellProps {
   canRedo: boolean;
   systemFonts: string[];
   appSettings: AppSettings;
+  revisions: ProjectRevision[];
+  onCreateRevision: () => void;
+  onRestoreRevision: (revision: ProjectRevision) => void;
 }
 
 function EditorShell({
@@ -517,7 +530,10 @@ function EditorShell({
   canUndo,
   canRedo,
   systemFonts,
-  appSettings
+  appSettings,
+  revisions,
+  onCreateRevision,
+  onRestoreRevision
 }: EditorShellProps) {
   const [gridVisible, setGridVisible] = useState(appSettings.gridDefault);
   const [snapEnabled, setSnapEnabled] = useState(appSettings.snapDefault);
@@ -691,6 +707,22 @@ function EditorShell({
 
       <aside className="properties">
         <div className="panel-title">Layers & Properties</div>
+
+        <div className="revision-box">
+          <div className="revision-head">
+            <strong>Revision History</strong>
+            <button onClick={onCreateRevision}>+ Version</button>
+          </div>
+          <div className="revision-list">
+            {revisions.slice(0, 5).map((revision) => (
+              <button key={revision.id} onClick={() => onRestoreRevision(revision)}>
+                <strong>{revision.label}</strong>
+                <small>{new Date(revision.createdAt).toLocaleString()}</small>
+              </button>
+            ))}
+            {revisions.length === 0 && <small className="muted">No restore points yet.</small>}
+          </div>
+        </div>
 
         <div className="layer-list">
           {[...artboard.objects].reverse().map((object) => (
