@@ -40,13 +40,23 @@ Last updated: 2026-09-30
 - [x] Editable artboard size/unit controls.
 - [x] Undo/Redo wired to artboard editor actions.
 - [ ] Cloud/offline autosave state machine and recovery queue. Local recovery autosave is working.
-- [ ] Layers/object model.
+- [x] Initial layers/object model with visibility, locking and z-order controls.
 - [ ] Font-provider abstraction.
 - [ ] Clipboard/image ingestion architecture.
 - [ ] Full project persistence layer. Current project local recovery persistence is working.
 - [ ] First runnable Windows development build verification.
 
 ## Newly Completed in Current Implementation
+- [x] Basic object selection on canvas and from Layers panel.
+- [x] Text object creation and editing.
+- [x] Rectangle and ellipse object creation.
+- [x] Object X/Y/W/H, rotation and opacity controls.
+- [x] Shape fill/stroke/stroke-width controls.
+- [x] Layer visibility toggle.
+- [x] Layer lock/unlock.
+- [x] Layer z-order move up/down.
+- [x] Delete selected object with UI or Delete/Backspace.
+- [x] Objects persist through local recovery autosave.
 - [x] Debounced local recovery autosave with Saving/Saved/Error status.
 - [x] Active artboard selection.
 - [x] Add, duplicate, delete and move artboards.
@@ -58,9 +68,9 @@ Last updated: 2026-09-30
 
 ## Pending — Phase 1
 - [ ] Dashboard project CRUD and recent projects.
-- [ ] Full selection/direct-selection system.
-- [ ] Text engine and text controls.
-- [ ] Shapes/vector paths and bezier editor.
+- [ ] Full direct-selection/vector-node system. Basic object selection is working.
+- [ ] Advanced text engine. Basic editable text objects, font family/size/color are working.
+- [ ] Advanced vector paths/bezier editor. Rectangle and ellipse objects are working.
 - [ ] Images/crop/masks/fit/fill.
 - [ ] Alignment/distribution/guides/grid/snap.
 - [ ] Transform controls.
