@@ -53,6 +53,12 @@ import {
 
 type Screen = "dashboard" | "editor" | "assets" | "cloud" | "settings";
 
+interface NativeCacheStatus {
+  path: string;
+  size_bytes: number;
+  file_count: number;
+}
+
 const navigation: Array<{ id: Screen; label: string }> = [
   { id: "dashboard", label: "Projects" },
   { id: "editor", label: "Editor" },
@@ -98,6 +104,15 @@ export function App() {
       setSystemFonts(combined);
     });
   }, []);
+
+  useEffect(() => {
+    invoke<NativeCacheStatus>("ensure_native_cache", {
+      configuredPath: appSettings.cacheLocation,
+      maxMb: appSettings.cacheLimitMb
+    }).catch(() => {
+      // Browser preview has no native cache bridge.
+    });
+  }, [appSettings.cacheLocation, appSettings.cacheLimitMb]);
 
   useEffect(() => {
     setSaveState("saving");
@@ -1201,6 +1216,33 @@ function SettingsScreen({
   onChange: (settings: AppSettings) => void;
   onClearCache: () => void;
 }) {
+  const [nativeCache, setNativeCache] = useState<NativeCacheStatus | null>(null);
+  const [cacheMessage, setCacheMessage] = useState("");
+
+  async function refreshNativeCache() {
+    try {
+      const status = await invoke<NativeCacheStatus>("get_native_cache_status", {
+        configuredPath: settings.cacheLocation
+      });
+      setNativeCache(status);
+      setCacheMessage("");
+    } catch {
+      setCacheMessage("Native cache info is available in the Windows app.");
+    }
+  }
+
+  async function clearNativeCacheNow() {
+    try {
+      const status = await invoke<NativeCacheStatus>("clear_native_cache", {
+        configuredPath: settings.cacheLocation
+      });
+      setNativeCache(status);
+      setCacheMessage("Native cache cleared.");
+    } catch {
+      setCacheMessage("Native cache clear is available in the Windows app.");
+    }
+  }
+
   return (
     <section className="content">
       <div className="panel">
@@ -1244,6 +1286,22 @@ function SettingsScreen({
             <input type="checkbox" checked={settings.snapDefault} onChange={(event) => onChange({ ...settings, snapDefault: event.target.checked })} />
             Snap enabled by default
           </label>
+        </div>
+        <div className="cache-status-card">
+          <strong>Native Windows Cache</strong>
+          {nativeCache ? (
+            <>
+              <small>{nativeCache.path}</small>
+              <span>{(nativeCache.size_bytes / (1024 * 1024)).toFixed(2)} MB • {nativeCache.file_count} files</span>
+            </>
+          ) : (
+            <small>Check the actual filesystem cache used by the Windows app.</small>
+          )}
+          {cacheMessage && <small>{cacheMessage}</small>}
+          <div className="hero-actions">
+            <button className="secondary" onClick={() => void refreshNativeCache()}>Check Native Cache</button>
+            <button className="secondary danger" onClick={() => void clearNativeCacheNow()}>Clear Native Cache</button>
+          </div>
         </div>
         <button className="secondary danger" onClick={onClearCache}>Clear Local Recovery Cache</button>
       </div>
