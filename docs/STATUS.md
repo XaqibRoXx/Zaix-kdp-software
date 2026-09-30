@@ -180,6 +180,15 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Server-enforced expiring project edit locks.
+- [x] Project lock schema + migration for existing servers.
+- [x] Lock acquire/status/release API with 120-second default TTL.
+- [x] Snapshot writes return HTTP 423 when another active client owns the project lock.
+- [x] Stable per-installation desktop client ID added to all cloud API requests.
+- [x] Editor automatically acquires and refreshes its project lock every 60 seconds.
+- [x] Editor cleanup releases the owned lock when leaving/switching the project.
+- [x] Locked cloud writes remain queued locally instead of becoming generic failures.
+- [x] Top bar exposes current edit-lock status.
 - [x] Cloud revision snapshot retrieval endpoint.
 - [x] Desktop Cloud Revision History list for the active project.
 - [x] Restore old cloud revision as a new current revision without deleting newer history.
@@ -271,6 +280,7 @@ Last updated: 2026-09-30
 - [x] Windows user-bound encrypted API token storage with save/load/clear commands.
 - [x] Automatic Canva-style cloud autosave queue.
 - [x] Offline operation queue and automatic reconnect flush.
+- [x] Project locking with server-side write protection.
 - [ ] Automatic structural merge remains. Conflict review UI now supports explicit Use Cloud / Keep Local resolution with safety revision before local replacement.
 - [x] One-time cPanel web installer + one-time connection-code pairing workflow.
 - [x] Asset upload/list/delete/content endpoints plus automatic image proxy generation.
