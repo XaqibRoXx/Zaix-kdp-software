@@ -25,3 +25,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .inspector-field textarea{min-height:58px;resize:vertical}
 .inspector-field input[type="color"]{height:34px;padding:3px}
 .danger{border-color:#522525;color:#ff8585}
+
+.image-object{overflow:hidden;background:#f2f2f2}
+.image-object img{width:100%;height:100%;display:block;pointer-events:none}
+.inspector-field select{width:100%;background:#111513;color:#fff;border:1px solid #2b3330;border-radius:6px;padding:7px}
