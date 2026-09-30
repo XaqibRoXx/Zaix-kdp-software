@@ -1211,7 +1211,13 @@ function CanvasObject({
             objectFit: object.fit,
             objectPosition: object.cropX + "% " + object.cropY + "%",
             transform: "scale(" + object.scale + ")",
-            borderRadius: object.borderRadius + "px"
+            borderRadius: object.borderRadius + "px",
+            clipPath:
+              object.maskType === "ellipse"
+                ? "ellipse(50% 50% at 50% 50%)"
+                : object.maskType === "polygon"
+                  ? "polygon(" + object.maskPoints.map((point) => point.x + "% " + point.y + "%").join(", ") + ")"
+                  : undefined
           }}
         />
         {handle}
@@ -1333,9 +1339,45 @@ function ObjectInspector({
           <label className="inspector-field">Image Scale
             <input type="number" min="0.1" max="5" step="0.1" value={object.scale} onChange={(event) => onChange({ scale: Number(event.target.value) })} />
           </label>
+          <label className="inspector-field">Mask
+            <select value={object.maskType} onChange={(event) => onChange({ maskType: event.target.value as "none" | "ellipse" | "polygon" })}>
+              <option value="none">None</option>
+              <option value="ellipse">Ellipse</option>
+              <option value="polygon">Custom Polygon</option>
+            </select>
+          </label>
           <label className="inspector-field">Mask Radius
             <input type="number" min="0" value={object.borderRadius} onChange={(event) => onChange({ borderRadius: Number(event.target.value) })} />
           </label>
+          {object.maskType === "polygon" && (
+            <div className="mask-point-list">
+              {object.maskPoints.map((point, index) => (
+                <div className="mask-point-row" key={point.id}>
+                  <span>M{index + 1}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={point.x}
+                    onChange={(event) => {
+                      const maskPoints = object.maskPoints.map((item) => item.id === point.id ? { ...item, x: Number(event.target.value) } : item);
+                      onChange({ maskPoints });
+                    }}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={point.y}
+                    onChange={(event) => {
+                      const maskPoints = object.maskPoints.map((item) => item.id === point.id ? { ...item, y: Number(event.target.value) } : item);
+                      onChange({ maskPoints });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </>
       ) : object.type === "text" ? (
         <>
