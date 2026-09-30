@@ -574,6 +574,49 @@ export function fitObjectInsideArtboard(
   }));
 }
 
+export function addPathPoint(
+  project: ZaxisProject,
+  artboardId: string,
+  objectId: string
+): ZaxisProject {
+  return mapArtboard(project, artboardId, (artboard) => ({
+    ...artboard,
+    objects: artboard.objects.map((object) => {
+      if (object.id !== objectId || object.type !== "path" || object.locked) return object;
+
+      const last = object.points[object.points.length - 1];
+      const nextPoint: PathPoint = {
+        id: id("point"),
+        x: Math.max(0, Math.min(100, (last?.x ?? 50) + 10)),
+        y: Math.max(0, Math.min(100, (last?.y ?? 50) + 10))
+      };
+
+      return { ...object, points: [...object.points, nextPoint] };
+    })
+  }));
+}
+
+export function deletePathPoint(
+  project: ZaxisProject,
+  artboardId: string,
+  objectId: string,
+  pointId: string
+): ZaxisProject {
+  return mapArtboard(project, artboardId, (artboard) => ({
+    ...artboard,
+    objects: artboard.objects.map((object) => {
+      if (object.id !== objectId || object.type !== "path" || object.locked || object.points.length <= 2) {
+        return object;
+      }
+
+      return {
+        ...object,
+        points: object.points.filter((point) => point.id !== pointId)
+      };
+    })
+  }));
+}
+
 export function distributeObjects(
   project: ZaxisProject,
   artboardId: string,
