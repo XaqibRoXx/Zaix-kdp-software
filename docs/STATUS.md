@@ -47,6 +47,12 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification. Windows Tauri installer workflow is now configured.
 
 ## Newly Completed in Current Implementation
+- [x] Local named revision history foundation.
+- [x] Manual named restore points.
+- [x] Revision list in editor.
+- [x] Restore revision workflow.
+- [x] Automatic safety snapshot before restoring an older revision.
+- [x] Up to 50 local revisions retained per project.
 - [x] Frontend desktop build pipeline reached a successful GitHub Actions compile.
 - [x] Windows-latest Tauri build workflow added.
 - [x] MSI/NSIS artifact upload step configured for Windows builds.
@@ -126,7 +132,7 @@ Last updated: 2026-09-30
 ## Pending — Phase 2
 - [ ] cPanel/VPS connection wizard and secure API.
 - [ ] Canva-style cloud autosave and offline sync.
-- [ ] Revisions/version history/restore points.
+- [ ] Cloud revisions remain Phase 2. Local named revision history and restore points are now working.
 - [ ] KDP book tools, cover/spine and preflight.
 - [ ] PDF export/compression/merge/split/compare.
 - [ ] Save destination: Server / Laptop / Both.
