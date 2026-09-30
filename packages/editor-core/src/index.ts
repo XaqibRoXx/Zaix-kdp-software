@@ -412,6 +412,46 @@ export function updateObject(
   }));
 }
 
+export function alignObject(
+  project: ZaxisProject,
+  artboardId: string,
+  objectId: string,
+  alignment: "left" | "center" | "right" | "top" | "middle" | "bottom"
+): ZaxisProject {
+  return mapArtboard(project, artboardId, (artboard) => ({
+    ...artboard,
+    objects: artboard.objects.map((object) => {
+      if (object.id !== objectId || object.locked) return object;
+
+      if (alignment === "left") return { ...object, x: 0 };
+      if (alignment === "center") return { ...object, x: Math.max(0, (100 - object.width) / 2) };
+      if (alignment === "right") return { ...object, x: Math.max(0, 100 - object.width) };
+      if (alignment === "top") return { ...object, y: 0 };
+      if (alignment === "middle") return { ...object, y: Math.max(0, (100 - object.height) / 2) };
+      return { ...object, y: Math.max(0, 100 - object.height) };
+    })
+  }));
+}
+
+export function fitObjectInsideArtboard(
+  project: ZaxisProject,
+  artboardId: string,
+  objectId: string
+): ZaxisProject {
+  return mapArtboard(project, artboardId, (artboard) => ({
+    ...artboard,
+    objects: artboard.objects.map((object) => {
+      if (object.id !== objectId || object.locked) return object;
+
+      const width = Math.min(100, object.width);
+      const height = Math.min(100, object.height);
+      const x = Math.max(0, Math.min(object.x, 100 - width));
+      const y = Math.max(0, Math.min(object.y, 100 - height));
+      return { ...object, width, height, x, y };
+    })
+  }));
+}
+
 export function setObjectLocked(
   project: ZaxisProject,
   artboardId: string,
