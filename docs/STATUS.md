@@ -180,6 +180,14 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Incremental cloud sync endpoint applies versioned project deltas to the latest full snapshot.
+- [x] Revision history still stores a complete snapshot after every delta for recovery.
+- [x] Desktop remembers the last successfully synced full snapshot in IndexedDB.
+- [x] Autosave compares artboards by ID and sends only changed/new artboards plus removed IDs/order/project metadata.
+- [x] Delta sync is used only when its payload is at least 20% smaller than a full snapshot.
+- [x] Automatic full-snapshot fallback keeps compatibility with older/unupgraded servers.
+- [x] Cloud project name/mode metadata now stays aligned on full and delta snapshot writes.
+- [x] Conflict/cloud-restore workflows update the local sync baseline snapshot for later deltas.
 - [x] Server-enforced expiring project edit locks.
 - [x] Project lock schema + migration for existing servers.
 - [x] Lock acquire/status/release API with 120-second default TTL.
