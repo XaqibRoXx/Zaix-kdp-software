@@ -1,0 +1,12 @@
+{
+  "name": "zaxis-kdp",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cloud-first Windows design and KDP production software",
+  "workspaces": ["apps/*","packages/*"],
+  "scripts": {
+    "dev:desktop": "npm --workspace @zaxis-kdp/desktop run dev",
+    "build:desktop": "npm --workspace @zaxis-kdp/desktop run build",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  }
+}
