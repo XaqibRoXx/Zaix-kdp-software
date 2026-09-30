@@ -1,5 +1,12 @@
 import type { Unit } from "@zaxis-kdp/shared";
 import {
+  createDefaultBookStructure,
+  normalizeBookStructure,
+  type BookChapter,
+  type BookStructure,
+  type PageNumberSettings
+} from "./bookStructure";
+import {
   KDP_RULES,
   calculatePaperbackCoverSize,
   createDefaultKdpSettings,
@@ -7,6 +14,7 @@ import {
 } from "./kdpRules";
 
 export * from "./kdpRules";
+export * from "./bookStructure";
 
 export type DesignObjectType = "text" | "rectangle" | "ellipse" | "image" | "path";
 
@@ -103,6 +111,7 @@ export interface ZaxisProject {
   name: string;
   mode: "kdp" | "graphic-design";
   kdpSettings?: KdpSettings;
+  bookStructure?: BookStructure;
   artboards: Artboard[];
   createdAt: string;
   updatedAt: string;
@@ -192,6 +201,9 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
   return {
     ...project,
     kdpSettings,
+    bookStructure: project.mode === "kdp"
+      ? normalizeBookStructure(project.bookStructure)
+      : project.bookStructure,
     artboards: project.artboards.map((artboard) => ({
       ...artboard,
       role: artboard.role ?? "page",
@@ -255,6 +267,7 @@ export function createBlankProject(input: BlankProjectInput): ZaxisProject {
     name: input.name,
     mode,
     kdpSettings: mode === "kdp" ? createDefaultKdpSettings(input.width, input.height, input.unit) : undefined,
+    bookStructure: mode === "kdp" ? createDefaultBookStructure() : undefined,
     createdAt: timestamp,
     updatedAt: timestamp,
     artboards: [
@@ -352,6 +365,113 @@ export function createOrUpdateKdpCoverArtboard(
   return {
     project: touch(project, [...project.artboards, coverArtboard]),
     artboardId
+  };
+}
+
+export function updatePageNumberSettings(
+  project: ZaxisProject,
+  input: Partial<PageNumberSettings>
+): ZaxisProject {
+  if (project.mode !== "kdp") return project;
+
+  const structure = normalizeBookStructure(project.bookStructure);
+
+  return {
+    ...project,
+    bookStructure: {
+      ...structure,
+      pageNumbers: {
+        ...structure.pageNumbers,
+        ...input,
+        startPage: Math.max(1, Math.floor(input.startPage ?? structure.pageNumbers.startPage)),
+        startNumber: Math.max(1, Math.floor(input.startNumber ?? structure.pageNumbers.startNumber))
+      }
+    },
+    updatedAt: now()
+  };
+}
+
+export function addBookChapter(
+  project: ZaxisProject,
+  chapter: BookChapter
+): ZaxisProject {
+  if (project.mode !== "kdp") return project;
+
+  const structure = normalizeBookStructure(project.bookStructure);
+  const chapters = [...structure.chapters, chapter]
+    .map((item) => ({
+      ...item,
+      title: item.title.trim() || "Chapter",
+      startPage: Math.max(1, Math.floor(item.startPage))
+    }))
+    .sort((a, b) => a.startPage - b.startPage);
+
+  return {
+    ...project,
+    bookStructure: { ...structure, chapters },
+    updatedAt: now()
+  };
+}
+
+export function updateBookChapter(
+  project: ZaxisProject,
+  chapterId: string,
+  input: Partial<Pick<BookChapter, "title" | "startPage">>
+): ZaxisProject {
+  if (project.mode !== "kdp") return project;
+
+  const structure = normalizeBookStructure(project.bookStructure);
+
+  return {
+    ...project,
+    bookStructure: {
+      ...structure,
+      chapters: structure.chapters
+        .map((chapter) =>
+          chapter.id === chapterId
+            ? {
+                ...chapter,
+                title: input.title?.trim() || chapter.title,
+                startPage: Math.max(1, Math.floor(input.startPage ?? chapter.startPage))
+              }
+            : chapter
+        )
+        .sort((a, b) => a.startPage - b.startPage)
+    },
+    updatedAt: now()
+  };
+}
+
+export function deleteBookChapter(
+  project: ZaxisProject,
+  chapterId: string
+): ZaxisProject {
+  if (project.mode !== "kdp") return project;
+
+  const structure = normalizeBookStructure(project.bookStructure);
+
+  return {
+    ...project,
+    bookStructure: {
+      ...structure,
+      chapters: structure.chapters.filter((chapter) => chapter.id !== chapterId)
+    },
+    updatedAt: now()
+  };
+}
+
+export function updateTocTitle(project: ZaxisProject, title: string): ZaxisProject {
+  if (project.mode !== "kdp") return project;
+
+  const structure = normalizeBookStructure(project.bookStructure);
+
+  return {
+    ...project,
+    bookStructure: {
+      ...structure,
+      tocTitle: title.trim() || "Table of Contents"
+    },
+    updatedAt: now()
   };
 }
 
