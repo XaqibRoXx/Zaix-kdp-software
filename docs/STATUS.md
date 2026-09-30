@@ -47,6 +47,10 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification. Previous Windows build failed on the same revision-handler compile issue; fix has been pushed and rebuild is being verified.
 
 ## Newly Completed in Current Implementation
+- [x] Smooth vs Corner vector anchor state.
+- [x] Smooth/Corner toggle per anchor.
+- [x] Mirrored opposite Bezier handle movement for smooth anchors.
+- [x] Default curve handles for converted smooth points.
 - [x] Cubic Bezier path rendering.
 - [x] Incoming and outgoing control handles per anchor.
 - [x] Direct Select Bezier handle drag.
@@ -145,9 +149,9 @@ Last updated: 2026-09-30
 
 ## Pending — Phase 1
 - [x] Local dashboard project CRUD and recent projects. Cloud project library remains Phase 2.
-- [ ] Advanced mirrored/smooth-handle constraints remain. Cubic Bezier rendering, incoming/outgoing handle lines, direct handle dragging, anchor drag, exact anchor X/Y editing and anchor add/delete are working.
+- [ ] Advanced asymmetric smooth-handle controls remain. Cubic Bezier rendering, Smooth/Corner anchor conversion, mirrored smooth handles, direct handle dragging, anchor drag, exact anchor X/Y editing and anchor add/delete are working.
 - [ ] Advanced text engine remains. Font family/size/weight/color, alignment, line height and letter spacing are working.
-- [ ] Advanced smooth/corner conversion remains. Open/closed vector paths, cubic Bezier segments, anchor/control handles, stroke/fill and direct editing are working.
+- [x] Initial Smooth/Corner anchor conversion and mirrored-handle behavior are working for vector paths.
 - [ ] Advanced freeform masks remain. Clipboard paste, contain/cover/fill, crop position, image scale and mask-radius controls are working.
 - [ ] Advanced multi-object smart guides remain. Center smart guides plus horizontal/vertical distribution and single-object alignment are working.
 - [ ] Advanced transforms. Canvas drag/move, resize handle, rotation/opacity inspector controls are working.
