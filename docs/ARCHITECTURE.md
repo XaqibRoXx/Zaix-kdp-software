@@ -57,3 +57,19 @@ The first deployable server foundation is intentionally lightweight for cPanel/s
 - Apache .htaccess front-controller routing.
 
 The API contracts are kept framework-neutral so the implementation can be wrapped by or migrated to Laravel later without changing the desktop sync contract.
+
+
+## Secure Server Pairing
+1. Server package is uploaded to cPanel and the one-time `/install/` wizard is opened.
+2. Installer validates PHP/MySQL, runs the schema, creates the first owner, writes the server-side `.env`, creates storage, and locks itself with `install.lock`.
+3. Installer creates a 15-minute one-time pairing code stored only as SHA-256 in `pairing_codes`.
+4. Windows app receives only API URL + pairing code.
+5. `POST /api/pair` consumes the code exactly once and returns a newly generated desktop API token.
+6. Server stores only the SHA-256 token hash.
+7. Windows app encrypts the raw token with the current Windows user account; it is never written to localStorage or app settings.
+8. Additional devices can receive new short-lived pairing codes from an already authenticated session.
+
+This pairing flow is the preferred connection path. Manual API-token entry remains an advanced fallback only.
+
+## Cloud Sync Conflict Rule
+Every queued snapshot retains the cloud revision it was based on. Coalescing newer local edits must not replace that base revision. Before pushing, the client verifies the current server revision. A mismatch becomes a conflict and the client must not silently overwrite newer cloud work.
