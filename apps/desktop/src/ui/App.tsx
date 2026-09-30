@@ -142,6 +142,7 @@ export function App() {
   const [pdfExportOpen, setPdfExportOpen] = useState(false);
   const fontInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new SnapshotHistory(project));
+  const skipCloudAutosaveOnceRef = useRef(false);
 
   useEffect(() => {
     Promise.all([
@@ -243,6 +244,12 @@ export function App() {
 
   useEffect(() => {
     const apiUrl = appSettings.cloudApiUrl.trim();
+
+    if (skipCloudAutosaveOnceRef.current) {
+      skipCloudAutosaveOnceRef.current = false;
+      setCloudSaveState(apiUrl ? "saved" : "disabled");
+      return;
+    }
 
     if (!apiUrl) {
       setCloudSaveState("disabled");
@@ -505,11 +512,15 @@ export function App() {
     setRevisions(listRevisions(restored.id));
   }
 
-  function replaceProjectFromCloud(snapshot: ZaxisProject) {
+  function replaceProjectFromCloud(snapshot: ZaxisProject, suppressCloudAutosave = true) {
     const normalized: ZaxisProject = {
       ...snapshot,
       updatedAt: new Date().toISOString()
     };
+
+    if (suppressCloudAutosave) {
+      skipCloudAutosaveOnceRef.current = true;
+    }
 
     createRevision(project, "Before cloud conflict resolution");
     historyRef.current.reset(normalized);
@@ -2518,7 +2529,7 @@ function CloudScreen({
   automaticState: CloudSaveState;
   pendingCount: number;
   onFlushQueue: () => Promise<void>;
-  onReplaceProject: (snapshot: ZaxisProject) => void;
+  onReplaceProject: (snapshot: ZaxisProject, suppressCloudAutosave?: boolean) => void;
 }) {
   const [status, setStatus] = useState("Not tested");
   const [identity, setIdentity] = useState("");
