@@ -44,9 +44,7 @@ import {
   saveCustomFont
 } from "../state/fontStore";
 import {
-  CloudApiError,
   ZaxisCloudApi,
-  makeClientEventId,
   type CloudProjectSummary
 } from "../cloud/apiClient";
 import {
@@ -1746,9 +1744,47 @@ function CloudScreen({
   const [cloudProjects, setCloudProjects] = useState<CloudProjectSummary[]>([]);
   const [syncStatus, setSyncStatus] = useState("");
   const [credentialStatus, setCredentialStatus] = useState("");
+  const [connectionCode, setConnectionCode] = useState("");
+  const [generatedCode, setGeneratedCode] = useState("");
 
   function api() {
     return new ZaxisCloudApi(settings.cloudApiUrl.trim(), token.trim() || undefined);
+  }
+
+  async function connectWithCode() {
+    if (!settings.cloudApiUrl.trim() || !connectionCode.trim()) {
+      setCredentialStatus("API URL and connection code are required.");
+      return;
+    }
+
+    setCredentialStatus("Connecting...");
+
+    try {
+      const result = await new ZaxisCloudApi(settings.cloudApiUrl.trim()).pair(connectionCode.trim());
+      onTokenChange(result.token);
+      await invoke("store_cloud_token", { token: result.token });
+      setConnectionCode("");
+      setIdentity("Connected as " + result.user.name + " • " + result.user.email);
+      setCredentialStatus("Connected. Token encrypted for this Windows account.");
+      await onFlushQueue();
+    } catch (error) {
+      setCredentialStatus(error instanceof Error ? error.message : "Connection code failed.");
+    }
+  }
+
+  async function generateConnectionCode() {
+    if (!settings.cloudApiUrl.trim() || !token.trim()) {
+      setCredentialStatus("Connect this device first.");
+      return;
+    }
+
+    try {
+      const result = await api().createConnectionCode("Additional Windows Desktop");
+      setGeneratedCode(result.code + " • expires " + new Date(result.expires_at).toLocaleString());
+      setCredentialStatus("New one-time code generated.");
+    } catch (error) {
+      setCredentialStatus(error instanceof Error ? error.message : "Could not generate a connection code.");
+    }
   }
 
   async function saveTokenSecurely() {
@@ -1828,47 +1864,19 @@ function CloudScreen({
 
   async function syncCurrentProject() {
     if (!settings.cloudApiUrl.trim() || !token.trim()) {
-      setSyncStatus("API URL and token are required.");
+      setSyncStatus("Connect the server first.");
       return;
     }
 
-    setSyncStatus("Syncing current project...");
-
-    const client = api();
+    setSyncStatus("Queueing current project...");
 
     try {
-      let baseRevision = 0;
-
-      try {
-        const remote = await client.getProject(project.id);
-        baseRevision = Number(remote.project.current_revision) || 0;
-      } catch (error) {
-        if (error instanceof CloudApiError && error.status === 404) {
-          const created = await client.createProject(project);
-          baseRevision = created.revision;
-          setSyncStatus("Project created in cloud at revision " + created.revision + ".");
-          await refreshProjects();
-          return;
-        }
-
-        throw error;
-      }
-
-      const pushed = await client.pushSnapshot(
-        project,
-        baseRevision,
-        makeClientEventId(),
-        "Desktop manual sync"
-      );
-
-      setSyncStatus("Cloud sync complete • revision " + pushed.revision);
+      await queueProjectSnapshot(project);
+      await onFlushQueue();
+      setSyncStatus("Conflict-safe cloud sync requested.");
       await refreshProjects();
     } catch (error) {
-      if (error instanceof CloudApiError && error.status === 409) {
-        setSyncStatus("Revision conflict detected. Automatic conflict workflow is the next sync step.");
-      } else {
-        setSyncStatus(error instanceof Error ? error.message : "Cloud sync failed");
-      }
+      setSyncStatus(error instanceof Error ? error.message : "Cloud sync failed");
     }
   }
 
@@ -1892,21 +1900,31 @@ function CloudScreen({
               placeholder="https://files.example.com"
             />
           </label>
+          <label>Connection Code
+            <input
+              value={connectionCode}
+              onChange={(event) => setConnectionCode(event.target.value.toUpperCase())}
+              placeholder="ABCD-EF12-3456"
+            />
+          </label>
           <label>Desktop API Token
             <input
               type="password"
               value={token}
               onChange={(event) => onTokenChange(event.target.value)}
-              placeholder="Stored securely on this Windows account"
+              placeholder="Advanced/manual token"
             />
           </label>
         </div>
-        <p className="muted">API tokens are not saved in localStorage. In the Windows app they can be encrypted with the current Windows user account and restored automatically on next launch.</p>
+        <p className="muted">Recommended setup: enter the API URL and the one-time code shown by the cPanel installer, then click Connect with Code. The exchanged API token is never saved in localStorage and is encrypted for the current Windows account.</p>
+        {generatedCode && <p className="connection-code-output">{generatedCode}</p>}
         {credentialStatus && <p className="muted">{credentialStatus}</p>}
         <div className="hero-actions">
+          <button className="primary" onClick={() => void connectWithCode()}>Connect with Code</button>
           <button className="secondary" onClick={() => void testHealth()}>Test API</button>
           <button className="secondary" onClick={() => void verifyToken()}>Verify Token</button>
-          <button className="secondary" onClick={() => void saveTokenSecurely()}>Save Token Securely</button>
+          <button className="secondary" onClick={() => void generateConnectionCode()}>New Connection Code</button>
+          <button className="secondary" onClick={() => void saveTokenSecurely()}>Save Manual Token</button>
           <button className="secondary danger" onClick={() => void clearStoredToken()}>Clear Stored Token</button>
           <button className="secondary" onClick={() => void onFlushQueue()}>Flush Autosave Queue</button>
           <button className="primary" onClick={() => void syncCurrentProject()}>Sync Current Project</button>
