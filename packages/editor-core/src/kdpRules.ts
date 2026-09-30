@@ -147,6 +147,7 @@ interface PreflightObjectLike {
 }
 
 interface PreflightArtboardLike {
+  role?: "page" | "cover";
   width: number;
   height: number;
   unit: Unit;
@@ -159,7 +160,8 @@ export interface KdpPreflightProjectLike {
 }
 
 export function analyzeKdpProject(project: KdpPreflightProjectLike): KdpPreflightResult {
-  const fallbackArtboard = project.artboards[0];
+  const pages = project.artboards.filter((artboard) => (artboard.role ?? "page") === "page");
+  const fallbackArtboard = pages[0] ?? project.artboards[0];
   const settings =
     project.kdpSettings ??
     createDefaultKdpSettings(
@@ -169,7 +171,7 @@ export function analyzeKdpProject(project: KdpPreflightProjectLike): KdpPrefligh
     );
 
   const issues: KdpPreflightIssue[] = [];
-  const pageCount = project.artboards.length;
+  const pageCount = pages.length;
   const limits = pageCountLimits(settings);
   const insideMargin = requiredInsideMarginIn(pageCount);
   const outsideMargin = requiredOutsideMarginIn(settings.bleed);
@@ -207,7 +209,7 @@ export function analyzeKdpProject(project: KdpPreflightProjectLike): KdpPrefligh
   const expectedWidth = settings.trimWidthIn + (settings.bleed ? KDP_RULES.bleedIn : 0);
   const expectedHeight = settings.trimHeightIn + (settings.bleed ? KDP_RULES.bleedIn * 2 : 0);
 
-  project.artboards.forEach((artboard, index) => {
+  pages.forEach((artboard, index) => {
     const page = index + 1;
     const widthIn = toInches(artboard.width, artboard.unit);
     const heightIn = toInches(artboard.height, artboard.unit);
