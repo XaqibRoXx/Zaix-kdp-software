@@ -47,6 +47,10 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification. Previous Windows build failed on the same revision-handler compile issue; fix has been pushed and rebuild is being verified.
 
 ## Newly Completed in Current Implementation
+- [x] Image mask type: None / Ellipse / Custom Polygon.
+- [x] Custom polygon mask point model.
+- [x] Polygon mask X/Y inspector editing.
+- [x] CSS clipping render for ellipse and polygon masks.
 - [x] Windows release executable reached successful Rust release compilation.
 - [x] Tauri MSI bundling progressed past app compile.
 - [x] MSI icon lookup blocker diagnosed.
@@ -161,7 +165,7 @@ Last updated: 2026-09-30
 - [ ] Advanced asymmetric smooth-handle controls remain. Cubic Bezier rendering, Smooth/Corner anchor conversion, mirrored smooth handles, direct handle dragging, anchor drag, exact anchor X/Y editing and anchor add/delete are working.
 - [ ] Advanced text engine remains. Font family/size/weight/color, alignment, line height and letter spacing are working.
 - [x] Initial Smooth/Corner anchor conversion and mirrored-handle behavior are working for vector paths.
-- [ ] Advanced freeform masks remain. Clipboard paste, contain/cover/fill, crop position, image scale and mask-radius controls are working.
+- [ ] Advanced on-canvas mask-node editing remains. Clipboard paste, contain/cover/fill, crop position, image scale, rounded mask, ellipse mask and custom polygon mask are working.
 - [ ] Advanced multi-object smart guides remain. Center smart guides plus horizontal/vertical distribution and single-object alignment are working.
 - [ ] Advanced multi-object transforms remain. Canvas drag/move, resize, rotation, skew X/Y, flip X/Y and opacity controls are working.
 - [ ] Cloud font sync remains. Imported custom fonts now persist locally in IndexedDB and reload across app restarts; Windows installed-font discovery is working.
