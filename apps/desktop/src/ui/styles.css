@@ -106,3 +106,8 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .path-point-row .curve-toggle.active{border-color:#00f6ac;color:#00f6ac;background:#07140f}
 
 .secondary.toggle-on{border-color:#00f6ac;color:#00f6ac;background:#07140f}
+
+.mask-point-list{display:grid;gap:5px;max-height:150px;overflow:auto}
+.mask-point-row{display:grid;grid-template-columns:30px 1fr 1fr;gap:5px;align-items:center}
+.mask-point-row span{font-size:10px;color:#7f8985}
+.mask-point-row input{width:100%;background:#111513;color:#fff;border:1px solid #2b3330;border-radius:5px;padding:5px;font-size:10px}
