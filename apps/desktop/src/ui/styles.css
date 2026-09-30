@@ -127,3 +127,5 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .save-state.cloud-offline{color:#f0a33a}
 .save-state.cloud-conflict{color:#ffbf69}
 .save-state.cloud-error{color:#ff6b6b}
+
+.connection-code-output{display:inline-block;margin:8px 0 0;padding:9px 12px;border:1px solid #00f6ac;border-radius:8px;background:#07140f;color:#00f6ac;font-weight:700;letter-spacing:1px}
