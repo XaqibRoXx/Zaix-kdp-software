@@ -180,6 +180,12 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Dedicated PDF Tools screen added to desktop navigation.
+- [x] Real multi-file PDF merge with drag-order style up/down reordering controls.
+- [x] Extract selected PDF pages/ranges into a new PDF.
+- [x] Rotate selected PDF page ranges by 90/180/270 degrees.
+- [x] Structural PDF compare: page count, page dimensions, rotations and file-size change.
+- [x] PDF tool outputs use the same native Windows save flow.
 - [x] Real PDF generation foundation using pdf-lib.
 - [x] Interior-only, cover-only and interior+cover export targets.
 - [x] Interior page-range parser such as 1-10,12,15-18.
@@ -268,7 +274,7 @@ Last updated: 2026-09-30
 - [ ] Canva-style cloud autosave and offline sync.
 - [ ] Cloud revisions remain Phase 2. Local named revision history and restore points are now working.
 - [ ] Advanced cover creator remains. Live KDP book settings, preflight, margins and paperback spine/cover calculator foundation are working.
-- [ ] Advanced compression/merge/split/compare remain. Real PDF export foundation is now working with Interior/Cover/All targets, page ranges and Laptop/Cloud/Both destinations.
+- [ ] Advanced compression, visual diff compare and full split batching remain. Real PDF export, Merge, Extract/Range, Rotate and structural Compare foundations are working.
 - [x] PDF save destination supports Laptop / Cloud / Both.
 
 ## Pending — Phase 3
