@@ -11,6 +11,10 @@ export interface DesignObjectBase {
   width: number;
   height: number;
   rotation: number;
+  skewX: number;
+  skewY: number;
+  flipX: boolean;
+  flipY: boolean;
   opacity: number;
   visible: boolean;
   locked: boolean;
@@ -113,6 +117,10 @@ export interface UpdateObjectInput {
   width?: number;
   height?: number;
   rotation?: number;
+  skewX?: number;
+  skewY?: number;
+  flipX?: boolean;
+  flipY?: boolean;
   opacity?: number;
   visible?: boolean;
   locked?: boolean;
@@ -161,6 +169,13 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
     artboards: project.artboards.map((artboard) => ({
       ...artboard,
       objects: (Array.isArray(artboard.objects) ? artboard.objects : []).map((object) => {
+        object = {
+          ...object,
+          skewX: object.skewX ?? 0,
+          skewY: object.skewY ?? 0,
+          flipX: object.flipX ?? false,
+          flipY: object.flipY ?? false
+        } as DesignObject;
         if (object.type === "text") {
           return {
             ...object,
@@ -328,6 +343,10 @@ export function addTextObject(project: ZaxisProject, artboardId: string): { proj
     width: 42,
     height: 12,
     rotation: 0,
+    skewX: 0,
+    skewY: 0,
+    flipX: false,
+    flipY: false,
     opacity: 1,
     visible: true,
     locked: false,
@@ -366,6 +385,10 @@ export function addImageObject(
     width: 40,
     height: 40,
     rotation: 0,
+    skewX: 0,
+    skewY: 0,
+    flipX: false,
+    flipY: false,
     opacity: 1,
     visible: true,
     locked: false,
@@ -401,6 +424,10 @@ export function addPathObject(
     width: 40,
     height: 30,
     rotation: 0,
+    skewX: 0,
+    skewY: 0,
+    flipX: false,
+    flipY: false,
     opacity: 1,
     visible: true,
     locked: false,
@@ -439,6 +466,10 @@ export function addShapeObject(
     width: 32,
     height: 24,
     rotation: 0,
+    skewX: 0,
+    skewY: 0,
+    flipX: false,
+    flipY: false,
     opacity: 1,
     visible: true,
     locked: false,
@@ -483,6 +514,10 @@ export function updateObject(
         width: clampSize(input.width ?? object.width),
         height: clampSize(input.height ?? object.height),
         rotation: normalizeRotation(input.rotation ?? object.rotation),
+        skewX: normalizeSkew(input.skewX ?? object.skewX),
+        skewY: normalizeSkew(input.skewY ?? object.skewY),
+        flipX: input.flipX ?? object.flipX,
+        flipY: input.flipY ?? object.flipY,
         opacity: clampOpacity(input.opacity ?? object.opacity),
         visible: input.visible ?? object.visible,
         locked: input.locked ?? object.locked
@@ -770,6 +805,11 @@ function clampOpacity(value: number) {
 function normalizeRotation(value: number) {
   if (!Number.isFinite(value)) return 0;
   return ((value % 360) + 360) % 360;
+}
+
+function normalizeSkew(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(-89, Math.min(89, value));
 }
 
 export class SnapshotHistory<TState> {
