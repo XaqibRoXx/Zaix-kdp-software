@@ -195,3 +195,10 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .pdf-compare-grid small,.pdf-compare-grid strong{display:block}
 .pdf-compare-grid small{color:#75817b;margin-bottom:4px}
 @media(max-width:800px){.pdf-file-row{grid-template-columns:30px minmax(0,1fr)}.pdf-file-row button{grid-column:auto}.pdf-compare-grid{grid-template-columns:1fr 1fr}}
+
+.revision-cloud-list{display:grid;gap:7px;margin-top:12px}
+.revision-cloud-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;border:1px solid #202824;background:#0a0d0c;border-radius:8px;padding:9px}
+.revision-cloud-row strong,.revision-cloud-row small{display:block}
+.revision-cloud-row small{color:#748079;margin-top:3px}
+.revision-cloud-row>div:nth-child(2){text-align:right}
+@media(max-width:800px){.revision-cloud-row{grid-template-columns:1fr}.revision-cloud-row>div:nth-child(2){text-align:left}}
