@@ -1,0 +1,33 @@
+name: Server Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/server/**"
+      - ".github/workflows/server-check.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/server/**"
+
+jobs:
+  php-syntax:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          coverage: none
+
+      - name: Validate PHP syntax
+        run: |
+          find apps/server -type f -name "*.php" -print0 | xargs -0 -n1 php -l
+
+      - name: Validate composer.json
+        run: php -r 'json_decode(file_get_contents("apps/server/composer.json"), true, 512, JSON_THROW_ON_ERROR);'
