@@ -181,3 +181,17 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .export-warnings strong{color:#f0c77e}
 .export-warnings small{color:#c3ad8d}
 .export-actions{justify-content:flex-end;margin-top:14px}
+
+.pdf-file-list{display:grid;gap:7px;margin-top:14px}
+.pdf-file-row{display:grid;grid-template-columns:30px minmax(0,1fr) 34px 34px auto;gap:7px;align-items:center;border:1px solid #202824;background:#0a0d0c;border-radius:8px;padding:7px}
+.pdf-file-row>span{display:grid;place-items:center;width:26px;height:26px;border-radius:6px;background:#101612;color:#00f6ac;font-size:11px;font-weight:700}
+.pdf-file-row strong,.pdf-file-row small{display:block}
+.pdf-file-row small{color:#748079;margin-top:3px}
+.pdf-file-row button{border:1px solid #252d29;background:#0d110f;color:#cbd4d0;border-radius:6px;padding:6px;cursor:pointer}
+.pdf-file-row button:disabled{opacity:.35}
+.pdf-file-row .danger-text{color:#ff8585;border-color:#4b2626}
+.pdf-compare-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
+.pdf-compare-grid>div{border:1px solid #202824;background:#0a0d0c;border-radius:8px;padding:9px}
+.pdf-compare-grid small,.pdf-compare-grid strong{display:block}
+.pdf-compare-grid small{color:#75817b;margin-bottom:4px}
+@media(max-width:800px){.pdf-file-row{grid-template-columns:30px minmax(0,1fr)}.pdf-file-row button{grid-column:auto}.pdf-compare-grid{grid-template-columns:1fr 1fr}}
