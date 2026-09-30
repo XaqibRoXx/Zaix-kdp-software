@@ -7,6 +7,7 @@ use ZaxisKdp\Auth;
 use ZaxisKdp\Database;
 use ZaxisKdp\Http;
 use ZaxisKdp\Pairing;
+use ZaxisKdp\ProjectDelta;
 use ZaxisKdp\ProjectLock;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -487,6 +488,201 @@ try {
         }
     }
 
+    if ($method === 'PATCH' && preg_match('#^/api/v1/projects/([^/]+)/snapshot$#', $path, $matches)) {
+        $projectId = rawurldecode($matches[1]);
+        $body = Http::body();
+        $clientId = trim((string) ($_SERVER['HTTP_X_ZAXIS_CLIENT_ID'] ?? ($body['client_id'] ?? '')));
+        $blockingLock = ProjectLock::blockingLock($db, $projectId, $clientId);
+
+        if ($blockingLock) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Project is locked by another editor.',
+                'lock' => $blockingLock,
+                'request_id' => $requestId,
+            ], 423);
+        }
+
+        $baseRevision = (int) ($body['base_revision'] ?? -1);
+        $clientEventId = trim((string) ($body['client_event_id'] ?? ''));
+        $label = isset($body['label']) ? trim((string) $body['label']) : null;
+        $delta = is_array($body['delta'] ?? null) ? $body['delta'] : null;
+
+        if ($clientEventId === '' || $delta === null || !ProjectDelta::validate($delta)) {
+            Http::json([
+                'ok' => false,
+                'error' => 'client_event_id and a valid version 1 delta are required.',
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        $db->beginTransaction();
+
+        try {
+            $eventStmt = $db->prepare(
+                'SELECT resulting_revision
+                 FROM sync_events
+                 WHERE project_id = :project_id AND client_event_id = :event_id
+                 LIMIT 1'
+            );
+            $eventStmt->execute(['project_id' => $projectId, 'event_id' => $clientEventId]);
+            $existingEvent = $eventStmt->fetch();
+
+            if ($existingEvent) {
+                $db->commit();
+                Http::json([
+                    'ok' => true,
+                    'idempotent_replay' => true,
+                    'sync_mode' => 'delta',
+                    'revision' => (int) $existingEvent['resulting_revision'],
+                    'request_id' => $requestId,
+                ]);
+            }
+
+            $projectStmt = $db->prepare(
+                'SELECT current_revision, name, mode
+                 FROM projects
+                 WHERE id = :id AND owner_user_id = :owner AND deleted_at IS NULL
+                 FOR UPDATE'
+            );
+            $projectStmt->execute(['id' => $projectId, 'owner' => $user['id']]);
+            $project = $projectStmt->fetch();
+
+            if (!$project) {
+                $db->rollBack();
+                Http::json(['ok' => false, 'error' => 'Project not found.', 'request_id' => $requestId], 404);
+            }
+
+            $currentRevision = (int) $project['current_revision'];
+
+            if ($baseRevision !== $currentRevision) {
+                $db->rollBack();
+                Http::json([
+                    'ok' => false,
+                    'error' => 'Revision conflict.',
+                    'server_revision' => $currentRevision,
+                    'request_id' => $requestId,
+                ], 409);
+            }
+
+            if ($currentRevision <= 0) {
+                $db->rollBack();
+                Http::json([
+                    'ok' => false,
+                    'error' => 'A full initial snapshot is required before delta sync.',
+                    'request_id' => $requestId,
+                ], 422);
+            }
+
+            $snapshotStmt = $db->prepare(
+                'SELECT snapshot_json
+                 FROM project_snapshots
+                 WHERE project_id = :project_id AND revision_number = :revision
+                 LIMIT 1'
+            );
+            $snapshotStmt->execute([
+                'project_id' => $projectId,
+                'revision' => $currentRevision,
+            ]);
+            $snapshotRow = $snapshotStmt->fetch();
+
+            if (!$snapshotRow) {
+                throw new RuntimeException('Current project snapshot is missing.');
+            }
+
+            $baseSnapshot = json_decode((string) $snapshotRow['snapshot_json'], true);
+
+            if (!is_array($baseSnapshot)) {
+                throw new RuntimeException('Current project snapshot is invalid.');
+            }
+
+            $nextSnapshot = ProjectDelta::apply($baseSnapshot, $delta);
+            $snapshotJson = json_encode(
+                $nextSnapshot,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            );
+
+            if ($snapshotJson === false) {
+                throw new RuntimeException('Delta result could not be encoded.');
+            }
+
+            $deltaPayloadJson = json_encode(
+                ['type' => 'delta', 'delta' => $delta],
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            );
+
+            if ($deltaPayloadJson === false) {
+                throw new RuntimeException('Delta payload could not be encoded.');
+            }
+
+            $nextRevision = $currentRevision + 1;
+            $hash = hash('sha256', $snapshotJson);
+
+            $db->prepare(
+                'INSERT INTO project_snapshots
+                 (project_id, revision_number, label, snapshot_json, snapshot_hash, created_by)
+                 VALUES (:project_id, :revision, :label, :snapshot_json, :snapshot_hash, :created_by)'
+            )->execute([
+                'project_id' => $projectId,
+                'revision' => $nextRevision,
+                'label' => $label !== '' ? $label : 'Incremental autosave',
+                'snapshot_json' => $snapshotJson,
+                'snapshot_hash' => $hash,
+                'created_by' => $user['id'],
+            ]);
+
+            $db->prepare(
+                'INSERT INTO sync_events
+                 (project_id, client_event_id, base_revision, resulting_revision, payload_json, created_by)
+                 VALUES (:project_id, :event_id, :base_revision, :resulting_revision, :payload_json, :created_by)'
+            )->execute([
+                'project_id' => $projectId,
+                'event_id' => $clientEventId,
+                'base_revision' => $baseRevision,
+                'resulting_revision' => $nextRevision,
+                'payload_json' => $deltaPayloadJson,
+                'created_by' => $user['id'],
+            ]);
+
+            $projectFields = $delta['project'] ?? [];
+            $nextName = isset($projectFields['name'])
+                ? trim((string) $projectFields['name'])
+                : (string) $project['name'];
+            $nextMode = isset($projectFields['mode']) && $projectFields['mode'] === 'graphic-design'
+                ? 'graphic-design'
+                : (isset($projectFields['mode']) ? 'kdp' : (string) $project['mode']);
+
+            $db->prepare(
+                'UPDATE projects
+                 SET current_revision = :revision,
+                     name = :name,
+                     mode = :mode,
+                     updated_at = NOW()
+                 WHERE id = :id'
+            )->execute([
+                'revision' => $nextRevision,
+                'name' => $nextName !== '' ? $nextName : 'Untitled Project',
+                'mode' => $nextMode,
+                'id' => $projectId,
+            ]);
+
+            $db->commit();
+
+            Http::json([
+                'ok' => true,
+                'sync_mode' => 'delta',
+                'revision' => $nextRevision,
+                'snapshot_hash' => $hash,
+                'request_id' => $requestId,
+            ]);
+        } catch (Throwable $error) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $error;
+        }
+    }
+
     if ($method === 'PUT' && preg_match('#^/api/v1/projects/([^/]+)/snapshot$#', $path, $matches)) {
         $projectId = rawurldecode($matches[1]);
         $body = Http::body();
@@ -596,11 +792,26 @@ try {
                 'created_by' => $user['id'],
             ]);
 
+            $snapshotName = is_array($snapshot) && isset($snapshot['name'])
+                ? trim((string) $snapshot['name'])
+                : null;
+            $snapshotMode = is_array($snapshot) && (($snapshot['mode'] ?? null) === 'graphic-design')
+                ? 'graphic-design'
+                : 'kdp';
+
             $db->prepare(
                 'UPDATE projects
-                 SET current_revision = :revision, updated_at = NOW()
+                 SET current_revision = :revision,
+                     name = COALESCE(:name, name),
+                     mode = :mode,
+                     updated_at = NOW()
                  WHERE id = :id'
-            )->execute(['revision' => $nextRevision, 'id' => $projectId]);
+            )->execute([
+                'revision' => $nextRevision,
+                'name' => $snapshotName !== '' ? $snapshotName : null,
+                'mode' => $snapshotMode,
+                'id' => $projectId,
+            ]);
 
             $db->commit();
 
