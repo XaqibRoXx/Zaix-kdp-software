@@ -5,6 +5,7 @@ declare(strict_types=1);
 use ZaxisKdp\Auth;
 use ZaxisKdp\Database;
 use ZaxisKdp\Http;
+use ZaxisKdp\Pairing;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -40,6 +41,37 @@ try {
     }
 
     $db = Database::connection();
+
+    if ($method === 'POST' && $path === '/api/pair') {
+        $body = Http::body();
+        $code = trim((string) ($body['code'] ?? ''));
+
+        if ($code === '') {
+            Http::json([
+                'ok' => false,
+                'error' => 'Connection code is required.',
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        $paired = Pairing::redeem($db, $code);
+
+        if (!$paired) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Connection code is invalid, expired, or already used.',
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        Http::json([
+            'ok' => true,
+            'token' => $paired['token'],
+            'user' => $paired['user'],
+            'request_id' => $requestId,
+        ]);
+    }
+
     $user = Auth::userFromRequest($db);
 
     if (!$user) {
@@ -56,6 +88,19 @@ try {
             'user' => $user,
             'request_id' => $requestId,
         ]);
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/connection-codes') {
+        $body = Http::body();
+        $label = trim((string) ($body['label'] ?? 'Windows Desktop'));
+        $pairing = Pairing::createCode($db, (int) $user['id'], $label, 15);
+
+        Http::json([
+            'ok' => true,
+            'code' => $pairing['code'],
+            'expires_at' => $pairing['expires_at'],
+            'request_id' => $requestId,
+        ], 201);
     }
 
     if ($method === 'GET' && $path === '/api/v1/projects') {
