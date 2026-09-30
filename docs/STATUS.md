@@ -47,6 +47,12 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification. Previous Windows build failed on the same revision-handler compile issue; fix has been pushed and rebuild is being verified.
 
 ## Newly Completed in Current Implementation
+- [x] Native Windows cache directory resolution.
+- [x] Configurable cache path with System Default fallback.
+- [x] Native cache size and file-count diagnostics.
+- [x] Cache-limit enforcement by trimming oldest files.
+- [x] Native cache clear/recreate action.
+- [x] Settings UI for checking actual native cache status.
 - [x] Pen tool creates a vector path object.
 - [x] Vector path object model with anchor points.
 - [x] Open/closed path setting.
@@ -141,7 +147,7 @@ Last updated: 2026-09-30
 - [x] Initial graphic-design presets: A4, A5, Instagram, Story/Reel, YouTube thumbnail and US Letter flyer.
 - [x] Initial KDP/book presets: 5×8, 5.25×8, 5.5×8.5, 6×9, 7×10, 8×10, 8.5×11.
 - [x] Undo/Redo keyboard shortcuts: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z.
-- [ ] Native disk-cache enforcement remains. Settings now expose cache limit/location, autosave delay, grid/snap defaults and clear recovery cache.
+- [x] Native Windows disk-cache manager now creates configured cache path, reports size/files, trims oldest files to the configured limit and supports native clear. Project/asset cache usage will expand with later asset/cloud work.
 - [ ] First Windows installer/test build. Missing Tauri icon blocker fixed with embedded build-time icon generation; fresh MSI/NSIS build is being verified.
 
 ## Pending — Phase 2
