@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   SnapshotHistory,
@@ -50,6 +50,11 @@ import {
   type CloudProjectSummary
 } from "../cloud/apiClient";
 import {
+  flushPendingSnapshots,
+  pendingSyncCount,
+  queueProjectSnapshot
+} from "../cloud/syncQueue";
+import {
   deleteProjectFromLibrary,
   listProjectSummaries,
   loadActiveProject,
@@ -66,6 +71,15 @@ interface NativeCacheStatus {
   size_bytes: number;
   file_count: number;
 }
+
+type CloudSaveState =
+  | "disabled"
+  | "queued"
+  | "syncing"
+  | "saved"
+  | "offline"
+  | "conflict"
+  | "error";
 
 const navigation: Array<{ id: Screen; label: string }> = [
   { id: "dashboard", label: "Projects" },
@@ -97,6 +111,10 @@ export function App() {
   const [appSettings, setAppSettings] = useState<AppSettings>(() => loadAppSettings());
   const [revisions, setRevisions] = useState<ProjectRevision[]>(() => listRevisions(project.id));
   const [cloudToken, setCloudToken] = useState("");
+  const [cloudSaveState, setCloudSaveState] = useState<CloudSaveState>(
+    appSettings.cloudApiUrl.trim() ? "queued" : "disabled"
+  );
+  const [pendingCloudCount, setPendingCloudCount] = useState(0);
   const fontInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new SnapshotHistory(project));
 
@@ -137,7 +155,130 @@ export function App() {
     }, appSettings.autosaveDelayMs);
 
     return () => window.clearTimeout(timer);
-  }, [project]);
+  }, [project, appSettings.autosaveDelayMs]);
+
+  const flushCloudQueue = useCallback(async () => {
+    const apiUrl = appSettings.cloudApiUrl.trim();
+
+    if (!apiUrl) {
+      setCloudSaveState("disabled");
+      setPendingCloudCount(await pendingSyncCount().catch(() => 0));
+      return;
+    }
+
+    const count = await pendingSyncCount().catch(() => 0);
+    setPendingCloudCount(count);
+
+    if (count === 0) {
+      setCloudSaveState("saved");
+      return;
+    }
+
+    if (!navigator.onLine) {
+      setCloudSaveState("offline");
+      return;
+    }
+
+    if (!cloudToken.trim()) {
+      setCloudSaveState("queued");
+      return;
+    }
+
+    setCloudSaveState("syncing");
+
+    try {
+      const result = await flushPendingSnapshots(
+        new ZaxisCloudApi(apiUrl, cloudToken.trim())
+      );
+
+      setPendingCloudCount(result.remaining);
+
+      if (result.conflicts > 0) {
+        setCloudSaveState("conflict");
+      } else if (result.failed > 0) {
+        setCloudSaveState(navigator.onLine ? "error" : "offline");
+      } else {
+        setCloudSaveState("saved");
+      }
+    } catch {
+      setCloudSaveState(navigator.onLine ? "error" : "offline");
+      setPendingCloudCount(await pendingSyncCount().catch(() => count));
+    }
+  }, [appSettings.cloudApiUrl, cloudToken]);
+
+  useEffect(() => {
+    const apiUrl = appSettings.cloudApiUrl.trim();
+
+    if (!apiUrl) {
+      setCloudSaveState("disabled");
+      return;
+    }
+
+    setCloudSaveState(navigator.onLine ? "queued" : "offline");
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          await queueProjectSnapshot(project);
+          setPendingCloudCount(await pendingSyncCount());
+
+          if (!navigator.onLine) {
+            setCloudSaveState("offline");
+            return;
+          }
+
+          if (!cloudToken.trim()) {
+            setCloudSaveState("queued");
+            return;
+          }
+
+          await flushCloudQueue();
+        } catch {
+          setCloudSaveState("error");
+        }
+      })();
+    }, Math.max(appSettings.autosaveDelayMs + 250, 650));
+
+    return () => window.clearTimeout(timer);
+  }, [
+    project,
+    appSettings.cloudApiUrl,
+    appSettings.autosaveDelayMs,
+    cloudToken,
+    flushCloudQueue
+  ]);
+
+  useEffect(() => {
+    void pendingSyncCount()
+      .then(setPendingCloudCount)
+      .catch(() => setPendingCloudCount(0));
+
+    if (appSettings.cloudApiUrl.trim() && cloudToken.trim() && navigator.onLine) {
+      void flushCloudQueue();
+    }
+  }, [appSettings.cloudApiUrl, cloudToken, flushCloudQueue]);
+
+  useEffect(() => {
+    function onOnline() {
+      if (appSettings.cloudApiUrl.trim()) {
+        void flushCloudQueue();
+      }
+    }
+
+    function onOffline() {
+      if (appSettings.cloudApiUrl.trim()) {
+        setCloudSaveState("offline");
+      }
+    }
+
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, [appSettings.cloudApiUrl, flushCloudQueue]);
 
   useEffect(() => {
     if (!project.artboards.some((item) => item.id === selectedArtboardId)) {
@@ -368,7 +509,10 @@ export function App() {
             <h1>{screen === "editor" ? project.name : titleFor(screen)}</h1>
           </div>
           <div className="top-actions">
-            <span className={"save-state " + saveState}>{saveLabel(saveState)}</span>
+            <span className={"save-state " + saveState}>Local: {saveLabel(saveState)}</span>
+            <span className={"save-state cloud-" + cloudSaveState}>
+              Cloud: {cloudSaveLabel(cloudSaveState, pendingCloudCount)}
+            </span>
             <input
               ref={fontInputRef}
               className="hidden-input"
@@ -433,6 +577,9 @@ export function App() {
             token={cloudToken}
             onTokenChange={setCloudToken}
             project={project}
+            automaticState={cloudSaveState}
+            pendingCount={pendingCloudCount}
+            onFlushQueue={flushCloudQueue}
           />
         )}
         {screen === "settings" && (
@@ -458,6 +605,16 @@ function saveLabel(state: SaveState) {
   if (state === "offline") return "Offline — queued";
   if (state === "error") return "Recovery save failed";
   return "Saved locally";
+}
+
+function cloudSaveLabel(state: CloudSaveState, pendingCount: number) {
+  if (state === "disabled") return "Not configured";
+  if (state === "syncing") return "Saving...";
+  if (state === "offline") return "Offline — " + pendingCount + " queued";
+  if (state === "queued") return pendingCount + " queued";
+  if (state === "conflict") return "Conflict — review needed";
+  if (state === "error") return "Sync error — queued";
+  return "Saved to Cloud";
 }
 
 function titleFor(screen: Screen) {
@@ -1560,13 +1717,19 @@ function CloudScreen({
   onSettingsChange,
   token,
   onTokenChange,
-  project
+  project,
+  automaticState,
+  pendingCount,
+  onFlushQueue
 }: {
   settings: AppSettings;
   onSettingsChange: (settings: AppSettings) => void;
   token: string;
   onTokenChange: (token: string) => void;
   project: ZaxisProject;
+  automaticState: CloudSaveState;
+  pendingCount: number;
+  onFlushQueue: () => Promise<void>;
 }) {
   const [status, setStatus] = useState("Not tested");
   const [identity, setIdentity] = useState("");
@@ -1705,12 +1868,17 @@ function CloudScreen({
         <div className="hero-actions">
           <button className="secondary" onClick={() => void testHealth()}>Test API</button>
           <button className="secondary" onClick={() => void verifyToken()}>Verify Token</button>
+          <button className="secondary" onClick={() => void onFlushQueue()}>Flush Autosave Queue</button>
           <button className="primary" onClick={() => void syncCurrentProject()}>Sync Current Project</button>
         </div>
         <div className="cloud-status-grid">
           <div><small>Health</small><strong>{status}</strong></div>
           <div><small>Identity</small><strong>{identity || "Not verified"}</strong></div>
-          <div><small>Sync</small><strong>{syncStatus || "Not synced"}</strong></div>
+          <div><small>Manual Sync</small><strong>{syncStatus || "Not synced"}</strong></div>
+          <div>
+            <small>Automatic Autosave</small>
+            <strong>{cloudSaveLabel(automaticState, pendingCount)}</strong>
+          </div>
         </div>
       </div>
 
