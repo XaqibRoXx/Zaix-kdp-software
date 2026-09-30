@@ -47,6 +47,11 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification. Previous Windows build failed on the same revision-handler compile issue; fix has been pushed and rebuild is being verified.
 
 ## Newly Completed in Current Implementation
+- [x] Windows release executable reached successful Rust release compilation.
+- [x] Tauri MSI bundling progressed past app compile.
+- [x] MSI icon lookup blocker diagnosed.
+- [x] Generated icon path now uses CARGO_MANIFEST_DIR.
+- [x] Tauri bundle config explicitly registers icons/icon.ico.
 - [x] Skew X/Y transforms.
 - [x] Flip X/Y transforms.
 - [x] Transform migration defaults for older saved projects.
@@ -165,7 +170,7 @@ Last updated: 2026-09-30
 - [x] Initial KDP/book presets: 5×8, 5.25×8, 5.5×8.5, 6×9, 7×10, 8×10, 8.5×11.
 - [x] Undo/Redo keyboard shortcuts: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z.
 - [x] Native Windows disk-cache manager now creates configured cache path, reports size/files, trims oldest files to the configured limit and supports native clear. Project/asset cache usage will expand with later asset/cloud work.
-- [ ] First Windows installer/test build. Missing Tauri icon blocker fixed with embedded build-time icon generation; fresh MSI/NSIS build is being verified.
+- [ ] First Windows installer/test build. App executable now builds; MSI bundler icon lookup blocker fixed by generating icon in CARGO_MANIFEST_DIR and registering `icons/icon.ico` in Tauri bundle config. Fresh MSI/NSIS build is being verified.
 
 ## Pending — Phase 2
 - [ ] cPanel/VPS connection wizard and secure API.
