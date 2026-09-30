@@ -50,6 +50,29 @@ export class ZaxisCloudApi {
     return this.request<HealthResponse>("/api/health", { auth: false });
   }
 
+  async pair(connectionCode: string) {
+    return this.request<{
+      ok: boolean;
+      token: string;
+      user: { id: number; email: string; name: string };
+    }>("/api/pair", {
+      method: "POST",
+      auth: false,
+      body: { code: connectionCode }
+    });
+  }
+
+  async createConnectionCode(label = "Windows Desktop") {
+    return this.request<{
+      ok: boolean;
+      code: string;
+      expires_at: string;
+    }>("/api/v1/connection-codes", {
+      method: "POST",
+      body: { label }
+    });
+  }
+
   async me() {
     return this.request<{ ok: boolean; user: { id: number; email: string; name: string } }>("/api/v1/me");
   }
