@@ -2534,6 +2534,13 @@ function CloudScreen({
   const [status, setStatus] = useState("Not tested");
   const [identity, setIdentity] = useState("");
   const [cloudProjects, setCloudProjects] = useState<CloudProjectSummary[]>([]);
+  const [cloudRevisions, setCloudRevisions] = useState<Array<{
+    revision_number: number | string;
+    label: string | null;
+    snapshot_hash: string;
+    created_at: string;
+  }>>([]);
+  const [revisionStatus, setRevisionStatus] = useState("");
   const [syncStatus, setSyncStatus] = useState("");
   const [credentialStatus, setCredentialStatus] = useState("");
   const [connectionCode, setConnectionCode] = useState("");
@@ -2675,6 +2682,70 @@ function CloudScreen({
       await refreshProjects();
     } catch (error) {
       setSyncStatus(error instanceof Error ? error.message : "Cloud sync failed");
+    }
+  }
+
+  async function refreshCloudRevisions() {
+    if (!settings.cloudApiUrl.trim() || !token.trim()) {
+      setRevisionStatus("Connect the server first.");
+      return;
+    }
+
+    setRevisionStatus("Loading cloud revisions...");
+
+    try {
+      const result = await api().revisions(project.id);
+      setCloudRevisions(result.revisions);
+      setRevisionStatus(
+        result.revisions.length +
+          " cloud revision" +
+          (result.revisions.length === 1 ? "" : "s") +
+          " loaded."
+      );
+    } catch (error) {
+      setRevisionStatus(error instanceof Error ? error.message : "Could not load cloud revisions.");
+    }
+  }
+
+  async function restoreCloudRevision(revisionNumber: number) {
+    if (!settings.cloudApiUrl.trim() || !token.trim()) return;
+
+    if (!window.confirm(
+      "Restore cloud revision " +
+        revisionNumber +
+        " as a new current revision? The existing latest revision will stay in history."
+    )) {
+      return;
+    }
+
+    setRevisionStatus("Restoring cloud revision " + revisionNumber + "...");
+
+    try {
+      const [oldRevision, current] = await Promise.all([
+        api().getRevision(project.id, revisionNumber),
+        api().getProject(project.id)
+      ]);
+
+      const currentRevision = Number(current.project.current_revision) || 0;
+      const restored: ZaxisProject = {
+        ...oldRevision.snapshot,
+        updatedAt: new Date().toISOString()
+      };
+
+      await removePendingSnapshot(project.id);
+      await setSyncRevision(project.id, currentRevision);
+      onReplaceProject(restored, true);
+      await queueProjectSnapshot(restored);
+      await onFlushQueue();
+      await refreshCloudRevisions();
+
+      setRevisionStatus(
+        "Revision " +
+          revisionNumber +
+          " restored and saved as a new cloud revision."
+      );
+    } catch (error) {
+      setRevisionStatus(error instanceof Error ? error.message : "Cloud revision restore failed.");
     }
   }
 
@@ -2844,6 +2915,41 @@ function CloudScreen({
                 <small>{item.mode} • revision {item.current_revision}</small>
               </div>
               <span className="cloud-project-date">{new Date(item.updated_at).toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">CLOUD RECOVERY</span>
+            <h3>Revision History</h3>
+          </div>
+          <button className="secondary" onClick={() => void refreshCloudRevisions()}>Load Revisions</button>
+        </div>
+
+        {revisionStatus && <p className="muted">{revisionStatus}</p>}
+
+        <div className="revision-cloud-list">
+          {cloudRevisions.length === 0 ? (
+            <div className="empty-projects">No cloud revisions loaded for the active project.</div>
+          ) : cloudRevisions.slice(0, 25).map((revision) => (
+            <div className="revision-cloud-row" key={String(revision.revision_number)}>
+              <div>
+                <strong>Revision {revision.revision_number}</strong>
+                <small>{revision.label || "Automatic cloud autosave"}</small>
+              </div>
+              <div>
+                <small>{new Date(revision.created_at).toLocaleString()}</small>
+                <small>{revision.snapshot_hash.slice(0, 12)}…</small>
+              </div>
+              <button
+                className="secondary"
+                onClick={() => void restoreCloudRevision(Number(revision.revision_number))}
+              >
+                Restore as New
+              </button>
             </div>
           ))}
         </div>
