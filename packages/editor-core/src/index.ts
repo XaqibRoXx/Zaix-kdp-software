@@ -98,6 +98,7 @@ export interface Artboard {
   id: string;
   name: string;
   role?: "page" | "cover";
+  kind?: "standard" | "toc";
   width: number;
   height: number;
   unit: Unit;
@@ -207,6 +208,7 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
     artboards: project.artboards.map((artboard) => ({
       ...artboard,
       role: artboard.role ?? "page",
+      kind: artboard.kind ?? "standard",
       objects: (Array.isArray(artboard.objects) ? artboard.objects : []).map((object) => {
         object = {
           ...object,
@@ -275,6 +277,7 @@ export function createBlankProject(input: BlankProjectInput): ZaxisProject {
         id: id("artboard"),
         name: "Artboard 1",
         role: "page",
+        kind: "standard",
         width: input.width,
         height: input.height,
         unit: input.unit,
@@ -354,6 +357,7 @@ export function createOrUpdateKdpCoverArtboard(
     id: artboardId,
     name: "Paperback Cover",
     role: "cover",
+    kind: "standard",
     width: cover.widthIn,
     height: cover.heightIn,
     unit: "in",
@@ -475,6 +479,186 @@ export function updateTocTitle(project: ZaxisProject, title: string): ZaxisProje
   };
 }
 
+export function createOrUpdateTocArtboard(
+  project: ZaxisProject
+): { project: ZaxisProject; artboardId: string } {
+  if (project.mode !== "kdp") {
+    return { project, artboardId: "" };
+  }
+
+  const structure = normalizeBookStructure(project.bookStructure);
+  const existing = project.artboards.find(
+    (artboard) => (artboard.role ?? "page") === "page" && artboard.kind === "toc"
+  );
+
+  if (existing) {
+    const pages = project.artboards.filter((item) => (item.role ?? "page") === "page");
+    const tocPageNumber = pages.findIndex((item) => item.id === existing.id) + 1;
+    const objects = buildTocObjects(structure, tocPageNumber);
+    const next = touch(
+      project,
+      project.artboards.map((artboard) =>
+        artboard.id === existing.id
+          ? { ...artboard, name: structure.tocTitle, objects }
+          : artboard
+      )
+    );
+
+    return { project: next, artboardId: existing.id };
+  }
+
+  const reference =
+    project.artboards.find((item) => (item.role ?? "page") === "page") ??
+    project.artboards[0];
+
+  if (!reference) {
+    return { project, artboardId: "" };
+  }
+
+  const shiftedStructure = {
+    ...structure,
+    chapters: structure.chapters.map((chapter) => ({
+      ...chapter,
+      startPage: chapter.startPage + 1
+    })),
+    pageNumbers: {
+      ...structure.pageNumbers,
+      startPage: structure.pageNumbers.startPage + 1
+    }
+  };
+
+  const artboardId = id("artboard");
+  const tocArtboard: Artboard = {
+    id: artboardId,
+    name: shiftedStructure.tocTitle,
+    role: "page",
+    kind: "toc",
+    width: reference.width,
+    height: reference.height,
+    unit: reference.unit,
+    bleed: reference.bleed,
+    background: "#ffffff",
+    objects: buildTocObjects(shiftedStructure, 1)
+  };
+
+  const firstPageIndex = project.artboards.findIndex(
+    (item) => (item.role ?? "page") === "page"
+  );
+  const artboards = [...project.artboards];
+  artboards.splice(firstPageIndex >= 0 ? firstPageIndex : 0, 0, tocArtboard);
+
+  return {
+    project: {
+      ...touch(project, artboards),
+      bookStructure: shiftedStructure
+    },
+    artboardId
+  };
+}
+
+function buildTocObjects(
+  structure: BookStructure,
+  tocPhysicalPage: number
+): DesignObject[] {
+  const objects: DesignObject[] = [];
+  const heading: TextObject = {
+    id: id("object"),
+    name: "TOC Title",
+    type: "text",
+    x: 12,
+    y: 10,
+    width: 76,
+    height: 8,
+    rotation: 0,
+    opacity: 1,
+    visible: true,
+    locked: false,
+    skewX: 0,
+    skewY: 0,
+    flipX: false,
+    flipY: false,
+    text: structure.tocTitle,
+    fontFamily: "Arial",
+    fontSize: 24,
+    fontWeight: 700,
+    color: "#111111",
+    textAlign: "center",
+    lineHeight: 1.2,
+    letterSpacing: 0
+  };
+  objects.push(heading);
+
+  const entries = structure.chapters.slice(0, 24);
+
+  entries.forEach((chapter, index) => {
+    const y = 23 + index * 2.8;
+    const logicalLabel =
+      getPageNumberLabel(chapter.startPage, structure) ?? String(chapter.startPage);
+
+    const row: TextObject = {
+      id: id("object"),
+      name: "TOC " + chapter.title,
+      type: "text",
+      x: 13,
+      y,
+      width: 74,
+      height: 2.4,
+      rotation: 0,
+      opacity: 1,
+      visible: true,
+      locked: false,
+      skewX: 0,
+      skewY: 0,
+      flipX: false,
+      flipY: false,
+      text: chapter.title + "  ................................  " + logicalLabel,
+      fontFamily: "Arial",
+      fontSize: 11,
+      fontWeight: 400,
+      color: "#222222",
+      textAlign: "left",
+      lineHeight: 1.15,
+      letterSpacing: 0
+    };
+
+    objects.push(row);
+  });
+
+  if (structure.chapters.length === 0) {
+    const empty: TextObject = {
+      id: id("object"),
+      name: "TOC Empty",
+      type: "text",
+      x: 18,
+      y: 28,
+      width: 64,
+      height: 5,
+      rotation: 0,
+      opacity: 0.6,
+      visible: true,
+      locked: false,
+      skewX: 0,
+      skewY: 0,
+      flipX: false,
+      flipY: false,
+      text: "Add chapters in KDP Book settings, then update this TOC page.",
+      fontFamily: "Arial",
+      fontSize: 10,
+      fontWeight: 400,
+      color: "#444444",
+      textAlign: "center",
+      lineHeight: 1.2,
+      letterSpacing: 0
+    };
+    objects.push(empty);
+  }
+
+  // tocPhysicalPage is intentionally retained in the signature for future multi-TOC-page support.
+  void tocPhysicalPage;
+
+  return objects;
+}
+
 export function addArtboard(
   project: ZaxisProject,
   source?: Partial<Pick<Artboard, "width" | "height" | "unit" | "bleed" | "background">>
@@ -486,6 +670,7 @@ export function addArtboard(
     id: id("artboard"),
     name: "Artboard " + nextNumber,
     role: "page",
+    kind: "standard",
     width: source?.width ?? previous?.width ?? 7,
     height: source?.height ?? previous?.height ?? 10,
     unit: source?.unit ?? previous?.unit ?? "in",
@@ -1030,10 +1215,24 @@ function mapArtboard(
 }
 
 function renumberArtboards(artboards: Artboard[]) {
-  return artboards.map((artboard, index) => ({
-    ...artboard,
-    name: "Artboard " + (index + 1)
-  }));
+  let pageNumber = 0;
+
+  return artboards.map((artboard) => {
+    if (artboard.role === "cover") {
+      return { ...artboard, name: "Paperback Cover" };
+    }
+
+    pageNumber += 1;
+
+    if (artboard.kind === "toc") {
+      return { ...artboard, name: artboard.name || "Table of Contents" };
+    }
+
+    return {
+      ...artboard,
+      name: "Artboard " + pageNumber
+    };
+  });
 }
 
 function normalizeDimension(value: number) {
