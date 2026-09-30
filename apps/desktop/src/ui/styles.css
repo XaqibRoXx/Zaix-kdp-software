@@ -129,3 +129,10 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .save-state.cloud-error{color:#ff6b6b}
 
 .connection-code-output{display:inline-block;margin:8px 0 0;padding:9px 12px;border:1px solid #00f6ac;border-radius:8px;background:#07140f;color:#00f6ac;font-weight:700;letter-spacing:1px}
+
+.asset-list{display:grid;gap:8px;margin-top:14px}
+.asset-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;border:1px solid #1f2723;background:#0a0d0c;border-radius:9px;padding:10px}
+.asset-row strong,.asset-row small{display:block}
+.asset-row small{color:#78837e;margin-top:4px}
+.asset-meta{text-align:right}
+@media(max-width:800px){.asset-row{grid-template-columns:1fr}.asset-meta{text-align:left}}
