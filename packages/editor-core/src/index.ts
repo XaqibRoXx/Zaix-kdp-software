@@ -58,6 +58,7 @@ export interface PathPoint {
   y: number;
   handleIn?: PathHandle;
   handleOut?: PathHandle;
+  smooth?: boolean;
 }
 
 export interface PathObject extends DesignObjectBase {
@@ -182,7 +183,11 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
           return {
             ...object,
             points: Array.isArray(object.points) ? object.points : [],
-            closed: object.closed ?? false
+            closed: object.closed ?? false,
+            points: (Array.isArray(object.points) ? object.points : []).map((point) => ({
+              ...point,
+              smooth: point.smooth ?? false
+            }))
           };
         }
 
@@ -402,7 +407,7 @@ export function addPathObject(
     locked: false,
     points: [
       { id: id("point"), x: 5, y: 80, handleOut: { x: 18, y: 62 } },
-      { id: id("point"), x: 50, y: 10, handleIn: { x: 35, y: 10 }, handleOut: { x: 65, y: 10 } },
+      { id: id("point"), x: 50, y: 10, handleIn: { x: 35, y: 10 }, handleOut: { x: 65, y: 10 }, smooth: true },
       { id: id("point"), x: 95, y: 80, handleIn: { x: 82, y: 62 } }
     ],
     closed: false,
@@ -528,7 +533,8 @@ export function updateObject(
             handleOut: point.handleOut ? {
               x: Math.max(0, Math.min(100, point.handleOut.x)),
               y: Math.max(0, Math.min(100, point.handleOut.y))
-            } : undefined
+            } : undefined,
+            smooth: point.smooth ?? false
           })),
           closed: input.closed ?? object.closed,
           fill: input.fill ?? object.fill,
