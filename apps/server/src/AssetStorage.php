@@ -31,7 +31,7 @@ final class AssetStorage
             throw new RuntimeException('Temporary upload file is missing.');
         }
 
-        $finfo = new info(FILEINFO_MIME_TYPE);
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $mime = (string) $finfo->file($tmp);
 
         $extensions = [
