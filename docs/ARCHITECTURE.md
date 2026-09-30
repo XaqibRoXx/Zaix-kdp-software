@@ -73,3 +73,17 @@ This pairing flow is the preferred connection path. Manual API-token entry remai
 
 ## Cloud Sync Conflict Rule
 Every queued snapshot retains the cloud revision it was based on. Coalescing newer local edits must not replace that base revision. Before pushing, the client verifies the current server revision. A mismatch becomes a conflict and the client must not silently overwrite newer cloud work.
+
+
+## Project Edit Locking
+Cloud projects use short-lived server locks to reduce accidental multi-device overwrite while preserving offline editing.
+
+- Every Windows installation has a stable random `client_id` stored locally.
+- When the Editor opens a cloud project, the desktop app requests a 120-second lock and refreshes it every 60 seconds.
+- The same client may refresh its own lock; another active client receives HTTP 423 Locked.
+- Snapshot writes are also checked server-side, so the protection does not depend on UI behavior.
+- Leaving or switching the project attempts to release the owned lock immediately.
+- Expired locks are cleaned automatically.
+- If another editor owns the lock, local edits are still allowed and remain in the offline/sync queue; they are not silently discarded.
+- The top bar shows the current edit-lock state.
+- Revision-base conflict checks still run independently. A lock does not replace revision conflict detection.
