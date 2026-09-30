@@ -47,10 +47,17 @@ export interface ImageObject extends DesignObjectBase {
   borderRadius: number;
 }
 
+export interface PathHandle {
+  x: number;
+  y: number;
+}
+
 export interface PathPoint {
   id: string;
   x: number;
   y: number;
+  handleIn?: PathHandle;
+  handleOut?: PathHandle;
 }
 
 export interface PathObject extends DesignObjectBase {
@@ -394,9 +401,9 @@ export function addPathObject(
     visible: true,
     locked: false,
     points: [
-      { id: id("point"), x: 5, y: 80 },
-      { id: id("point"), x: 50, y: 10 },
-      { id: id("point"), x: 95, y: 80 }
+      { id: id("point"), x: 5, y: 80, handleOut: { x: 18, y: 62 } },
+      { id: id("point"), x: 50, y: 10, handleIn: { x: 35, y: 10 }, handleOut: { x: 65, y: 10 } },
+      { id: id("point"), x: 95, y: 80, handleIn: { x: 82, y: 62 } }
     ],
     closed: false,
     fill: "transparent",
@@ -513,7 +520,15 @@ export function updateObject(
           points: (input.points ?? object.points).map((point) => ({
             ...point,
             x: Math.max(0, Math.min(100, point.x)),
-            y: Math.max(0, Math.min(100, point.y))
+            y: Math.max(0, Math.min(100, point.y)),
+            handleIn: point.handleIn ? {
+              x: Math.max(0, Math.min(100, point.handleIn.x)),
+              y: Math.max(0, Math.min(100, point.handleIn.y))
+            } : undefined,
+            handleOut: point.handleOut ? {
+              x: Math.max(0, Math.min(100, point.handleOut.x)),
+              y: Math.max(0, Math.min(100, point.handleOut.y))
+            } : undefined
           })),
           closed: input.closed ?? object.closed,
           fill: input.fill ?? object.fill,
