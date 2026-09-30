@@ -180,6 +180,18 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Cloud asset schema extended with proxy/thumbnail variants.
+- [x] Migration added for existing servers.
+- [x] Authenticated multipart asset upload endpoint.
+- [x] Per-user SHA-256 deduplication for repeated uploads.
+- [x] Project ownership validation on asset upload.
+- [x] Server storage keys keep originals outside the public web root.
+- [x] Automatic WebP proxy generation for JPEG/PNG/WebP when PHP GD is available.
+- [x] Authenticated original/proxy content streaming endpoint.
+- [x] Cloud asset list and soft-delete endpoints.
+- [x] Desktop cloud API client supports asset upload/list/download/delete.
+- [x] Desktop Asset Library screen is connected to the active project's cloud assets.
+- [x] Asset Library shows original size and proxy dimensions/status.
 - [x] Server .env loader added so cPanel-written configuration is actually consumed by the API.
 - [x] Pairing-code database table with expiry and one-time-use enforcement.
 - [x] Unauthenticated /api/pair endpoint exchanges a valid one-time code for a desktop API token.
@@ -218,7 +230,7 @@ Last updated: 2026-09-30
 - [x] Offline operation queue and automatic reconnect flush.
 - [ ] Automatic merge UI remains. Sync queue now tracks true base revisions and blocks silent overwrite on remote revision changes.
 - [x] One-time cPanel web installer + one-time connection-code pairing workflow.
-- [ ] Asset upload/proxy endpoints.
+- [x] Asset upload/list/delete/content endpoints plus automatic image proxy generation.
 
 ## Pending — Phase 2
 - [x] Initial cPanel connection wizard and secure pairing API.
