@@ -47,6 +47,10 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification. Previous Windows build failed on the same revision-handler compile issue; fix has been pushed and rebuild is being verified.
 
 ## Newly Completed in Current Implementation
+- [x] Vector anchor-point inspector list.
+- [x] Exact anchor X/Y editing.
+- [x] Add anchor point action.
+- [x] Delete anchor point action with minimum-point protection.
 - [x] Native Windows cache directory resolution.
 - [x] Configurable cache path with System Default fallback.
 - [x] Native cache size and file-count diagnostics.
@@ -136,7 +140,7 @@ Last updated: 2026-09-30
 
 ## Pending — Phase 1
 - [x] Local dashboard project CRUD and recent projects. Cloud project library remains Phase 2.
-- [ ] Advanced Bezier handles/curves remain. Pen/path objects plus direct anchor-node editing foundation are working.
+- [ ] Bezier control handles/curves remain. Pen/path objects, Direct Select, anchor drag, exact anchor X/Y editing and anchor add/delete are working.
 - [ ] Advanced text engine remains. Font family/size/weight/color, alignment, line height and letter spacing are working.
 - [ ] Advanced Bezier curve editor remains. Open/closed vector paths, anchor points, stroke/fill and direct-node editing are working.
 - [ ] Advanced freeform masks remain. Clipboard paste, contain/cover/fill, crop position, image scale and mask-radius controls are working.
