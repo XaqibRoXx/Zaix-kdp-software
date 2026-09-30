@@ -36,3 +36,14 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .alignment-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:10px}
 .alignment-grid button{border:1px solid #252c29;background:#0c100e;color:#aeb7b3;border-radius:6px;padding:6px 4px;font-size:10px;cursor:pointer}
 .alignment-grid button:hover{border-color:#00f6ac;color:#00f6ac}
+
+.hero-actions{display:flex;gap:8px;flex-wrap:wrap}
+.project-list{display:grid;gap:8px;margin-top:16px}
+.project-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;border:1px solid #1d2321;background:#0a0d0c;border-radius:9px;padding:7px}
+.project-row.active{border-color:#00f6ac}
+.project-row button{border:1px solid #242a28;background:#0c0f0e;color:#cfd7d4;border-radius:7px;padding:8px 10px;cursor:pointer}
+.project-row .project-main{text-align:left;border:0;background:transparent;padding:6px 8px}
+.project-main strong,.project-main small{display:block}
+.project-main small{color:#76817d;margin-top:4px}
+.project-row .danger-text{color:#ff8585;border-color:#4a2424}
+.empty-projects{color:#77817d;padding:16px;border:1px dashed #252c29;border-radius:8px}
