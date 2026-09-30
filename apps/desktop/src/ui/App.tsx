@@ -994,11 +994,36 @@ function CanvasObject({
   ) : null;
 
   if (object.type === "path") {
-    const pathData = object.points
-      .map((point, index) => (index === 0 ? "M " : "L ") + point.x + " " + point.y)
-      .join(" ") + (object.closed ? " Z" : "");
+    const firstPoint = object.points[0];
+    let pathData = firstPoint ? "M " + firstPoint.x + " " + firstPoint.y : "";
 
-    function beginPointDrag(event: React.PointerEvent<HTMLButtonElement>, pointId: string) {
+    for (let index = 1; index < object.points.length; index += 1) {
+      const previous = object.points[index - 1];
+      const current = object.points[index];
+      const out = previous.handleOut ?? { x: previous.x, y: previous.y };
+      const incoming = current.handleIn ?? { x: current.x, y: current.y };
+
+      pathData += previous.handleOut || current.handleIn
+        ? " C " + out.x + " " + out.y + " " + incoming.x + " " + incoming.y + " " + current.x + " " + current.y
+        : " L " + current.x + " " + current.y;
+    }
+
+    if (object.closed && object.points.length > 1) {
+      const previous = object.points[object.points.length - 1];
+      const current = object.points[0];
+      const out = previous.handleOut ?? { x: previous.x, y: previous.y };
+      const incoming = current.handleIn ?? { x: current.x, y: current.y };
+
+      pathData += previous.handleOut || current.handleIn
+        ? " C " + out.x + " " + out.y + " " + incoming.x + " " + incoming.y + " " + current.x + " " + current.y + " Z"
+        : " Z";
+    }
+
+    function beginPointDrag(
+      event: React.PointerEvent<HTMLButtonElement>,
+      pointId: string,
+      kind: "anchor" | "in" | "out"
+    ) {
       if (!directEdit || object.locked || object.type !== "path") return;
 
       event.preventDefault();
@@ -1009,14 +1034,40 @@ function CanvasObject({
       if (!(frameElement instanceof HTMLElement)) return;
 
       const rect = frameElement.getBoundingClientRect();
-      const originalPoints = object.points.map((point) => ({ ...point }));
+      const originalPoints = object.points.map((point) => ({
+        ...point,
+        handleIn: point.handleIn ? { ...point.handleIn } : undefined,
+        handleOut: point.handleOut ? { ...point.handleOut } : undefined
+      }));
       const pointIndex = originalPoints.findIndex((point) => point.id === pointId);
       if (pointIndex < 0) return;
 
       function finish(pointerEvent: PointerEvent) {
         const x = Math.max(0, Math.min(100, ((pointerEvent.clientX - rect.left) / rect.width) * 100));
         const y = Math.max(0, Math.min(100, ((pointerEvent.clientY - rect.top) / rect.height) * 100));
-        const points = originalPoints.map((point, index) => index === pointIndex ? { ...point, x, y } : point);
+
+        const points = originalPoints.map((point, index) => {
+          if (index !== pointIndex) return point;
+
+          if (kind === "anchor") {
+            const dx = x - point.x;
+            const dy = y - point.y;
+            return {
+              ...point,
+              x,
+              y,
+              handleIn: point.handleIn ? { x: point.handleIn.x + dx, y: point.handleIn.y + dy } : undefined,
+              handleOut: point.handleOut ? { x: point.handleOut.x + dx, y: point.handleOut.y + dy } : undefined
+            };
+          }
+
+          if (kind === "in") {
+            return { ...point, handleIn: { x, y } };
+          }
+
+          return { ...point, handleOut: { x, y } };
+        });
+
         onChange({ points });
         window.removeEventListener("pointerup", finish);
       }
@@ -1035,6 +1086,12 @@ function CanvasObject({
         }}
       >
         <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+          {selected && directEdit && object.points.map((point) => (
+            <g key={"handles-" + point.id}>
+              {point.handleIn && <line className="path-handle-line" x1={point.x} y1={point.y} x2={point.handleIn.x} y2={point.handleIn.y} />}
+              {point.handleOut && <line className="path-handle-line" x1={point.x} y1={point.y} x2={point.handleOut.x} y2={point.handleOut.y} />}
+            </g>
+          ))}
           <path
             d={pathData}
             fill={object.closed ? object.fill : "none"}
@@ -1043,14 +1100,32 @@ function CanvasObject({
             vectorEffect="non-scaling-stroke"
           />
         </svg>
+
         {selected && directEdit && object.points.map((point) => (
-          <button
-            key={point.id}
-            className="path-node"
-            style={{ left: point.x + "%", top: point.y + "%" }}
-            onPointerDown={(event) => beginPointDrag(event, point.id)}
-            title="Drag anchor point"
-          />
+          <div key={point.id}>
+            <button
+              className="path-node"
+              style={{ left: point.x + "%", top: point.y + "%" }}
+              onPointerDown={(event) => beginPointDrag(event, point.id, "anchor")}
+              title="Drag anchor point"
+            />
+            {point.handleIn && (
+              <button
+                className="path-handle-node"
+                style={{ left: point.handleIn.x + "%", top: point.handleIn.y + "%" }}
+                onPointerDown={(event) => beginPointDrag(event, point.id, "in")}
+                title="Drag incoming Bezier handle"
+              />
+            )}
+            {point.handleOut && (
+              <button
+                className="path-handle-node"
+                style={{ left: point.handleOut.x + "%", top: point.handleOut.y + "%" }}
+                onPointerDown={(event) => beginPointDrag(event, point.id, "out")}
+                title="Drag outgoing Bezier handle"
+              />
+            )}
+          </div>
         ))}
         {handle}
       </div>
