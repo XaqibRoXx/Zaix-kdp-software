@@ -521,6 +521,48 @@ try {
         }
     }
 
+    if ($method === 'GET' && preg_match('#^/api/v1/projects/([^/]+)/revisions/(\d+)$#', $path, $matches)) {
+        $projectId = rawurldecode($matches[1]);
+        $revisionNumber = (int) $matches[2];
+
+        $stmt = $db->prepare(
+            'SELECT s.revision_number, s.label, s.snapshot_hash, s.snapshot_json, s.created_at
+             FROM project_snapshots s
+             INNER JOIN projects p ON p.id = s.project_id
+             WHERE s.project_id = :project_id
+               AND s.revision_number = :revision
+               AND p.owner_user_id = :owner
+               AND p.deleted_at IS NULL
+             LIMIT 1'
+        );
+        $stmt->execute([
+            'project_id' => $projectId,
+            'revision' => $revisionNumber,
+            'owner' => $user['id'],
+        ]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Revision not found.',
+                'request_id' => $requestId,
+            ], 404);
+        }
+
+        Http::json([
+            'ok' => true,
+            'revision' => [
+                'revision_number' => (int) $row['revision_number'],
+                'label' => $row['label'],
+                'snapshot_hash' => $row['snapshot_hash'],
+                'created_at' => $row['created_at'],
+            ],
+            'snapshot' => json_decode((string) $row['snapshot_json'], true),
+            'request_id' => $requestId,
+        ]);
+    }
+
     if ($method === 'GET' && preg_match('#^/api/v1/projects/([^/]+)/revisions$#', $path, $matches)) {
         $projectId = rawurldecode($matches[1]);
 
