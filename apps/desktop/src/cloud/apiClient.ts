@@ -145,6 +145,24 @@ export class ZaxisCloudApi {
     }>("/api/v1/projects/" + encodeURIComponent(projectId) + "/revisions");
   }
 
+  async getRevision(projectId: string, revisionNumber: number) {
+    return this.request<{
+      ok: boolean;
+      revision: {
+        revision_number: number;
+        label: string | null;
+        snapshot_hash: string;
+        created_at: string;
+      };
+      snapshot: ZaxisProject;
+    }>(
+      "/api/v1/projects/" +
+        encodeURIComponent(projectId) +
+        "/revisions/" +
+        encodeURIComponent(String(revisionNumber))
+    );
+  }
+
   async listAssets(projectId?: string) {
     const query = projectId ? "?project_id=" + encodeURIComponent(projectId) : "";
     return this.request<{ ok: boolean; assets: CloudAsset[] }>("/api/v1/assets" + query);
