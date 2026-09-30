@@ -182,7 +182,6 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
         if (object.type === "path") {
           return {
             ...object,
-            points: Array.isArray(object.points) ? object.points : [],
             closed: object.closed ?? false,
             points: (Array.isArray(object.points) ? object.points : []).map((point) => ({
               ...point,
