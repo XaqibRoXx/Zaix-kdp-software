@@ -44,9 +44,12 @@ Last updated: 2026-09-30
 - [ ] Full font-provider abstraction. Native Windows system-font discovery is now wired; project/cloud/custom font install remains.
 - [x] Initial clipboard image ingestion: pasted clipboard images become editable image objects.
 - [ ] Cloud/full persistence layer. Multi-project local recovery library is now working.
-- [ ] First runnable Windows development build verification.
+- [ ] First runnable Windows development build verification. Windows Tauri installer workflow is now configured.
 
 ## Newly Completed in Current Implementation
+- [x] Frontend desktop build pipeline reached a successful GitHub Actions compile.
+- [x] Windows-latest Tauri build workflow added.
+- [x] MSI/NSIS artifact upload step configured for Windows builds.
 - [x] Configurable project preset registry separated from editor UI.
 - [x] KDP project presets for common trim sizes.
 - [x] Graphic-design presets for common screen/print formats.
@@ -118,7 +121,7 @@ Last updated: 2026-09-30
 - [x] Initial KDP/book presets: 5×8, 5.25×8, 5.5×8.5, 6×9, 7×10, 8×10, 8.5×11.
 - [x] Undo/Redo keyboard shortcuts: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z.
 - [ ] Native disk-cache enforcement remains. Settings now expose cache limit/location, autosave delay, grid/snap defaults and clear recovery cache.
-- [ ] First Windows installer/test build.
+- [ ] First Windows installer/test build. GitHub Actions Windows build workflow now targets MSI/NSIS artifacts.
 
 ## Pending — Phase 2
 - [ ] cPanel/VPS connection wizard and secure API.
