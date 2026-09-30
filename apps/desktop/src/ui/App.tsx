@@ -2,12 +2,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   SnapshotHistory,
   addArtboard,
+  addShapeObject,
+  addTextObject,
   createBlankProject,
   deleteArtboard,
+  deleteObject,
   duplicateArtboard,
   moveArtboard,
+  moveObjectLayer,
+  normalizeProject,
   resizeAllArtboards,
   resizeArtboard,
+  setObjectLocked,
+  setObjectVisible,
+  updateObject,
+  type DesignObject,
   type ZaxisProject
 } from "@zaxis-kdp/editor-core";
 import type { SaveState, Unit } from "@zaxis-kdp/shared";
@@ -28,7 +37,7 @@ const units: Unit[] = ["px", "in", "cm", "mm", "pt", "pc"];
 function initialProject(): ZaxisProject {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored) as ZaxisProject;
+    if (stored) return normalizeProject(JSON.parse(stored) as ZaxisProject);
   } catch {
     // Recovery storage should never block app startup.
   }
@@ -46,6 +55,7 @@ export function App() {
   const [project, setProject] = useState<ZaxisProject>(initialProject);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [selectedArtboardId, setSelectedArtboardId] = useState(project.artboards[0].id);
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const historyRef = useRef(new SnapshotHistory(project));
 
   useEffect(() => {
@@ -66,6 +76,7 @@ export function App() {
   useEffect(() => {
     if (!project.artboards.some((item) => item.id === selectedArtboardId)) {
       setSelectedArtboardId(project.artboards[0]?.id ?? "");
+      setSelectedObjectId(null);
     }
   }, [project, selectedArtboardId]);
 
@@ -84,9 +95,6 @@ export function App() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      const isModifier = event.ctrlKey || event.metaKey;
-      if (!isModifier) return;
-
       const target = event.target as HTMLElement | null;
       const isTyping =
         target?.tagName === "INPUT" ||
@@ -94,18 +102,25 @@ export function App() {
         target?.tagName === "SELECT" ||
         target?.isContentEditable;
 
-      if (isTyping) return;
+      if ((event.ctrlKey || event.metaKey) && !isTyping) {
+        if (event.key.toLowerCase() === "z") {
+          event.preventDefault();
+          if (event.shiftKey) redo();
+          else undo();
+          return;
+        }
 
-      if (event.key.toLowerCase() === "z") {
-        event.preventDefault();
-        if (event.shiftKey) redo();
-        else undo();
-        return;
+        if (event.key.toLowerCase() === "y") {
+          event.preventDefault();
+          redo();
+          return;
+        }
       }
 
-      if (event.key.toLowerCase() === "y") {
+      if (!isTyping && (event.key === "Delete" || event.key === "Backspace") && selectedObjectId) {
         event.preventDefault();
-        redo();
+        commit(deleteObject(project, selectedArtboardId, selectedObjectId));
+        setSelectedObjectId(null);
       }
     }
 
@@ -123,6 +138,7 @@ export function App() {
     historyRef.current.reset(next);
     setProject(next);
     setSelectedArtboardId(next.artboards[0].id);
+    setSelectedObjectId(null);
     setScreen("editor");
   }
 
@@ -176,7 +192,12 @@ export function App() {
           <EditorShell
             project={project}
             selectedArtboardId={selectedArtboardId}
-            onSelectArtboard={setSelectedArtboardId}
+            selectedObjectId={selectedObjectId}
+            onSelectArtboard={(id) => {
+              setSelectedArtboardId(id);
+              setSelectedObjectId(null);
+            }}
+            onSelectObject={setSelectedObjectId}
             onCommit={commit}
             onUndo={undo}
             onRedo={redo}
@@ -185,22 +206,13 @@ export function App() {
           />
         )}
         {screen === "assets" && (
-          <Placeholder
-            title="Asset Library"
-            copy="Cloud assets, linked files, font library, proxies and background-removal tools will live here."
-          />
+          <Placeholder title="Asset Library" copy="Cloud assets, linked files, font library, proxies and background-removal tools will live here." />
         )}
         {screen === "cloud" && (
-          <Placeholder
-            title="Cloud & Server"
-            copy="The configurable cPanel/VPS connection wizard, health checks, storage, share domain and worker settings will live here."
-          />
+          <Placeholder title="Cloud & Server" copy="The configurable cPanel/VPS connection wizard, health checks, storage, share domain and worker settings will live here." />
         )}
         {screen === "settings" && (
-          <Placeholder
-            title="Settings"
-            copy="Global defaults, cache, units, presets, shortcuts, theme and all configurable non-hardcoded behaviors will live here."
-          />
+          <Placeholder title="Settings" copy="Global defaults, cache, units, presets, shortcuts, theme and all configurable non-hardcoded behaviors will live here." />
         )}
       </main>
     </div>
@@ -223,12 +235,14 @@ function titleFor(screen: Screen) {
 }
 
 function Dashboard({ project, onOpen }: { project: ZaxisProject; onOpen: () => void }) {
+  const objectCount = project.artboards.reduce((total, artboard) => total + artboard.objects.length, 0);
+
   return (
     <section className="content">
       <div className="metric-grid">
         <Metric label="Active Project" value={project.name} />
         <Metric label="Artboards" value={String(project.artboards.length)} />
-        <Metric label="Local Recovery" value="Active" />
+        <Metric label="Objects" value={String(objectCount)} />
         <Metric label="Phase" value="1 / 4" />
       </div>
 
@@ -236,7 +250,7 @@ function Dashboard({ project, onOpen }: { project: ZaxisProject; onOpen: () => v
         <div>
           <span className="eyebrow">START DESIGNING</span>
           <h2>Book layouts and full graphic design in one cloud-first Windows workspace.</h2>
-          <p>Use KDP presets or create any custom artboard in px, in, cm, mm, pt or pica.</p>
+          <p>Core layers, text and shape objects are now part of the editor model.</p>
         </div>
         <button className="primary" onClick={onOpen}>Open Editor</button>
       </div>
@@ -249,8 +263,8 @@ function Dashboard({ project, onOpen }: { project: ZaxisProject; onOpen: () => v
           </div>
           <span className="pill">In Progress</span>
         </div>
-        <div className="progress"><span style={{ width: "32%" }} /></div>
-        <p className="muted">Multi-artboard controls, real Undo/Redo and local recovery autosave are now wired into the editor.</p>
+        <div className="progress"><span style={{ width: "46%" }} /></div>
+        <p className="muted">Artboards, layers, selectable objects, basic text/shapes, Undo/Redo and local recovery autosave are wired.</p>
       </div>
     </section>
   );
@@ -259,7 +273,9 @@ function Dashboard({ project, onOpen }: { project: ZaxisProject; onOpen: () => v
 interface EditorShellProps {
   project: ZaxisProject;
   selectedArtboardId: string;
+  selectedObjectId: string | null;
   onSelectArtboard: (id: string) => void;
+  onSelectObject: (id: string | null) => void;
   onCommit: (project: ZaxisProject) => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -270,7 +286,9 @@ interface EditorShellProps {
 function EditorShell({
   project,
   selectedArtboardId,
+  selectedObjectId,
   onSelectArtboard,
+  onSelectObject,
   onCommit,
   onUndo,
   onRedo,
@@ -280,6 +298,11 @@ function EditorShell({
   const artboard = useMemo(
     () => project.artboards.find((item) => item.id === selectedArtboardId) ?? project.artboards[0],
     [project, selectedArtboardId]
+  );
+
+  const selectedObject = useMemo(
+    () => artboard.objects.find((object) => object.id === selectedObjectId) ?? null,
+    [artboard, selectedObjectId]
   );
 
   function add() {
@@ -314,21 +337,43 @@ function EditorShell({
   }
 
   function bulkResize() {
-    onCommit(
-      resizeAllArtboards(project, {
-        width: artboard.width,
-        height: artboard.height,
-        unit: artboard.unit
-      })
-    );
+    onCommit(resizeAllArtboards(project, {
+      width: artboard.width,
+      height: artboard.height,
+      unit: artboard.unit
+    }));
+  }
+
+  function createText() {
+    const result = addTextObject(project, artboard.id);
+    onCommit(result.project);
+    onSelectObject(result.objectId);
+  }
+
+  function createShape(type: "rectangle" | "ellipse") {
+    const result = addShapeObject(project, artboard.id, type);
+    onCommit(result.project);
+    onSelectObject(result.objectId);
+  }
+
+  function removeObject() {
+    if (!selectedObject) return;
+    onCommit(deleteObject(project, artboard.id, selectedObject.id));
+    onSelectObject(null);
   }
 
   return (
     <section className="editor-layout">
       <aside className="tools">
-        {["Select", "Direct", "Text", "Shape", "Pen", "Image", "Hand", "Zoom"].map((tool) => (
-          <button key={tool} title={tool}>{tool.slice(0, 1)}</button>
-        ))}
+        <button title="Select">S</button>
+        <button title="Direct Select">D</button>
+        <button title="Text" onClick={createText}>T</button>
+        <button title="Rectangle" onClick={() => createShape("rectangle")}>R</button>
+        <button title="Ellipse" onClick={() => createShape("ellipse")}>O</button>
+        <button title="Pen">P</button>
+        <button title="Image">I</button>
+        <button title="Hand">H</button>
+        <button title="Zoom">Z</button>
       </aside>
 
       <aside className="artboards-panel">
@@ -363,27 +408,8 @@ function EditorShell({
           <button onClick={onRedo} disabled={!canRedo}>Redo</button>
           <span className="toolbar-separator" />
 
-          <label>
-            W
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={artboard.width}
-              onChange={(event) => updateDimension("width", event.target.value)}
-            />
-          </label>
-
-          <label>
-            H
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={artboard.height}
-              onChange={(event) => updateDimension("height", event.target.value)}
-            />
-          </label>
+          <label>W <input type="number" min="0.01" step="0.01" value={artboard.width} onChange={(event) => updateDimension("width", event.target.value)} /></label>
+          <label>H <input type="number" min="0.01" step="0.01" value={artboard.height} onChange={(event) => updateDimension("height", event.target.value)} /></label>
 
           <select value={artboard.unit} onChange={(event) => updateUnit(event.target.value as Unit)}>
             {units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
@@ -392,44 +418,196 @@ function EditorShell({
           <button onClick={bulkResize}>Apply Size to All</button>
         </div>
 
-        <div className="canvas-stage">
+        <div className="canvas-stage" onClick={() => onSelectObject(null)}>
           <div
             className="artboard"
             style={{
               aspectRatio: String(artboard.width) + " / " + String(artboard.height),
               background: artboard.background
             }}
+            onClick={(event) => event.stopPropagation()}
           >
-            <div className="safe-area">
-              <span>{artboard.name}</span>
-              <strong>{artboard.width} × {artboard.height} {artboard.unit}</strong>
-              <small>{project.mode === "kdp" ? "KDP / Print mode" : "Graphic Design mode"}</small>
-            </div>
+            <div className="safe-area" />
+
+            {artboard.objects.filter((object) => object.visible).map((object) => (
+              <CanvasObject
+                key={object.id}
+                object={object}
+                selected={object.id === selectedObjectId}
+                onSelect={() => onSelectObject(object.id)}
+              />
+            ))}
+
+            {artboard.objects.length === 0 && (
+              <div className="empty-artboard">
+                <span>{artboard.name}</span>
+                <strong>{artboard.width} × {artboard.height} {artboard.unit}</strong>
+                <small>Use T / R / O tools to add content</small>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="bottom-status">
           <span>100%</span>
           <span>{project.artboards.length} artboard{project.artboards.length === 1 ? "" : "s"}</span>
+          <span>{artboard.objects.length} object{artboard.objects.length === 1 ? "" : "s"}</span>
           <span>Undo {canUndo ? "ready" : "empty"}</span>
-          <span>Redo {canRedo ? "ready" : "empty"}</span>
           <span>Local autosave active</span>
         </div>
       </div>
 
       <aside className="properties">
-        <div className="panel-title">Properties</div>
-        <Property label="Document Mode" value={project.mode === "kdp" ? "KDP / Print" : "Graphic Design"} />
-        <Property label="Artboard" value={String(artboard.width) + " × " + String(artboard.height) + " " + artboard.unit} />
-        <Property label="Bleed" value={String(artboard.bleed) + " " + artboard.unit} />
-        <Property label="Background" value={artboard.background} />
-        <Property label="Local Recovery" value="Enabled" />
-        <hr />
-        <button className="secondary full" onClick={bulkResize}>Bulk Resize</button>
-        <button className="secondary full">Layers</button>
-        <button className="secondary full">Export PDF</button>
+        <div className="panel-title">Layers & Properties</div>
+
+        <div className="layer-list">
+          {[...artboard.objects].reverse().map((object) => (
+            <div className={object.id === selectedObjectId ? "layer-row active" : "layer-row"} key={object.id}>
+              <button className="layer-name" onClick={() => onSelectObject(object.id)}>{object.name}</button>
+              <button title="Toggle visibility" onClick={() => onCommit(setObjectVisible(project, artboard.id, object.id, !object.visible))}>{object.visible ? "◉" : "○"}</button>
+              <button title="Toggle lock" onClick={() => onCommit(setObjectLocked(project, artboard.id, object.id, !object.locked))}>{object.locked ? "L" : "U"}</button>
+            </div>
+          ))}
+        </div>
+
+        {selectedObject ? (
+          <>
+            <hr />
+            <ObjectInspector
+              object={selectedObject}
+              onChange={(input) => onCommit(updateObject(project, artboard.id, selectedObject.id, input))}
+            />
+            <div className="artboard-actions">
+              <button className="secondary" onClick={() => onCommit(moveObjectLayer(project, artboard.id, selectedObject.id, "up"))}>Bring Up</button>
+              <button className="secondary" onClick={() => onCommit(moveObjectLayer(project, artboard.id, selectedObject.id, "down"))}>Send Down</button>
+            </div>
+            <button className="secondary full danger" onClick={removeObject}>Delete Object</button>
+          </>
+        ) : (
+          <>
+            <Property label="Document Mode" value={project.mode === "kdp" ? "KDP / Print" : "Graphic Design"} />
+            <Property label="Artboard" value={String(artboard.width) + " × " + String(artboard.height) + " " + artboard.unit} />
+            <Property label="Objects" value={String(artboard.objects.length)} />
+            <button className="secondary full" onClick={bulkResize}>Bulk Resize</button>
+          </>
+        )}
       </aside>
     </section>
+  );
+}
+
+function CanvasObject({
+  object,
+  selected,
+  onSelect
+}: {
+  object: DesignObject;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const commonStyle = {
+    left: object.x + "%",
+    top: object.y + "%",
+    width: object.width + "%",
+    height: object.height + "%",
+    opacity: object.opacity,
+    transform: "rotate(" + object.rotation + "deg)"
+  };
+
+  if (object.type === "text") {
+    return (
+      <div
+        className={selected ? "design-object text-object selected" : "design-object text-object"}
+        style={{
+          ...commonStyle,
+          color: object.color,
+          fontFamily: object.fontFamily,
+          fontSize: Math.max(10, object.fontSize * 0.55) + "px",
+          fontWeight: object.fontWeight,
+          textAlign: object.textAlign
+        }}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelect();
+        }}
+      >
+        {object.text}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={selected ? "design-object shape-object selected" : "design-object shape-object"}
+      style={{
+        ...commonStyle,
+        background: object.fill,
+        border: object.strokeWidth + "px solid " + object.stroke,
+        borderRadius: object.type === "ellipse" ? "50%" : object.cornerRadius + "px"
+      }}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
+    />
+  );
+}
+
+function ObjectInspector({
+  object,
+  onChange
+}: {
+  object: DesignObject;
+  onChange: (input: Parameters<typeof updateObject>[3]) => void;
+}) {
+  return (
+    <div className="object-inspector">
+      <Property label="Selected" value={object.name} />
+
+      <div className="inspector-grid">
+        <label>X<input type="number" value={object.x} onChange={(event) => onChange({ x: Number(event.target.value) })} /></label>
+        <label>Y<input type="number" value={object.y} onChange={(event) => onChange({ y: Number(event.target.value) })} /></label>
+        <label>W<input type="number" value={object.width} onChange={(event) => onChange({ width: Number(event.target.value) })} /></label>
+        <label>H<input type="number" value={object.height} onChange={(event) => onChange({ height: Number(event.target.value) })} /></label>
+      </div>
+
+      <label className="inspector-field">Rotation
+        <input type="number" value={object.rotation} onChange={(event) => onChange({ rotation: Number(event.target.value) })} />
+      </label>
+
+      <label className="inspector-field">Opacity
+        <input type="number" min="0" max="1" step="0.05" value={object.opacity} onChange={(event) => onChange({ opacity: Number(event.target.value) })} />
+      </label>
+
+      {object.type === "text" ? (
+        <>
+          <label className="inspector-field">Text
+            <textarea value={object.text} onChange={(event) => onChange({ text: event.target.value })} />
+          </label>
+          <label className="inspector-field">Font
+            <input value={object.fontFamily} onChange={(event) => onChange({ fontFamily: event.target.value })} />
+          </label>
+          <label className="inspector-field">Font Size
+            <input type="number" value={object.fontSize} onChange={(event) => onChange({ fontSize: Number(event.target.value) })} />
+          </label>
+          <label className="inspector-field">Color
+            <input type="color" value={object.color} onChange={(event) => onChange({ color: event.target.value })} />
+          </label>
+        </>
+      ) : (
+        <>
+          <label className="inspector-field">Fill
+            <input type="color" value={object.fill} onChange={(event) => onChange({ fill: event.target.value })} />
+          </label>
+          <label className="inspector-field">Stroke
+            <input type="color" value={object.stroke} onChange={(event) => onChange({ stroke: event.target.value })} />
+          </label>
+          <label className="inspector-field">Stroke Width
+            <input type="number" min="0" value={object.strokeWidth} onChange={(event) => onChange({ strokeWidth: Number(event.target.value) })} />
+          </label>
+        </>
+      )}
+    </div>
   );
 }
 
