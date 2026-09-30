@@ -1,6 +1,6 @@
 import type { Unit } from "@zaxis-kdp/shared";
 
-export type DesignObjectType = "text" | "rectangle" | "ellipse";
+export type DesignObjectType = "text" | "rectangle" | "ellipse" | "image";
 
 export interface DesignObjectBase {
   id: string;
@@ -34,7 +34,14 @@ export interface ShapeObject extends DesignObjectBase {
   cornerRadius: number;
 }
 
-export type DesignObject = TextObject | ShapeObject;
+export interface ImageObject extends DesignObjectBase {
+  type: "image";
+  src: string;
+  alt: string;
+  fit: "contain" | "cover" | "fill";
+}
+
+export type DesignObject = TextObject | ShapeObject | ImageObject;
 
 export interface Artboard {
   id: string;
@@ -90,6 +97,9 @@ export interface UpdateObjectInput {
   stroke?: string;
   strokeWidth?: number;
   cornerRadius?: number;
+  src?: string;
+  alt?: string;
+  fit?: "contain" | "cover" | "fill";
 }
 
 function id(prefix: string) {
@@ -270,6 +280,39 @@ export function addTextObject(project: ZaxisProject, artboardId: string): { proj
   };
 }
 
+export function addImageObject(
+  project: ZaxisProject,
+  artboardId: string,
+  src: string,
+  alt = "Pasted image"
+): { project: ZaxisProject; objectId: string } {
+  const objectId = id("object");
+  const nextObject: ImageObject = {
+    id: objectId,
+    name: "Image",
+    type: "image",
+    x: 15,
+    y: 15,
+    width: 40,
+    height: 40,
+    rotation: 0,
+    opacity: 1,
+    visible: true,
+    locked: false,
+    src,
+    alt,
+    fit: "contain"
+  };
+
+  return {
+    objectId,
+    project: mapArtboard(project, artboardId, (artboard) => ({
+      ...artboard,
+      objects: [...artboard.objects, nextObject]
+    }))
+  };
+}
+
 export function addShapeObject(
   project: ZaxisProject,
   artboardId: string,
@@ -344,6 +387,16 @@ export function updateObject(
           fontWeight: input.fontWeight ?? object.fontWeight,
           color: input.color ?? object.color,
           textAlign: input.textAlign ?? object.textAlign
+        };
+      }
+
+      if (object.type === "image") {
+        return {
+          ...common,
+          type: "image" as const,
+          src: input.src ?? object.src,
+          alt: input.alt ?? object.alt,
+          fit: input.fit ?? object.fit
         };
       }
 
