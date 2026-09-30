@@ -2858,7 +2858,11 @@ function CloudScreen({
       };
 
       await removePendingSnapshot(project.id);
-      await setSyncRevision(project.id, currentRevision);
+      await setSyncRevision(
+        project.id,
+        currentRevision,
+        current.snapshot ?? project
+      );
       onReplaceProject(restored, true);
       await queueProjectSnapshot(restored);
       await onFlushQueue();
@@ -2911,7 +2915,7 @@ function CloudScreen({
 
     onReplaceProject(conflictInfo.remote);
     await removePendingSnapshot(project.id);
-    await setSyncRevision(project.id, conflictInfo.remoteRevision);
+    await setSyncRevision(project.id, conflictInfo.remoteRevision, conflictInfo.remote);
     setConflictInfo(null);
     setSyncStatus("Cloud version restored locally.");
   }
@@ -2931,7 +2935,7 @@ function CloudScreen({
         "Conflict resolved: keep local"
       );
 
-      await setSyncRevision(project.id, pushed.revision);
+      await setSyncRevision(project.id, pushed.revision, conflictInfo.local);
       await removePendingSnapshot(project.id);
       setConflictInfo(null);
       setSyncStatus("Local version saved to cloud at revision " + pushed.revision + ".");
