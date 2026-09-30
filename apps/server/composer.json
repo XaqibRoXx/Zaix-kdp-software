@@ -1,0 +1,13 @@
+{
+  "name": "zaxis/kdp-server",
+  "description": "Zaxis KDP cloud API for projects, autosave, revisions and assets",
+  "type": "project",
+  "require": {
+    "php": "^8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "ZaxisKdp\\": "src/"
+    }
+  }
+}
