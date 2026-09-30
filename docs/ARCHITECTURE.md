@@ -45,3 +45,15 @@ Configurable connection fields include API URL, token/connection code, share dom
 
 ## No-Hardcoding Rule
 Settings likely to differ by install/project must be configuration driven, including presets, compression defaults, storage paths, share-link defaults, cache limits/location, backup retention, feature flags, worker endpoints and naming rules.
+
+
+## Current Phase 2 Server Implementation
+The first deployable server foundation is intentionally lightweight for cPanel/shared-host compatibility:
+- PHP 8.2.
+- PDO MySQL.
+- Framework-neutral HTTP/API layer with Composer PSR-4 autoloading.
+- Bearer-token authentication using SHA-256 token hashes.
+- Optimistic project revision locking and idempotent client event IDs.
+- Apache .htaccess front-controller routing.
+
+The API contracts are kept framework-neutral so the implementation can be wrapped by or migrated to Laravel later without changing the desktop sync contract.
