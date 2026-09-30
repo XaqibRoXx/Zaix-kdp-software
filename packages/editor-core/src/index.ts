@@ -24,6 +24,8 @@ export interface TextObject extends DesignObjectBase {
   fontWeight: number;
   color: string;
   textAlign: "left" | "center" | "right";
+  lineHeight: number;
+  letterSpacing: number;
 }
 
 export interface ShapeObject extends DesignObjectBase {
@@ -39,6 +41,10 @@ export interface ImageObject extends DesignObjectBase {
   src: string;
   alt: string;
   fit: "contain" | "cover" | "fill";
+  cropX: number;
+  cropY: number;
+  scale: number;
+  borderRadius: number;
 }
 
 export type DesignObject = TextObject | ShapeObject | ImageObject;
@@ -93,6 +99,8 @@ export interface UpdateObjectInput {
   fontWeight?: number;
   color?: string;
   textAlign?: "left" | "center" | "right";
+  lineHeight?: number;
+  letterSpacing?: number;
   fill?: string;
   stroke?: string;
   strokeWidth?: number;
@@ -100,6 +108,10 @@ export interface UpdateObjectInput {
   src?: string;
   alt?: string;
   fit?: "contain" | "cover" | "fill";
+  cropX?: number;
+  cropY?: number;
+  scale?: number;
+  borderRadius?: number;
 }
 
 function id(prefix: string) {
@@ -268,7 +280,9 @@ export function addTextObject(project: ZaxisProject, artboardId: string): { proj
     fontSize: 32,
     fontWeight: 400,
     color: "#111111",
-    textAlign: "left"
+    textAlign: "left",
+    lineHeight: 1.2,
+    letterSpacing: 0
   };
 
   return {
@@ -301,7 +315,11 @@ export function addImageObject(
     locked: false,
     src,
     alt,
-    fit: "contain"
+    fit: "contain",
+    cropX: 50,
+    cropY: 50,
+    scale: 1,
+    borderRadius: 0
   };
 
   return {
@@ -386,7 +404,9 @@ export function updateObject(
           fontSize: Math.max(1, input.fontSize ?? object.fontSize),
           fontWeight: input.fontWeight ?? object.fontWeight,
           color: input.color ?? object.color,
-          textAlign: input.textAlign ?? object.textAlign
+          textAlign: input.textAlign ?? object.textAlign,
+          lineHeight: Math.max(0.5, input.lineHeight ?? object.lineHeight),
+          letterSpacing: input.letterSpacing ?? object.letterSpacing
         };
       }
 
@@ -396,7 +416,11 @@ export function updateObject(
           type: "image" as const,
           src: input.src ?? object.src,
           alt: input.alt ?? object.alt,
-          fit: input.fit ?? object.fit
+          fit: input.fit ?? object.fit,
+          cropX: Math.max(0, Math.min(100, input.cropX ?? object.cropX)),
+          cropY: Math.max(0, Math.min(100, input.cropY ?? object.cropY)),
+          scale: Math.max(0.1, Math.min(5, input.scale ?? object.scale)),
+          borderRadius: Math.max(0, input.borderRadius ?? object.borderRadius)
         };
       }
 
