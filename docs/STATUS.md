@@ -47,6 +47,11 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification. Previous Windows build failed on the same revision-handler compile issue; fix has been pushed and rebuild is being verified.
 
 ## Newly Completed in Current Implementation
+- [x] Cubic Bezier path rendering.
+- [x] Incoming and outgoing control handles per anchor.
+- [x] Direct Select Bezier handle drag.
+- [x] Anchor movement keeps attached handles relative.
+- [x] Bezier handle guide lines.
 - [x] Vector anchor-point inspector list.
 - [x] Exact anchor X/Y editing.
 - [x] Add anchor point action.
@@ -140,9 +145,9 @@ Last updated: 2026-09-30
 
 ## Pending — Phase 1
 - [x] Local dashboard project CRUD and recent projects. Cloud project library remains Phase 2.
-- [ ] Bezier control handles/curves remain. Pen/path objects, Direct Select, anchor drag, exact anchor X/Y editing and anchor add/delete are working.
+- [ ] Advanced mirrored/smooth-handle constraints remain. Cubic Bezier rendering, incoming/outgoing handle lines, direct handle dragging, anchor drag, exact anchor X/Y editing and anchor add/delete are working.
 - [ ] Advanced text engine remains. Font family/size/weight/color, alignment, line height and letter spacing are working.
-- [ ] Advanced Bezier curve editor remains. Open/closed vector paths, anchor points, stroke/fill and direct-node editing are working.
+- [ ] Advanced smooth/corner conversion remains. Open/closed vector paths, cubic Bezier segments, anchor/control handles, stroke/fill and direct editing are working.
 - [ ] Advanced freeform masks remain. Clipboard paste, contain/cover/fill, crop position, image scale and mask-radius controls are working.
 - [ ] Advanced multi-object smart guides remain. Center smart guides plus horizontal/vertical distribution and single-object alignment are working.
 - [ ] Advanced transforms. Canvas drag/move, resize handle, rotation/opacity inspector controls are working.
