@@ -82,6 +82,37 @@ export function App() {
     setProject(historyRef.current.redo());
   }
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const isModifier = event.ctrlKey || event.metaKey;
+      if (!isModifier) return;
+
+      const target = event.target as HTMLElement | null;
+      const isTyping =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "SELECT" ||
+        target?.isContentEditable;
+
+      if (isTyping) return;
+
+      if (event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+        return;
+      }
+
+      if (event.key.toLowerCase() === "y") {
+        event.preventDefault();
+        redo();
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
+
   function createNewProject() {
     const next = createBlankProject({
       name: "Untitled Design",
