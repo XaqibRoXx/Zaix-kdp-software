@@ -94,10 +94,13 @@ button:disabled{opacity:.4;cursor:not-allowed}
 
 .path-point-tools{display:grid;gap:7px;margin-top:10px}
 .path-point-list{display:grid;gap:5px;max-height:160px;overflow:auto}
-.path-point-row{display:grid;grid-template-columns:30px 1fr 1fr 26px;gap:5px;align-items:center}
+.path-point-row{display:grid;grid-template-columns:28px 1fr 1fr 30px 26px;gap:5px;align-items:center}
 .path-point-row span{font-size:10px;color:#7f8985}
 .path-point-row input{width:100%;background:#111513;color:#fff;border:1px solid #2b3330;border-radius:5px;padding:5px;font-size:10px}
 .path-point-row button{border:1px solid #472727;background:#130b0b;color:#ff8585;border-radius:5px;cursor:pointer}
 
 .path-handle-line{stroke:#00f6ac;stroke-width:.8;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
 .path-handle-node{position:absolute;width:9px;height:9px;margin-left:-4.5px;margin-top:-4.5px;border:1px solid #00f6ac;border-radius:50%;background:#020202;padding:0;cursor:crosshair;z-index:7}
+
+.path-point-row .curve-toggle{border-color:#29312e;color:#9aa4a0;background:#0d100f}
+.path-point-row .curve-toggle.active{border-color:#00f6ac;color:#00f6ac;background:#07140f}
