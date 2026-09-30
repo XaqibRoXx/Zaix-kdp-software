@@ -23,6 +23,13 @@ import {
   type ZaxisProject
 } from "@zaxis-kdp/editor-core";
 import type { SaveState, Unit } from "@zaxis-kdp/shared";
+import { projectPresets, type ProjectPreset } from "../config/presets";
+import {
+  clearLocalRecoveryCache,
+  loadAppSettings,
+  saveAppSettings,
+  type AppSettings
+} from "../state/appSettings";
 import {
   deleteProjectFromLibrary,
   listProjectSummaries,
@@ -62,6 +69,7 @@ export function App() {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [systemFonts, setSystemFonts] = useState<string[]>(["Arial", "Calibri", "Segoe UI", "Times New Roman"]);
   const [projectSummaries, setProjectSummaries] = useState<ProjectSummary[]>(() => listProjectSummaries());
+  const [appSettings, setAppSettings] = useState<AppSettings>(() => loadAppSettings());
   const fontInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new SnapshotHistory(project));
 
@@ -86,7 +94,7 @@ export function App() {
       } catch {
         setSaveState("error");
       }
-    }, 450);
+    }, appSettings.autosaveDelayMs);
 
     return () => window.clearTimeout(timer);
   }, [project]);
@@ -187,12 +195,14 @@ export function App() {
     }
   }
 
-  function createNewProject() {
+  function createNewProject(preset?: ProjectPreset) {
+    const chosen = preset ?? projectPresets.find((item) => item.id === "kdp-7x10");
     const next = createBlankProject({
-      name: "Untitled Design",
-      width: 7,
-      height: 10,
-      unit: "in"
+      name: preset ? preset.label : "Untitled Design",
+      width: chosen?.width ?? 7,
+      height: chosen?.height ?? 10,
+      unit: chosen?.unit ?? "in",
+      mode: chosen?.mode ?? "kdp"
     });
     saveProject(next);
     setProjectSummaries(listProjectSummaries());
@@ -318,7 +328,8 @@ export function App() {
             onOpenProject={openProject}
             onRenameProject={renameProject}
             onDeleteProject={removeProject}
-            onNewProject={createNewProject}
+            onNewProject={() => createNewProject()}
+            onCreatePreset={createNewProject}
           />
         )}
         {screen === "editor" && (
@@ -346,7 +357,17 @@ export function App() {
           <Placeholder title="Cloud & Server" copy="The configurable cPanel/VPS connection wizard, health checks, storage, share domain and worker settings will live here." />
         )}
         {screen === "settings" && (
-          <Placeholder title="Settings" copy="Global defaults, cache, units, presets, shortcuts, theme and all configurable non-hardcoded behaviors will live here." />
+          <SettingsScreen
+            settings={appSettings}
+            onChange={(next) => {
+              setAppSettings(next);
+              saveAppSettings(next);
+            }}
+            onClearCache={() => {
+              clearLocalRecoveryCache();
+              setProjectSummaries([]);
+            }}
+          />
         )}
       </main>
     </div>
@@ -375,7 +396,8 @@ function Dashboard({
   onOpenProject,
   onRenameProject,
   onDeleteProject,
-  onNewProject
+  onNewProject,
+  onCreatePreset
 }: {
   project: ZaxisProject;
   projects: ProjectSummary[];
@@ -384,6 +406,7 @@ function Dashboard({
   onRenameProject: (id: string) => void;
   onDeleteProject: (id: string) => void;
   onNewProject: () => void;
+  onCreatePreset: (preset: ProjectPreset) => void;
 }) {
   const objectCount = project.artboards.reduce((total, artboard) => total + artboard.objects.length, 0);
 
@@ -405,6 +428,24 @@ function Dashboard({
         <div className="hero-actions">
           <button className="secondary" onClick={onOpen}>Open Active</button>
           <button className="primary" onClick={onNewProject}>Create Project</button>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">NEW PROJECT</span>
+            <h3>Presets</h3>
+          </div>
+          <span className="pill">Configurable</span>
+        </div>
+        <div className="preset-grid">
+          {projectPresets.map((preset) => (
+            <button key={preset.id} onClick={() => onCreatePreset(preset)}>
+              <strong>{preset.label}</strong>
+              <small>{preset.category === "kdp" ? "KDP / Book" : "Graphic Design"}</small>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -812,7 +853,16 @@ function CanvasObject({
         style={commonStyle}
         onPointerDown={beginDrag}
       >
-        <img src={object.src} alt={object.alt} style={{ objectFit: object.fit }} />
+        <img
+          src={object.src}
+          alt={object.alt}
+          style={{
+            objectFit: object.fit,
+            objectPosition: object.cropX + "% " + object.cropY + "%",
+            transform: "scale(" + object.scale + ")",
+            borderRadius: object.borderRadius + "px"
+          }}
+        />
         {handle}
       </div>
     );
@@ -828,7 +878,9 @@ function CanvasObject({
           fontFamily: object.fontFamily,
           fontSize: Math.max(10, object.fontSize * 0.55) + "px",
           fontWeight: object.fontWeight,
-          textAlign: object.textAlign
+          textAlign: object.textAlign,
+          lineHeight: object.lineHeight,
+          letterSpacing: object.letterSpacing + "px"
         }}
         onPointerDown={beginDrag}
       >
@@ -894,6 +946,16 @@ function ObjectInspector({
           <label className="inspector-field">Alt Text
             <input value={object.alt} onChange={(event) => onChange({ alt: event.target.value })} />
           </label>
+          <div className="inspector-grid">
+            <label>Crop X<input type="number" min="0" max="100" value={object.cropX} onChange={(event) => onChange({ cropX: Number(event.target.value) })} /></label>
+            <label>Crop Y<input type="number" min="0" max="100" value={object.cropY} onChange={(event) => onChange({ cropY: Number(event.target.value) })} /></label>
+          </div>
+          <label className="inspector-field">Image Scale
+            <input type="number" min="0.1" max="5" step="0.1" value={object.scale} onChange={(event) => onChange({ scale: Number(event.target.value) })} />
+          </label>
+          <label className="inspector-field">Mask Radius
+            <input type="number" min="0" value={object.borderRadius} onChange={(event) => onChange({ borderRadius: Number(event.target.value) })} />
+          </label>
         </>
       ) : object.type === "text" ? (
         <>
@@ -908,6 +970,29 @@ function ObjectInspector({
           </label>
           <label className="inspector-field">Font Size
             <input type="number" value={object.fontSize} onChange={(event) => onChange({ fontSize: Number(event.target.value) })} />
+          </label>
+          <label className="inspector-field">Weight
+            <select value={object.fontWeight} onChange={(event) => onChange({ fontWeight: Number(event.target.value) })}>
+              <option value={300}>Light</option>
+              <option value={400}>Regular</option>
+              <option value={500}>Medium</option>
+              <option value={600}>Semi Bold</option>
+              <option value={700}>Bold</option>
+              <option value={800}>Extra Bold</option>
+            </select>
+          </label>
+          <label className="inspector-field">Alignment
+            <select value={object.textAlign} onChange={(event) => onChange({ textAlign: event.target.value as "left" | "center" | "right" })}>
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+          </label>
+          <label className="inspector-field">Line Height
+            <input type="number" min="0.5" step="0.1" value={object.lineHeight} onChange={(event) => onChange({ lineHeight: Number(event.target.value) })} />
+          </label>
+          <label className="inspector-field">Letter Spacing
+            <input type="number" step="0.1" value={object.letterSpacing} onChange={(event) => onChange({ letterSpacing: Number(event.target.value) })} />
           </label>
           <label className="inspector-field">Color
             <input type="color" value={object.color} onChange={(event) => onChange({ color: event.target.value })} />
@@ -927,6 +1012,65 @@ function ObjectInspector({
         </>
       )}
     </div>
+  );
+}
+
+function SettingsScreen({
+  settings,
+  onChange,
+  onClearCache
+}: {
+  settings: AppSettings;
+  onChange: (settings: AppSettings) => void;
+  onClearCache: () => void;
+}) {
+  return (
+    <section className="content">
+      <div className="panel">
+        <span className="eyebrow">LOCAL CACHE & RECOVERY</span>
+        <h2>Settings</h2>
+        <div className="settings-grid">
+          <label>Cache Limit
+            <select
+              value={settings.cacheLimitMb}
+              onChange={(event) => onChange({ ...settings, cacheLimitMb: Number(event.target.value) })}
+            >
+              <option value={250}>250 MB</option>
+              <option value={500}>500 MB</option>
+              <option value={1024}>1 GB</option>
+              <option value={2048}>2 GB</option>
+            </select>
+          </label>
+          <label>Cache Location
+            <input
+              value={settings.cacheLocation}
+              onChange={(event) => onChange({ ...settings, cacheLocation: event.target.value })}
+              placeholder="System Default / D:\\ZaxisCache"
+            />
+          </label>
+          <label>Autosave Delay
+            <select
+              value={settings.autosaveDelayMs}
+              onChange={(event) => onChange({ ...settings, autosaveDelayMs: Number(event.target.value) })}
+            >
+              <option value={250}>250 ms</option>
+              <option value={450}>450 ms</option>
+              <option value={750}>750 ms</option>
+              <option value={1000}>1 second</option>
+            </select>
+          </label>
+          <label className="toggle-setting">
+            <input type="checkbox" checked={settings.gridDefault} onChange={(event) => onChange({ ...settings, gridDefault: event.target.checked })} />
+            Grid visible by default
+          </label>
+          <label className="toggle-setting">
+            <input type="checkbox" checked={settings.snapDefault} onChange={(event) => onChange({ ...settings, snapDefault: event.target.checked })} />
+            Snap enabled by default
+          </label>
+        </div>
+        <button className="secondary danger" onClick={onClearCache}>Clear Local Recovery Cache</button>
+      </div>
+    </section>
   );
 }
 
