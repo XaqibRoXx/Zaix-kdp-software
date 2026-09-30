@@ -12,6 +12,7 @@ import {
   addShapeObject,
   addTextObject,
   createBlankProject,
+  createOrUpdateKdpCoverArtboard,
   deleteArtboard,
   deleteObject,
   deletePathPoint,
@@ -931,9 +932,9 @@ function EditorShell({
             key={item.id}
             onClick={() => onSelectArtboard(item.id)}
           >
-            <span>{index + 1}</span>
+            <span>{item.role === "cover" ? "C" : index + 1}</span>
             <div style={{ aspectRatio: String(item.width) + " / " + String(item.height) }} />
-            <small>{item.width} × {item.height} {item.unit}</small>
+            <small>{item.role === "cover" ? "Cover • " : ""}{item.width} × {item.height} {item.unit}</small>
           </button>
         ))}
 
@@ -1036,9 +1037,11 @@ function EditorShell({
             project={project}
             onCommit={onCommit}
             onOpenPage={(page) => {
-              const target = project.artboards[page - 1];
+              const pages = project.artboards.filter((item) => (item.role ?? "page") === "page");
+              const target = pages[page - 1];
               if (target) onSelectArtboard(target.id);
             }}
+            onOpenArtboard={onSelectArtboard}
           />
         )}
 
@@ -1489,11 +1492,13 @@ function CanvasObject({
 function KdpBookPanel({
   project,
   onCommit,
-  onOpenPage
+  onOpenPage,
+  onOpenArtboard
 }: {
   project: ZaxisProject;
   onCommit: (project: ZaxisProject) => void;
   onOpenPage: (page: number) => void;
+  onOpenArtboard: (artboardId: string) => void;
 }) {
   const settings = project.kdpSettings;
   const result = useMemo(() => analyzeKdpProject(project), [project]);
@@ -1508,6 +1513,12 @@ function KdpBookPanel({
     const width = settings.trimWidthIn + (settings.bleed ? KDP_RULES.bleedIn : 0);
     const height = settings.trimHeightIn + (settings.bleed ? KDP_RULES.bleedIn * 2 : 0);
     onCommit(resizeAllArtboards(project, { width, height, unit: "in" }));
+  };
+
+  const createCover = () => {
+    const result = createOrUpdateKdpCoverArtboard(project);
+    onCommit(result.project);
+    if (result.artboardId) onOpenArtboard(result.artboardId);
   };
 
   const errorCount = result.issues.filter((issue) => issue.severity === "error").length;
@@ -1580,7 +1591,10 @@ function KdpBookPanel({
         </select>
       </label>
 
-      <button className="secondary full" onClick={applyPageSize}>Apply KDP Page Size to All</button>
+      <div className="artboard-actions">
+        <button className="secondary" onClick={applyPageSize}>Apply Page Size</button>
+        <button className="secondary" onClick={createCover}>Create / Update Cover</button>
+      </div>
 
       <div className="kdp-metrics">
         <span><small>Pages</small><strong>{result.pageCount}</strong></span>
