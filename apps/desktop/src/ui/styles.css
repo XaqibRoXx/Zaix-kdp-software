@@ -208,3 +208,15 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .save-state.lock-acquiring,.save-state.lock-offline{color:#d8bf7c}
 .save-state.lock-error{color:#ff6b6b}
 .save-state.lock-disabled{color:#77817d}
+
+.kdp-interior-guides{position:absolute;inset:0;z-index:4;pointer-events:none}
+.kdp-guide-line{position:absolute;pointer-events:none}
+.kdp-guide-line.vertical{top:0;bottom:0;width:1px}
+.kdp-guide-line.horizontal{left:0;right:0;height:1px}
+.kdp-guide-line.trim{background:#00f6ac;opacity:.9}
+.kdp-safe-box{position:absolute;border:1px dashed #f0a33a;background:rgba(240,163,58,.025)}
+.guide-label{position:absolute;border-radius:4px;padding:2px 5px;font-size:8px;font-weight:700;letter-spacing:.35px;white-space:nowrap}
+.bleed-label{left:5px;top:5px;background:#151008;color:#f0a33a}
+.trim-label{right:5px;top:5px;background:#07140f;color:#00f6ac}
+.safe-label{left:5px;bottom:5px;background:#151008;color:#f0a33a}
+.page-side-label{right:5px;bottom:5px;background:rgba(2,2,2,.78);color:#d7dfdb}
