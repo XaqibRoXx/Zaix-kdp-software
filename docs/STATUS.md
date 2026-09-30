@@ -47,6 +47,10 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification. Previous Windows build failed on the same revision-handler compile issue; fix has been pushed and rebuild is being verified.
 
 ## Newly Completed in Current Implementation
+- [x] Skew X/Y transforms.
+- [x] Flip X/Y transforms.
+- [x] Transform migration defaults for older saved projects.
+- [x] Tool keyboard shortcuts: V Select, A Direct Select, T Text, R Rectangle, E Ellipse, P Pen.
 - [x] Smooth vs Corner vector anchor state.
 - [x] Smooth/Corner toggle per anchor.
 - [x] Mirrored opposite Bezier handle movement for smooth anchors.
@@ -154,7 +158,7 @@ Last updated: 2026-09-30
 - [x] Initial Smooth/Corner anchor conversion and mirrored-handle behavior are working for vector paths.
 - [ ] Advanced freeform masks remain. Clipboard paste, contain/cover/fill, crop position, image scale and mask-radius controls are working.
 - [ ] Advanced multi-object smart guides remain. Center smart guides plus horizontal/vertical distribution and single-object alignment are working.
-- [ ] Advanced transforms. Canvas drag/move, resize handle, rotation/opacity inspector controls are working.
+- [ ] Advanced multi-object transforms remain. Canvas drag/move, resize, rotation, skew X/Y, flip X/Y and opacity controls are working.
 - [ ] Cloud font sync remains. Imported custom fonts now persist locally in IndexedDB and reload across app restarts; Windows installed-font discovery is working.
 - [x] Initial bulk artboard resize (apply active size/unit to all). Advanced content behavior remains Phase 1 work.
 - [x] Initial graphic-design presets: A4, A5, Instagram, Story/Reel, YouTube thumbnail and US Letter flyer.
