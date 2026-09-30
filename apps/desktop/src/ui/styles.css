@@ -86,3 +86,8 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .path-object{background:transparent;overflow:visible}
 .path-object svg{width:100%;height:100%;display:block;overflow:visible;pointer-events:none}
 .path-node{position:absolute;width:11px;height:11px;margin-left:-5.5px;margin-top:-5.5px;border:2px solid #020202;border-radius:50%;background:#00f6ac;padding:0;cursor:move;z-index:6}
+
+.cache-status-card{display:grid;gap:6px;border:1px solid #202724;background:#090c0b;border-radius:10px;padding:12px;margin:14px 0}
+.cache-status-card strong{font-size:12px}
+.cache-status-card small{color:#7f8985;word-break:break-all}
+.cache-status-card span{font-size:11px;color:#00f6ac}
