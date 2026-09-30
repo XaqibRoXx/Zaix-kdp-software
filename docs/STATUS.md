@@ -47,6 +47,9 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification.
 
 ## Newly Completed in Current Implementation
+- [x] Grid visibility toggle on artboard.
+- [x] Snap toggle for object drag and resize.
+- [x] 2% canvas snap step foundation.
 - [x] Local multi-project recovery library.
 - [x] Recent projects dashboard list.
 - [x] Create new project without overwriting previous local projects.
@@ -93,7 +96,7 @@ Last updated: 2026-09-30
 - [ ] Advanced text engine. Basic editable text objects, font family/size/color are working.
 - [ ] Advanced vector paths/bezier editor. Rectangle and ellipse objects are working.
 - [ ] Advanced image crop/masks. Clipboard paste plus contain/cover/fill image fit are working.
-- [ ] Distribution/guides/grid/snap. Single-object artboard alignment controls are working.
+- [ ] Distribution/smart guides remain. Grid visibility and snap-to-grid plus single-object artboard alignment are working.
 - [ ] Advanced transforms. Canvas drag/move, resize handle, rotation/opacity inspector controls are working.
 - [ ] Persistent custom/cloud font install. Session-level custom font import plus Windows installed-font discovery are working.
 - [x] Initial bulk artboard resize (apply active size/unit to all). Advanced content behavior remains Phase 1 work.
