@@ -47,6 +47,20 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification.
 
 ## Newly Completed in Current Implementation
+- [x] Configurable project preset registry separated from editor UI.
+- [x] KDP project presets for common trim sizes.
+- [x] Graphic-design presets for common screen/print formats.
+- [x] New project creation can start from a preset and correct document mode.
+- [x] Text weight control.
+- [x] Text left/center/right alignment.
+- [x] Text line-height control.
+- [x] Text letter-spacing control.
+- [x] Basic image crop-position controls (X/Y).
+- [x] Image scale control.
+- [x] Rounded mask-radius foundation for images.
+- [x] Settings screen for cache limit/location and autosave delay.
+- [x] Grid/Snap default preferences.
+- [x] Clear local recovery cache action.
 - [x] Grid visibility toggle on artboard.
 - [x] Snap toggle for object drag and resize.
 - [x] 2% canvas snap step foundation.
@@ -93,17 +107,17 @@ Last updated: 2026-09-30
 ## Pending — Phase 1
 - [x] Local dashboard project CRUD and recent projects. Cloud project library remains Phase 2.
 - [ ] Full direct-selection/vector-node system. Basic object selection is working.
-- [ ] Advanced text engine. Basic editable text objects, font family/size/color are working.
+- [ ] Advanced text engine remains. Font family/size/weight/color, alignment, line height and letter spacing are working.
 - [ ] Advanced vector paths/bezier editor. Rectangle and ellipse objects are working.
-- [ ] Advanced image crop/masks. Clipboard paste plus contain/cover/fill image fit are working.
+- [ ] Advanced freeform masks remain. Clipboard paste, contain/cover/fill, crop position, image scale and mask-radius controls are working.
 - [ ] Distribution/smart guides remain. Grid visibility and snap-to-grid plus single-object artboard alignment are working.
 - [ ] Advanced transforms. Canvas drag/move, resize handle, rotation/opacity inspector controls are working.
 - [ ] Persistent custom/cloud font install. Session-level custom font import plus Windows installed-font discovery are working.
 - [x] Initial bulk artboard resize (apply active size/unit to all). Advanced content behavior remains Phase 1 work.
-- [ ] Graphic-design presets.
-- [ ] KDP/book presets in project creation.
+- [x] Initial graphic-design presets: A4, A5, Instagram, Story/Reel, YouTube thumbnail and US Letter flyer.
+- [x] Initial KDP/book presets: 5×8, 5.25×8, 5.5×8.5, 6×9, 7×10, 8×10, 8.5×11.
 - [x] Undo/Redo keyboard shortcuts: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z.
-- [ ] Local bounded cache controls.
+- [ ] Native disk-cache enforcement remains. Settings now expose cache limit/location, autosave delay, grid/snap defaults and clear recovery cache.
 - [ ] First Windows installer/test build.
 
 ## Pending — Phase 2
@@ -127,7 +141,7 @@ Last updated: 2026-09-30
 - [ ] Final documentation and release QA.
 
 ## Blocked
-- GitHub Actions runner is currently failing before workflow steps start (zero steps reported), so CI has not yet provided a compile verdict. Source implementation continues while this runner-level issue is tracked.
+- No product feature blocker. GitHub Actions build verification is being monitored separately; source work continues.
 
 ## Rule
 Every implemented feature must move from Pending → In Progress → Done here. Significant architecture decisions must also be recorded in docs/ARCHITECTURE.md or docs/DECISIONS.md.
