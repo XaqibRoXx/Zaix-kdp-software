@@ -180,6 +180,11 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Generate / Update TOC creates a real editable interior artboard.
+- [x] First TOC insertion shifts chapter physical start pages and page-number start page so existing content references remain aligned.
+- [x] Generated TOC uses current chapter titles and logical page-number labels.
+- [x] TOC page participates in normal editor, autosave, cloud sync, preflight and PDF export.
+- [x] Special TOC/Cover artboard names are preserved during normal artboard renumbering.
 - [x] KDP book-structure model added to project state and older projects are normalized automatically.
 - [x] Automatic page numbering can start on any interior page and any logical number.
 - [x] Arabic, lower-Roman and upper-Roman page number formats.
