@@ -1504,11 +1504,11 @@ function KdpBookPanel({
     onCommit(updateKdpSettings(project, input));
   }
 
-  function applyPageSize() {
+  const applyPageSize = () => {
     const width = settings.trimWidthIn + (settings.bleed ? KDP_RULES.bleedIn : 0);
     const height = settings.trimHeightIn + (settings.bleed ? KDP_RULES.bleedIn * 2 : 0);
     onCommit(resizeAllArtboards(project, { width, height, unit: "in" }));
-  }
+  };
 
   const errorCount = result.issues.filter((issue) => issue.severity === "error").length;
   const warningCount = result.issues.filter((issue) => issue.severity === "warning").length;
