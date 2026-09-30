@@ -91,3 +91,10 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .cache-status-card strong{font-size:12px}
 .cache-status-card small{color:#7f8985;word-break:break-all}
 .cache-status-card span{font-size:11px;color:#00f6ac}
+
+.path-point-tools{display:grid;gap:7px;margin-top:10px}
+.path-point-list{display:grid;gap:5px;max-height:160px;overflow:auto}
+.path-point-row{display:grid;grid-template-columns:30px 1fr 1fr 26px;gap:5px;align-items:center}
+.path-point-row span{font-size:10px;color:#7f8985}
+.path-point-row input{width:100%;background:#111513;color:#fff;border:1px solid #2b3330;border-radius:5px;padding:5px;font-size:10px}
+.path-point-row button{border:1px solid #472727;background:#130b0b;color:#ff8585;border-radius:5px;cursor:pointer}
