@@ -180,6 +180,15 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] KDP book-structure model added to project state and older projects are normalized automatically.
+- [x] Automatic page numbering can start on any interior page and any logical number.
+- [x] Arabic, lower-Roman and upper-Roman page number formats.
+- [x] Bottom/Top Center and Bottom/Top Outside placement.
+- [x] Odd/even outside placement follows right/left page parity.
+- [x] Optional skip page numbers on chapter opening pages.
+- [x] Chapter manager with editable title and physical start page.
+- [x] TOC title + live TOC metadata preview.
+- [x] Automatic page numbers render both on the editor canvas and exported PDFs.
 - [x] KDP Trim / Bleed / Safe overlay toggles in the editor toolbar.
 - [x] Bleed-aware trim boundaries on interior artboards.
 - [x] Page-count-based safe-area overlay uses current KDP inside/outside margin rules.
