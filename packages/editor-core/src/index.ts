@@ -1,6 +1,7 @@
 import type { Unit } from "@zaxis-kdp/shared";
 import {
   createDefaultBookStructure,
+  getPageNumberLabel,
   normalizeBookStructure,
   type BookChapter,
   type BookStructure,
