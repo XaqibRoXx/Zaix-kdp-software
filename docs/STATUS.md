@@ -44,9 +44,14 @@ Last updated: 2026-09-30
 - [ ] Full font-provider abstraction. Native Windows system-font discovery is now wired; project/cloud/custom font install remains.
 - [x] Initial clipboard image ingestion: pasted clipboard images become editable image objects.
 - [ ] Cloud/full persistence layer. Multi-project local recovery library is now working.
-- [ ] First runnable Windows development build verification. Windows Tauri installer workflow is now configured.
+- [ ] First runnable Windows development build verification. Previous Windows build failed on the same revision-handler compile issue; fix has been pushed and rebuild is being verified.
 
 ## Newly Completed in Current Implementation
+- [x] Artboard center smart guides during object drag.
+- [x] Center snap assistance when object center reaches artboard center.
+- [x] Horizontal distribution for 3+ visible unlocked objects.
+- [x] Vertical distribution for 3+ visible unlocked objects.
+- [x] Revision handler scope compile issue fixed.
 - [x] Local named revision history foundation.
 - [x] Manual named restore points.
 - [x] Revision list in editor.
@@ -119,7 +124,7 @@ Last updated: 2026-09-30
 - [ ] Advanced text engine remains. Font family/size/weight/color, alignment, line height and letter spacing are working.
 - [ ] Advanced vector paths/bezier editor. Rectangle and ellipse objects are working.
 - [ ] Advanced freeform masks remain. Clipboard paste, contain/cover/fill, crop position, image scale and mask-radius controls are working.
-- [ ] Distribution/smart guides remain. Grid visibility and snap-to-grid plus single-object artboard alignment are working.
+- [ ] Advanced multi-object smart guides remain. Center smart guides plus horizontal/vertical distribution and single-object alignment are working.
 - [ ] Advanced transforms. Canvas drag/move, resize handle, rotation/opacity inspector controls are working.
 - [ ] Persistent custom/cloud font install. Session-level custom font import plus Windows installed-font discovery are working.
 - [x] Initial bulk artboard resize (apply active size/unit to all). Advanced content behavior remains Phase 1 work.
