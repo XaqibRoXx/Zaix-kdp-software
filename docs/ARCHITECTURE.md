@@ -87,3 +87,18 @@ Cloud projects use short-lived server locks to reduce accidental multi-device ov
 - If another editor owns the lock, local edits are still allowed and remain in the offline/sync queue; they are not silently discarded.
 - The top bar shows the current edit-lock state.
 - Revision-base conflict checks still run independently. A lock does not replace revision conflict detection.
+
+
+## Incremental Autosave Deltas
+After the first full cloud snapshot, the desktop keeps the last successfully synced project snapshot in its local sync metadata.
+
+For each autosave:
+- The client compares artboards by stable ID.
+- Only changed/new artboards, removed artboard IDs, current artboard order and changed project metadata are included in a versioned delta.
+- The client uses delta sync only when the delta payload is materially smaller than the full project snapshot; otherwise it sends the full snapshot.
+- The server applies a delta only when `base_revision` still matches the current cloud revision.
+- Server-side project locks are checked before the delta is applied.
+- The server reconstructs the complete next project snapshot and stores that full result in `project_snapshots`.
+- `sync_events` records the compact delta payload for audit/idempotency.
+- If the delta endpoint is unavailable on an older server, the desktop falls back to a full snapshot.
+- Revision conflicts never fall back to overwrite.
