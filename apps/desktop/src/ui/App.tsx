@@ -660,6 +660,36 @@ function EditorShell({
     onSelectObject(result.objectId);
   }
 
+  useEffect(() => {
+    function onToolShortcut(event: KeyboardEvent) {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const target = event.target as HTMLElement | null;
+      const isTyping =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "SELECT" ||
+        target?.isContentEditable;
+
+      if (isTyping) return;
+
+      const key = event.key.toLowerCase();
+
+      if (key === "v") setActiveTool("select");
+      else if (key === "a") setActiveTool("direct");
+      else if (key === "t") createText();
+      else if (key === "r") createShape("rectangle");
+      else if (key === "e") createShape("ellipse");
+      else if (key === "p") createPath();
+      else return;
+
+      event.preventDefault();
+    }
+
+    window.addEventListener("keydown", onToolShortcut);
+    return () => window.removeEventListener("keydown", onToolShortcut);
+  }, [project, artboard.id]);
+
   function removeObject() {
     if (!selectedObject) return;
     onCommit(deleteObject(project, artboard.id, selectedObject.id));
@@ -1004,7 +1034,10 @@ function CanvasObject({
     width: frame.width + "%",
     height: frame.height + "%",
     opacity: object.opacity,
-    transform: "rotate(" + object.rotation + "deg)"
+    transform:
+      "rotate(" + object.rotation + "deg) " +
+      "skew(" + object.skewX + "deg, " + object.skewY + "deg) " +
+      "scale(" + (object.flipX ? -1 : 1) + ", " + (object.flipY ? -1 : 1) + ")"
   };
 
   const handle = selected && !object.locked ? (
@@ -1247,6 +1280,16 @@ function ObjectInspector({
       <label className="inspector-field">Rotation
         <input type="number" value={object.rotation} onChange={(event) => onChange({ rotation: Number(event.target.value) })} />
       </label>
+
+      <div className="inspector-grid">
+        <label>Skew X<input type="number" min="-89" max="89" value={object.skewX} onChange={(event) => onChange({ skewX: Number(event.target.value) })} /></label>
+        <label>Skew Y<input type="number" min="-89" max="89" value={object.skewY} onChange={(event) => onChange({ skewY: Number(event.target.value) })} /></label>
+      </div>
+
+      <div className="artboard-actions">
+        <button className={object.flipX ? "secondary toggle-on" : "secondary"} onClick={() => onChange({ flipX: !object.flipX })}>Flip X</button>
+        <button className={object.flipY ? "secondary toggle-on" : "secondary"} onClick={() => onChange({ flipY: !object.flipY })}>Flip Y</button>
+      </div>
 
       <label className="inspector-field">Opacity
         <input type="number" min="0" max="1" step="0.05" value={object.opacity} onChange={(event) => onChange({ opacity: Number(event.target.value) })} />
