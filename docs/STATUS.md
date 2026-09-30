@@ -180,6 +180,15 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Server .env loader added so cPanel-written configuration is actually consumed by the API.
+- [x] Pairing-code database table with expiry and one-time-use enforcement.
+- [x] Unauthenticated /api/pair endpoint exchanges a valid one-time code for a desktop API token.
+- [x] Authenticated /api/v1/connection-codes endpoint generates additional 15-minute desktop pairing codes.
+- [x] One-time /install/ cPanel wizard configures DB, runs schema, creates first owner, writes .env, creates storage directory and locks itself.
+- [x] Installer returns an initial one-time Windows connection code.
+- [x] Windows Cloud & Server screen supports Connect with Code.
+- [x] Paired token is immediately encrypted with the Windows user account.
+- [x] Manual cloud sync now routes through the same conflict-safe queue instead of fetching latest revision and overwriting.
 - [x] Phase 2 marked active in the desktop UI.
 - [x] Cloud autosave queue stores project snapshots in IndexedDB.
 - [x] Offline edits remain queued and flush when connectivity returns.
@@ -208,11 +217,11 @@ Last updated: 2026-09-30
 - [x] Automatic Canva-style cloud autosave queue.
 - [x] Offline operation queue and automatic reconnect flush.
 - [ ] Automatic merge UI remains. Sync queue now tracks true base revisions and blocks silent overwrite on remote revision changes.
-- [ ] Server installer/connection-code wizard.
+- [x] One-time cPanel web installer + one-time connection-code pairing workflow.
 - [ ] Asset upload/proxy endpoints.
 
 ## Pending — Phase 2
-- [ ] cPanel/VPS connection wizard and secure API.
+- [x] Initial cPanel connection wizard and secure pairing API.
 - [ ] Canva-style cloud autosave and offline sync.
 - [ ] Cloud revisions remain Phase 2. Local named revision history and restore points are now working.
 - [ ] KDP book tools, cover/spine and preflight.
