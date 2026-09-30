@@ -4,7 +4,7 @@ Last updated: 2026-09-30
 
 ## Overall
 - Phase 1: **IN PROGRESS**
-- Phase 2: **PENDING**
+- Phase 2: **IN PROGRESS**
 - Phase 3: **PENDING**
 - Phase 4: **PENDING**
 
@@ -175,6 +175,29 @@ Last updated: 2026-09-30
 - [x] Undo/Redo keyboard shortcuts: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z.
 - [x] Native Windows disk-cache manager now creates configured cache path, reports size/files, trims oldest files to the configured limit and supports native clear. Project/asset cache usage will expand with later asset/cloud work.
 - [ ] First Windows installer/test build. App executable now builds; MSI bundler icon lookup blocker fixed by generating icon in CARGO_MANIFEST_DIR and registering `icons/icon.ico` in Tauri bundle config. Fresh MSI/NSIS build is being verified.
+
+## Phase 2 — In Progress
+- [x] cPanel-ready PHP 8.2 API foundation.
+- [x] Environment configuration and PDO/MySQL connection layer.
+- [x] Bearer-token authentication with SHA-256 token hashes.
+- [x] Database schema for users, API tokens, projects, snapshots, sync events and assets.
+- [x] Health endpoint with DB connectivity check.
+- [x] Project create/list/open/update/delete endpoints.
+- [x] Snapshot sync endpoint with base-revision conflict detection.
+- [x] Idempotent client-event replay protection.
+- [x] Revision metadata endpoint.
+- [x] Desktop cloud API client.
+- [x] Cloud & Server connection screen.
+- [x] API health test and token verification.
+- [x] Manual current-project cloud sync.
+- [x] Cloud project list refresh.
+- [x] PHP syntax CI workflow.
+- [ ] Windows secure credential storage for API token.
+- [ ] Automatic Canva-style cloud autosave queue.
+- [ ] Offline operation queue and reconnect flush.
+- [ ] Automatic conflict resolution/merge workflow.
+- [ ] Server installer/connection-code wizard.
+- [ ] Asset upload/proxy endpoints.
 
 ## Pending — Phase 2
 - [ ] cPanel/VPS connection wizard and secure API.
