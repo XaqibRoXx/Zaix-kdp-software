@@ -180,6 +180,17 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Real PDF generation foundation using pdf-lib.
+- [x] Interior-only, cover-only and interior+cover export targets.
+- [x] Interior page-range parser such as 1-10,12,15-18.
+- [x] PDF metadata title/author/creator foundation.
+- [x] Rectangle, ellipse, text, PNG/JPEG image and vector-path line rendering.
+- [x] Native Windows Save dialog using Tauri dialog plugin.
+- [x] Native Rust binary file writer for exported PDFs.
+- [x] Browser-preview download fallback for development mode.
+- [x] PDF destination: My Computer / Cloud / Both.
+- [x] Cloud PDF export reuses authenticated project asset storage.
+- [x] Export notes identify unsupported advanced crop/mask/Bezier/font-compression fidelity rather than silently pretending exact output.
 - [x] Centralized versioned KDP paperback rules module.
 - [x] KDP project settings stored in the project model and migrated for older local projects.
 - [x] Live KDP preflight engine.
@@ -257,8 +268,8 @@ Last updated: 2026-09-30
 - [ ] Canva-style cloud autosave and offline sync.
 - [ ] Cloud revisions remain Phase 2. Local named revision history and restore points are now working.
 - [ ] Advanced cover creator remains. Live KDP book settings, preflight, margins and paperback spine/cover calculator foundation are working.
-- [ ] PDF export/compression/merge/split/compare.
-- [ ] Save destination: Server / Laptop / Both.
+- [ ] Advanced compression/merge/split/compare remain. Real PDF export foundation is now working with Interior/Cover/All targets, page ranges and Laptop/Cloud/Both destinations.
+- [x] PDF save destination supports Laptop / Cloud / Both.
 
 ## Pending — Phase 3
 - [ ] Asset library and proxies.
