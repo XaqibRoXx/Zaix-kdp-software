@@ -1,5 +1,41 @@
 import type { Unit } from "@zaxis-kdp/shared";
 
+export type DesignObjectType = "text" | "rectangle" | "ellipse";
+
+export interface DesignObjectBase {
+  id: string;
+  name: string;
+  type: DesignObjectType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
+  visible: boolean;
+  locked: boolean;
+}
+
+export interface TextObject extends DesignObjectBase {
+  type: "text";
+  text: string;
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: number;
+  color: string;
+  textAlign: "left" | "center" | "right";
+}
+
+export interface ShapeObject extends DesignObjectBase {
+  type: "rectangle" | "ellipse";
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+  cornerRadius: number;
+}
+
+export type DesignObject = TextObject | ShapeObject;
+
 export interface Artboard {
   id: string;
   name: string;
@@ -8,6 +44,7 @@ export interface Artboard {
   unit: Unit;
   bleed: number;
   background: string;
+  objects: DesignObject[];
 }
 
 export interface ZaxisProject {
@@ -33,6 +70,28 @@ export interface ResizeArtboardInput {
   unit?: Unit;
 }
 
+export interface UpdateObjectInput {
+  name?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+  opacity?: number;
+  visible?: boolean;
+  locked?: boolean;
+  text?: string;
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: number;
+  color?: string;
+  textAlign?: "left" | "center" | "right";
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  cornerRadius?: number;
+}
+
 function id(prefix: string) {
   return prefix + "-" + Math.random().toString(36).slice(2, 10);
 }
@@ -46,6 +105,16 @@ function touch(project: ZaxisProject, artboards: Artboard[]): ZaxisProject {
     ...project,
     artboards,
     updatedAt: now()
+  };
+}
+
+export function normalizeProject(project: ZaxisProject): ZaxisProject {
+  return {
+    ...project,
+    artboards: project.artboards.map((artboard) => ({
+      ...artboard,
+      objects: Array.isArray(artboard.objects) ? artboard.objects : []
+    }))
   };
 }
 
@@ -66,7 +135,8 @@ export function createBlankProject(input: BlankProjectInput): ZaxisProject {
         height: input.height,
         unit: input.unit,
         bleed: 0,
-        background: "#ffffff"
+        background: "#ffffff",
+        objects: []
       }
     ]
   };
@@ -86,7 +156,8 @@ export function addArtboard(
     height: source?.height ?? previous?.height ?? 10,
     unit: source?.unit ?? previous?.unit ?? "in",
     bleed: source?.bleed ?? previous?.bleed ?? 0,
-    background: source?.background ?? previous?.background ?? "#ffffff"
+    background: source?.background ?? previous?.background ?? "#ffffff",
+    objects: []
   };
 
   return touch(project, [...project.artboards, artboard]);
@@ -100,7 +171,12 @@ export function duplicateArtboard(project: ZaxisProject, artboardId: string): Za
   const duplicate: Artboard = {
     ...source,
     id: id("artboard"),
-    name: source.name + " Copy"
+    name: source.name + " Copy",
+    objects: source.objects.map((object) => ({
+      ...object,
+      id: id("object"),
+      name: object.name + " Copy"
+    }))
   };
 
   const artboards = [...project.artboards];
@@ -163,6 +239,184 @@ export function moveArtboard(
   return touch(project, renumberArtboards(artboards));
 }
 
+export function addTextObject(project: ZaxisProject, artboardId: string): { project: ZaxisProject; objectId: string } {
+  const objectId = id("object");
+  const nextObject: TextObject = {
+    id: objectId,
+    name: "Text",
+    type: "text",
+    x: 12,
+    y: 12,
+    width: 42,
+    height: 12,
+    rotation: 0,
+    opacity: 1,
+    visible: true,
+    locked: false,
+    text: "Double-click to edit text",
+    fontFamily: "Arial",
+    fontSize: 32,
+    fontWeight: 400,
+    color: "#111111",
+    textAlign: "left"
+  };
+
+  return {
+    objectId,
+    project: mapArtboard(project, artboardId, (artboard) => ({
+      ...artboard,
+      objects: [...artboard.objects, nextObject]
+    }))
+  };
+}
+
+export function addShapeObject(
+  project: ZaxisProject,
+  artboardId: string,
+  type: "rectangle" | "ellipse"
+): { project: ZaxisProject; objectId: string } {
+  const objectId = id("object");
+  const nextObject: ShapeObject = {
+    id: objectId,
+    name: type === "rectangle" ? "Rectangle" : "Ellipse",
+    type,
+    x: 18,
+    y: 18,
+    width: 32,
+    height: 24,
+    rotation: 0,
+    opacity: 1,
+    visible: true,
+    locked: false,
+    fill: "#00f6ac",
+    stroke: "#111111",
+    strokeWidth: 0,
+    cornerRadius: type === "rectangle" ? 0 : 999
+  };
+
+  return {
+    objectId,
+    project: mapArtboard(project, artboardId, (artboard) => ({
+      ...artboard,
+      objects: [...artboard.objects, nextObject]
+    }))
+  };
+}
+
+export function deleteObject(project: ZaxisProject, artboardId: string, objectId: string): ZaxisProject {
+  return mapArtboard(project, artboardId, (artboard) => ({
+    ...artboard,
+    objects: artboard.objects.filter((object) => object.id !== objectId)
+  }));
+}
+
+export function updateObject(
+  project: ZaxisProject,
+  artboardId: string,
+  objectId: string,
+  input: UpdateObjectInput
+): ZaxisProject {
+  return mapArtboard(project, artboardId, (artboard) => ({
+    ...artboard,
+    objects: artboard.objects.map((object) => {
+      if (object.id !== objectId || object.locked) return object;
+
+      const common = {
+        ...object,
+        name: input.name ?? object.name,
+        x: clampPercent(input.x ?? object.x),
+        y: clampPercent(input.y ?? object.y),
+        width: clampSize(input.width ?? object.width),
+        height: clampSize(input.height ?? object.height),
+        rotation: normalizeRotation(input.rotation ?? object.rotation),
+        opacity: clampOpacity(input.opacity ?? object.opacity),
+        visible: input.visible ?? object.visible,
+        locked: input.locked ?? object.locked
+      };
+
+      if (object.type === "text") {
+        return {
+          ...common,
+          type: "text" as const,
+          text: input.text ?? object.text,
+          fontFamily: input.fontFamily ?? object.fontFamily,
+          fontSize: Math.max(1, input.fontSize ?? object.fontSize),
+          fontWeight: input.fontWeight ?? object.fontWeight,
+          color: input.color ?? object.color,
+          textAlign: input.textAlign ?? object.textAlign
+        };
+      }
+
+      return {
+        ...common,
+        type: object.type,
+        fill: input.fill ?? object.fill,
+        stroke: input.stroke ?? object.stroke,
+        strokeWidth: Math.max(0, input.strokeWidth ?? object.strokeWidth),
+        cornerRadius: Math.max(0, input.cornerRadius ?? object.cornerRadius)
+      };
+    })
+  }));
+}
+
+export function setObjectLocked(
+  project: ZaxisProject,
+  artboardId: string,
+  objectId: string,
+  locked: boolean
+): ZaxisProject {
+  return mapArtboard(project, artboardId, (artboard) => ({
+    ...artboard,
+    objects: artboard.objects.map((object) =>
+      object.id === objectId ? { ...object, locked } : object
+    )
+  }));
+}
+
+export function setObjectVisible(
+  project: ZaxisProject,
+  artboardId: string,
+  objectId: string,
+  visible: boolean
+): ZaxisProject {
+  return mapArtboard(project, artboardId, (artboard) => ({
+    ...artboard,
+    objects: artboard.objects.map((object) =>
+      object.id === objectId ? { ...object, visible } : object
+    )
+  }));
+}
+
+export function moveObjectLayer(
+  project: ZaxisProject,
+  artboardId: string,
+  objectId: string,
+  direction: "up" | "down"
+): ZaxisProject {
+  return mapArtboard(project, artboardId, (artboard) => {
+    const index = artboard.objects.findIndex((object) => object.id === objectId);
+    if (index < 0) return artboard;
+
+    const target = direction === "up" ? index + 1 : index - 1;
+    if (target < 0 || target >= artboard.objects.length) return artboard;
+
+    const objects = [...artboard.objects];
+    [objects[index], objects[target]] = [objects[target], objects[index]];
+    return { ...artboard, objects };
+  });
+}
+
+function mapArtboard(
+  project: ZaxisProject,
+  artboardId: string,
+  mapper: (artboard: Artboard) => Artboard
+): ZaxisProject {
+  return touch(
+    project,
+    project.artboards.map((artboard) => artboard.id === artboardId ? mapper(artboard) : artboard)
+  );
+}
+
 function renumberArtboards(artboards: Artboard[]) {
   return artboards.map((artboard, index) => ({
     ...artboard,
@@ -173,6 +427,26 @@ function renumberArtboards(artboards: Artboard[]) {
 function normalizeDimension(value: number) {
   if (!Number.isFinite(value)) return 1;
   return Math.max(0.01, Math.min(100000, value));
+}
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
+function clampSize(value: number) {
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(1, Math.min(100, value));
+}
+
+function clampOpacity(value: number) {
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(0, Math.min(1, value));
+}
+
+function normalizeRotation(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return ((value % 360) + 360) % 360;
 }
 
 export class SnapshotHistory<TState> {
