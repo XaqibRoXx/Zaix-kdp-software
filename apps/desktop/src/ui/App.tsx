@@ -515,7 +515,7 @@ export function App() {
       <main className="workspace">
         <header className="topbar">
           <div>
-            <small>ZAXIS KDP / PHASE 1</small>
+            <small>ZAXIS KDP / PHASE 2</small>
             <h1>{screen === "editor" ? project.name : titleFor(screen)}</h1>
           </div>
           <div className="top-actions">
@@ -662,7 +662,7 @@ function Dashboard({
         <Metric label="Local Projects" value={String(projects.length)} />
         <Metric label="Active Artboards" value={String(project.artboards.length)} />
         <Metric label="Active Objects" value={String(objectCount)} />
-        <Metric label="Phase" value="1 / 4" />
+        <Metric label="Phase" value="2 / 4" />
       </div>
 
       <div className="panel hero-panel">
@@ -724,7 +724,7 @@ function Dashboard({
         <div className="panel-heading">
           <div>
             <span className="eyebrow">DEVELOPMENT</span>
-            <h3>Phase 1 Editor Core</h3>
+            <h3>Phase 2 Cloud Foundation</h3>
           </div>
           <span className="pill">In Progress</span>
         </div>
