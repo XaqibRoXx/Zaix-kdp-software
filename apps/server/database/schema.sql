@@ -20,6 +20,19 @@ CREATE TABLE IF NOT EXISTS api_tokens (
   INDEX idx_api_tokens_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS pairing_codes (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  code_hash CHAR(64) NOT NULL UNIQUE,
+  label VARCHAR(120) NOT NULL DEFAULT 'Windows Desktop',
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_pairing_codes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_pairing_codes_user (user_id),
+  INDEX idx_pairing_codes_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS projects (
   id CHAR(36) PRIMARY KEY,
   owner_user_id BIGINT UNSIGNED NOT NULL,
