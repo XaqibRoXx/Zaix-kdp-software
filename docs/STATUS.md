@@ -47,6 +47,16 @@ Last updated: 2026-09-30
 - [ ] First runnable Windows development build verification. Previous Windows build failed on the same revision-handler compile issue; fix has been pushed and rebuild is being verified.
 
 ## Newly Completed in Current Implementation
+- [x] Pen tool creates a vector path object.
+- [x] Vector path object model with anchor points.
+- [x] Open/closed path setting.
+- [x] Vector fill/stroke/stroke-width controls.
+- [x] Direct Select tool mode.
+- [x] Direct anchor-node drag editing foundation.
+- [x] Persistent custom font storage using IndexedDB.
+- [x] Imported custom fonts auto-register on app startup.
+- [x] Windows Tauri missing icon blocker identified and fixed.
+- [x] Build-time embedded Zaxis KDP Windows icon generation.
 - [x] Artboard center smart guides during object drag.
 - [x] Center snap assistance when object center reaches artboard center.
 - [x] Horizontal distribution for 3+ visible unlocked objects.
@@ -120,19 +130,19 @@ Last updated: 2026-09-30
 
 ## Pending — Phase 1
 - [x] Local dashboard project CRUD and recent projects. Cloud project library remains Phase 2.
-- [ ] Full direct-selection/vector-node system. Basic object selection is working.
+- [ ] Advanced Bezier handles/curves remain. Pen/path objects plus direct anchor-node editing foundation are working.
 - [ ] Advanced text engine remains. Font family/size/weight/color, alignment, line height and letter spacing are working.
-- [ ] Advanced vector paths/bezier editor. Rectangle and ellipse objects are working.
+- [ ] Advanced Bezier curve editor remains. Open/closed vector paths, anchor points, stroke/fill and direct-node editing are working.
 - [ ] Advanced freeform masks remain. Clipboard paste, contain/cover/fill, crop position, image scale and mask-radius controls are working.
 - [ ] Advanced multi-object smart guides remain. Center smart guides plus horizontal/vertical distribution and single-object alignment are working.
 - [ ] Advanced transforms. Canvas drag/move, resize handle, rotation/opacity inspector controls are working.
-- [ ] Persistent custom/cloud font install. Session-level custom font import plus Windows installed-font discovery are working.
+- [ ] Cloud font sync remains. Imported custom fonts now persist locally in IndexedDB and reload across app restarts; Windows installed-font discovery is working.
 - [x] Initial bulk artboard resize (apply active size/unit to all). Advanced content behavior remains Phase 1 work.
 - [x] Initial graphic-design presets: A4, A5, Instagram, Story/Reel, YouTube thumbnail and US Letter flyer.
 - [x] Initial KDP/book presets: 5×8, 5.25×8, 5.5×8.5, 6×9, 7×10, 8×10, 8.5×11.
 - [x] Undo/Redo keyboard shortcuts: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z.
 - [ ] Native disk-cache enforcement remains. Settings now expose cache limit/location, autosave delay, grid/snap defaults and clear recovery cache.
-- [ ] First Windows installer/test build. GitHub Actions Windows build workflow now targets MSI/NSIS artifacts.
+- [ ] First Windows installer/test build. Missing Tauri icon blocker fixed with embedded build-time icon generation; fresh MSI/NSIS build is being verified.
 
 ## Pending — Phase 2
 - [ ] cPanel/VPS connection wizard and secure API.
