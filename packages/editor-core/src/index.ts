@@ -1,4 +1,7 @@
 import type { Unit } from "@zaxis-kdp/shared";
+import { createDefaultKdpSettings, type KdpSettings } from "./kdpRules";
+
+export * from "./kdpRules";
 
 export type DesignObjectType = "text" | "rectangle" | "ellipse" | "image" | "path";
 
@@ -93,6 +96,7 @@ export interface ZaxisProject {
   id: string;
   name: string;
   mode: "kdp" | "graphic-design";
+  kdpSettings?: KdpSettings;
   artboards: Artboard[];
   createdAt: string;
   updatedAt: string;
@@ -168,8 +172,20 @@ function touch(project: ZaxisProject, artboards: Artboard[]): ZaxisProject {
 }
 
 export function normalizeProject(project: ZaxisProject): ZaxisProject {
+  const firstArtboard = project.artboards[0];
+  const kdpSettings =
+    project.mode === "kdp"
+      ? project.kdpSettings ??
+        createDefaultKdpSettings(
+          firstArtboard?.width ?? 6,
+          firstArtboard?.height ?? 9,
+          firstArtboard?.unit ?? "in"
+        )
+      : undefined;
+
   return {
     ...project,
+    kdpSettings,
     artboards: project.artboards.map((artboard) => ({
       ...artboard,
       objects: (Array.isArray(artboard.objects) ? artboard.objects : []).map((object) => {
@@ -180,6 +196,7 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
           flipX: object.flipX ?? false,
           flipY: object.flipY ?? false
         } as DesignObject;
+
         if (object.type === "text") {
           return {
             ...object,
@@ -224,11 +241,13 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
 
 export function createBlankProject(input: BlankProjectInput): ZaxisProject {
   const timestamp = now();
+  const mode = input.mode ?? "kdp";
 
   return {
     id: id("project"),
     name: input.name,
-    mode: input.mode ?? "kdp",
+    mode,
+    kdpSettings: mode === "kdp" ? createDefaultKdpSettings(input.width, input.height, input.unit) : undefined,
     createdAt: timestamp,
     updatedAt: timestamp,
     artboards: [
@@ -243,6 +262,30 @@ export function createBlankProject(input: BlankProjectInput): ZaxisProject {
         objects: []
       }
     ]
+  };
+}
+
+export function updateKdpSettings(
+  project: ZaxisProject,
+  input: Partial<KdpSettings>
+): ZaxisProject {
+  if (project.mode !== "kdp") return project;
+
+  const current =
+    project.kdpSettings ??
+    createDefaultKdpSettings(
+      project.artboards[0]?.width ?? 6,
+      project.artboards[0]?.height ?? 9,
+      project.artboards[0]?.unit ?? "in"
+    );
+
+  return {
+    ...project,
+    kdpSettings: {
+      ...current,
+      ...input
+    },
+    updatedAt: now()
   };
 }
 
