@@ -38,6 +38,10 @@ import {
   type ProjectRevision
 } from "../state/revisionStore";
 import {
+  registerStoredFonts,
+  saveCustomFont
+} from "../state/fontStore";
+import {
   deleteProjectFromLibrary,
   listProjectSummaries,
   loadActiveProject,
@@ -82,13 +86,17 @@ export function App() {
   const historyRef = useRef(new SnapshotHistory(project));
 
   useEffect(() => {
-    invoke<string[]>("list_system_fonts")
-      .then((fonts) => {
-        if (fonts.length > 0) setSystemFonts(fonts);
-      })
-      .catch(() => {
-        // Browser development preview uses the built-in fallback list.
-      });
+    Promise.all([
+      invoke<string[]>("list_system_fonts").catch(() => []),
+      registerStoredFonts().catch(() => [])
+    ]).then(([nativeFonts, customFonts]) => {
+      const combined = Array.from(new Set([
+        ...systemFonts,
+        ...nativeFonts,
+        ...customFonts
+      ])).sort((a, b) => a.localeCompare(b));
+      setSystemFonts(combined);
+    });
   }, []);
 
   useEffect(() => {
@@ -197,6 +205,7 @@ export function App() {
       const font = new FontFace(family, bytes);
       await font.load();
       document.fonts.add(font);
+      await saveCustomFont(file, family);
       setSystemFonts((current) => Array.from(new Set([...current, family])).sort((a, b) => a.localeCompare(b)));
     } catch {
       // Invalid/unsupported font files are ignored for now; native install comes later.
