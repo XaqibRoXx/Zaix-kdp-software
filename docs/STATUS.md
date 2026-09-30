@@ -43,10 +43,17 @@ Last updated: 2026-09-30
 - [x] Initial layers/object model with visibility, locking and z-order controls.
 - [ ] Full font-provider abstraction. Native Windows system-font discovery is now wired; project/cloud/custom font install remains.
 - [x] Initial clipboard image ingestion: pasted clipboard images become editable image objects.
-- [ ] Full project persistence layer. Current project local recovery persistence is working.
+- [ ] Cloud/full persistence layer. Multi-project local recovery library is now working.
 - [ ] First runnable Windows development build verification.
 
 ## Newly Completed in Current Implementation
+- [x] Local multi-project recovery library.
+- [x] Recent projects dashboard list.
+- [x] Create new project without overwriting previous local projects.
+- [x] Open local project.
+- [x] Rename local project.
+- [x] Delete local project recovery copy.
+- [x] Separate local recovery record per project plus active-project tracking.
 - [x] Canvas drag/move for unlocked objects with live preview.
 - [x] Bottom-right resize handle with live preview.
 - [x] One Undo/Redo history entry per completed drag/resize gesture.
@@ -81,7 +88,7 @@ Last updated: 2026-09-30
 - [x] Current project restores from local recovery storage on restart.
 
 ## Pending — Phase 1
-- [ ] Dashboard project CRUD and recent projects.
+- [x] Local dashboard project CRUD and recent projects. Cloud project library remains Phase 2.
 - [ ] Full direct-selection/vector-node system. Basic object selection is working.
 - [ ] Advanced text engine. Basic editable text objects, font family/size/color are working.
 - [ ] Advanced vector paths/bezier editor. Rectangle and ellipse objects are working.
