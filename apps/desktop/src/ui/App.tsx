@@ -475,6 +475,9 @@ function EditorShell({
   canRedo,
   systemFonts
 }: EditorShellProps) {
+  const [gridVisible, setGridVisible] = useState(true);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+
   const artboard = useMemo(
     () => project.artboards.find((item) => item.id === selectedArtboardId) ?? project.artboards[0],
     [project, selectedArtboardId]
@@ -596,11 +599,14 @@ function EditorShell({
           </select>
 
           <button onClick={bulkResize}>Apply Size to All</button>
+          <span className="toolbar-separator" />
+          <button className={gridVisible ? "toggle-on" : ""} onClick={() => setGridVisible((value) => !value)}>Grid</button>
+          <button className={snapEnabled ? "toggle-on" : ""} onClick={() => setSnapEnabled((value) => !value)}>Snap</button>
         </div>
 
         <div className="canvas-stage" onClick={() => onSelectObject(null)}>
           <div
-            className="artboard"
+            className={gridVisible ? "artboard grid-visible" : "artboard"}
             style={{
               aspectRatio: String(artboard.width) + " / " + String(artboard.height),
               background: artboard.background
@@ -616,6 +622,7 @@ function EditorShell({
                 selected={object.id === selectedObjectId}
                 onSelect={() => onSelectObject(object.id)}
                 onChange={(input) => onCommit(updateObject(project, artboard.id, object.id, input))}
+                snap={snapEnabled}
               />
             ))}
 
@@ -691,15 +698,19 @@ function CanvasObject({
   object,
   selected,
   onSelect,
-  onChange
+  onChange,
+  snap
 }: {
   object: DesignObject;
   selected: boolean;
   onSelect: () => void;
   onChange: (input: Parameters<typeof updateObject>[3]) => void;
+  snap: boolean;
 }) {
   const [preview, setPreview] = useState<null | { x: number; y: number; width: number; height: number }>(null);
   const frame = preview ?? { x: object.x, y: object.y, width: object.width, height: object.height };
+  const snapStep = 2;
+  const snapValue = (value: number) => snap ? Math.round(value / snapStep) * snapStep : value;
 
   function beginDrag(event: React.PointerEvent<HTMLDivElement>) {
     if (object.locked || event.button !== 0) return;
@@ -719,8 +730,8 @@ function CanvasObject({
       const dx = ((pointerEvent.clientX - startX) / rect.width) * 100;
       const dy = ((pointerEvent.clientY - startY) / rect.height) * 100;
       setPreview({
-        x: Math.max(0, Math.min(100 - object.width, origin.x + dx)),
-        y: Math.max(0, Math.min(100 - object.height, origin.y + dy)),
+        x: Math.max(0, Math.min(100 - object.width, snapValue(origin.x + dx))),
+        y: Math.max(0, Math.min(100 - object.height, snapValue(origin.y + dy))),
         width: object.width,
         height: object.height
       });
@@ -729,8 +740,8 @@ function CanvasObject({
     function finish(pointerEvent: PointerEvent) {
       const dx = ((pointerEvent.clientX - startX) / rect.width) * 100;
       const dy = ((pointerEvent.clientY - startY) / rect.height) * 100;
-      const x = Math.max(0, Math.min(100 - object.width, origin.x + dx));
-      const y = Math.max(0, Math.min(100 - object.height, origin.y + dy));
+      const x = Math.max(0, Math.min(100 - object.width, snapValue(origin.x + dx)));
+      const y = Math.max(0, Math.min(100 - object.height, snapValue(origin.y + dy)));
       setPreview(null);
       onChange({ x, y });
       window.removeEventListener("pointermove", move);
@@ -761,16 +772,16 @@ function CanvasObject({
       setPreview({
         x: object.x,
         y: object.y,
-        width: Math.max(2, Math.min(100 - object.x, origin.width + dw)),
-        height: Math.max(2, Math.min(100 - object.y, origin.height + dh))
+        width: Math.max(2, Math.min(100 - object.x, snapValue(origin.width + dw))),
+        height: Math.max(2, Math.min(100 - object.y, snapValue(origin.height + dh)))
       });
     }
 
     function finish(pointerEvent: PointerEvent) {
       const dw = ((pointerEvent.clientX - startX) / rect.width) * 100;
       const dh = ((pointerEvent.clientY - startY) / rect.height) * 100;
-      const width = Math.max(2, Math.min(100 - object.x, origin.width + dw));
-      const height = Math.max(2, Math.min(100 - object.y, origin.height + dh));
+      const width = Math.max(2, Math.min(100 - object.x, snapValue(origin.width + dw)));
+      const height = Math.max(2, Math.min(100 - object.y, snapValue(origin.height + dh)));
       setPreview(null);
       onChange({ width, height });
       window.removeEventListener("pointermove", move);
