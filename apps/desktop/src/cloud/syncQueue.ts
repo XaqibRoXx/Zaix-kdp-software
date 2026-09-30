@@ -20,6 +20,7 @@ export interface ProjectSyncMeta {
 export interface QueueFlushResult {
   synced: number;
   conflicts: number;
+  locked: number;
   failed: number;
   remaining: number;
 }
@@ -162,6 +163,7 @@ export async function flushPendingSnapshots(api: ZaxisCloudApi): Promise<QueueFl
 
   let synced = 0;
   let conflicts = 0;
+  let locked = 0;
   let failed = 0;
 
   for (const item of queue) {
@@ -208,6 +210,12 @@ export async function flushPendingSnapshots(api: ZaxisCloudApi): Promise<QueueFl
         continue;
       }
 
+      if (error instanceof CloudApiError && error.status === 423) {
+        locked += 1;
+        await markAttempt(item, "Project locked by another editor");
+        continue;
+      }
+
       failed += 1;
       await markAttempt(
         item,
@@ -219,6 +227,7 @@ export async function flushPendingSnapshots(api: ZaxisCloudApi): Promise<QueueFl
   return {
     synced,
     conflicts,
+    locked,
     failed,
     remaining: await pendingSyncCount()
   };
