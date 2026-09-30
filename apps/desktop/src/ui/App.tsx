@@ -71,6 +71,13 @@ import {
 } from "../export/pdfExporter";
 import { ensurePdfExtension, savePdfToComputer } from "../export/savePdf";
 import {
+  comparePdfStructure,
+  extractPdfPages,
+  mergePdfFiles,
+  rotatePdfPages,
+  type PdfCompareResult
+} from "../export/pdfTools";
+import {
   deleteProjectFromLibrary,
   listProjectSummaries,
   loadActiveProject,
@@ -80,7 +87,7 @@ import {
   type ProjectSummary
 } from "../state/projectLibrary";
 
-type Screen = "dashboard" | "editor" | "assets" | "cloud" | "settings";
+type Screen = "dashboard" | "editor" | "assets" | "pdfTools" | "cloud" | "settings";
 
 interface NativeCacheStatus {
   path: string;
@@ -101,6 +108,7 @@ const navigation: Array<{ id: Screen; label: string }> = [
   { id: "dashboard", label: "Projects" },
   { id: "editor", label: "Editor" },
   { id: "assets", label: "Assets" },
+  { id: "pdfTools", label: "PDF Tools" },
   { id: "cloud", label: "Cloud & Server" },
   { id: "settings", label: "Settings" }
 ];
@@ -615,6 +623,7 @@ export function App() {
             project={project}
           />
         )}
+        {screen === "pdfTools" && <PdfToolsScreen />}
         {screen === "cloud" && (
           <CloudScreen
             settings={appSettings}
@@ -678,6 +687,7 @@ function cloudSaveLabel(state: CloudSaveState, pendingCount: number) {
 function titleFor(screen: Screen) {
   if (screen === "dashboard") return "Projects";
   if (screen === "assets") return "Asset Library";
+  if (screen === "pdfTools") return "PDF Tools";
   if (screen === "cloud") return "Cloud & Server";
   if (screen === "settings") return "Settings";
   return "Zaxis KDP";
@@ -2026,6 +2036,225 @@ function ObjectInspector({
         </>
       )}
     </div>
+  );
+}
+
+function PdfToolsScreen() {
+  const [mergeFiles, setMergeFiles] = useState<File[]>([]);
+  const [mergeStatus, setMergeStatus] = useState("");
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [range, setRange] = useState("1");
+  const [pageStatus, setPageStatus] = useState("");
+  const [leftCompare, setLeftCompare] = useState<File | null>(null);
+  const [rightCompare, setRightCompare] = useState<File | null>(null);
+  const [compareResult, setCompareResult] = useState<PdfCompareResult | null>(null);
+  const [compareStatus, setCompareStatus] = useState("");
+  const mergeInputRef = useRef<HTMLInputElement | null>(null);
+  const sourceInputRef = useRef<HTMLInputElement | null>(null);
+  const leftInputRef = useRef<HTMLInputElement | null>(null);
+  const rightInputRef = useRef<HTMLInputElement | null>(null);
+
+  function moveMergeFile(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= mergeFiles.length) return;
+
+    const next = [...mergeFiles];
+    [next[index], next[target]] = [next[target], next[index]];
+    setMergeFiles(next);
+  }
+
+  async function mergeAndSave() {
+    setMergeStatus("Merging PDFs...");
+
+    try {
+      const bytes = await mergePdfFiles(mergeFiles);
+      const path = await savePdfToComputer(bytes, "zaxis-kdp-merged.pdf");
+      setMergeStatus(path ? "Merged PDF saved." : "Merge save cancelled.");
+    } catch (error) {
+      setMergeStatus(error instanceof Error ? error.message : "PDF merge failed.");
+    }
+  }
+
+  async function extractAndSave() {
+    if (!sourceFile) {
+      setPageStatus("Select a PDF first.");
+      return;
+    }
+
+    setPageStatus("Extracting pages...");
+
+    try {
+      const bytes = await extractPdfPages(sourceFile, range);
+      const base = sourceFile.name.replace(/\.pdf$/i, "");
+      const path = await savePdfToComputer(bytes, base + "-pages-" + range.replace(/[^0-9,-]+/g, "") + ".pdf");
+      setPageStatus(path ? "Extracted PDF saved." : "Extract save cancelled.");
+    } catch (error) {
+      setPageStatus(error instanceof Error ? error.message : "Page extraction failed.");
+    }
+  }
+
+  async function rotateAndSave(degree: 90 | 180 | 270) {
+    if (!sourceFile) {
+      setPageStatus("Select a PDF first.");
+      return;
+    }
+
+    setPageStatus("Rotating pages...");
+
+    try {
+      const bytes = await rotatePdfPages(sourceFile, range, degree);
+      const base = sourceFile.name.replace(/\.pdf$/i, "");
+      const path = await savePdfToComputer(bytes, base + "-rotated.pdf");
+      setPageStatus(path ? "Rotated PDF saved." : "Rotate save cancelled.");
+    } catch (error) {
+      setPageStatus(error instanceof Error ? error.message : "PDF rotation failed.");
+    }
+  }
+
+  async function compareFiles() {
+    if (!leftCompare || !rightCompare) {
+      setCompareStatus("Select both PDFs first.");
+      return;
+    }
+
+    setCompareStatus("Comparing PDF structure...");
+
+    try {
+      const result = await comparePdfStructure(leftCompare, rightCompare);
+      setCompareResult(result);
+      setCompareStatus("Structural comparison complete.");
+    } catch (error) {
+      setCompareStatus(error instanceof Error ? error.message : "PDF comparison failed.");
+    }
+  }
+
+  return (
+    <section className="content">
+      <div className="panel">
+        <span className="eyebrow">PDF MERGE</span>
+        <div className="panel-heading">
+          <div>
+            <h2>Merge PDFs</h2>
+            <p className="muted">Files are merged in the exact order shown below.</p>
+          </div>
+          <div className="hero-actions">
+            <input
+              ref={mergeInputRef}
+              className="hidden-input"
+              type="file"
+              accept="application/pdf,.pdf"
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                if (files.length) setMergeFiles((current) => [...current, ...files]);
+                event.currentTarget.value = "";
+              }}
+            />
+            <button className="secondary" onClick={() => mergeInputRef.current?.click()}>Add PDFs</button>
+            <button className="primary" disabled={mergeFiles.length < 2} onClick={() => void mergeAndSave()}>Merge & Save</button>
+          </div>
+        </div>
+
+        <div className="pdf-file-list">
+          {mergeFiles.length === 0 ? (
+            <div className="empty-projects">Add two or more PDF files.</div>
+          ) : mergeFiles.map((file, index) => (
+            <div className="pdf-file-row" key={file.name + "-" + file.size + "-" + index}>
+              <span>{index + 1}</span>
+              <div><strong>{file.name}</strong><small>{(file.size / (1024 * 1024)).toFixed(2)} MB</small></div>
+              <button onClick={() => moveMergeFile(index, -1)} disabled={index === 0}>↑</button>
+              <button onClick={() => moveMergeFile(index, 1)} disabled={index === mergeFiles.length - 1}>↓</button>
+              <button className="danger-text" onClick={() => setMergeFiles((current) => current.filter((_, i) => i !== index))}>Remove</button>
+            </div>
+          ))}
+        </div>
+        {mergeStatus && <p className="muted">{mergeStatus}</p>}
+      </div>
+
+      <div className="panel">
+        <span className="eyebrow">EXTRACT / ROTATE</span>
+        <div className="panel-heading">
+          <div>
+            <h2>Page Tools</h2>
+            <p className="muted">Use ranges like 1-5,8,11-14 or All.</p>
+          </div>
+          <div className="hero-actions">
+            <input
+              ref={sourceInputRef}
+              className="hidden-input"
+              type="file"
+              accept="application/pdf,.pdf"
+              onChange={(event) => {
+                setSourceFile(event.target.files?.[0] ?? null);
+                event.currentTarget.value = "";
+              }}
+            />
+            <button className="secondary" onClick={() => sourceInputRef.current?.click()}>
+              {sourceFile ? sourceFile.name : "Select PDF"}
+            </button>
+          </div>
+        </div>
+
+        <div className="settings-grid">
+          <label>Page Range
+            <input value={range} onChange={(event) => setRange(event.target.value)} placeholder="1-5,8,11-14" />
+          </label>
+        </div>
+        <div className="hero-actions">
+          <button className="primary" disabled={!sourceFile} onClick={() => void extractAndSave()}>Extract & Save</button>
+          <button className="secondary" disabled={!sourceFile} onClick={() => void rotateAndSave(90)}>Rotate 90°</button>
+          <button className="secondary" disabled={!sourceFile} onClick={() => void rotateAndSave(180)}>Rotate 180°</button>
+          <button className="secondary" disabled={!sourceFile} onClick={() => void rotateAndSave(270)}>Rotate 270°</button>
+        </div>
+        {pageStatus && <p className="muted">{pageStatus}</p>}
+      </div>
+
+      <div className="panel">
+        <span className="eyebrow">PDF COMPARE</span>
+        <h2>Structural Compare</h2>
+        <p className="muted">Current foundation compares page count, page sizes/rotation and file size. Visual pixel-diff comparison comes next.</p>
+        <div className="hero-actions">
+          <input
+            ref={leftInputRef}
+            className="hidden-input"
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={(event) => {
+              setLeftCompare(event.target.files?.[0] ?? null);
+              setCompareResult(null);
+              event.currentTarget.value = "";
+            }}
+          />
+          <input
+            ref={rightInputRef}
+            className="hidden-input"
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={(event) => {
+              setRightCompare(event.target.files?.[0] ?? null);
+              setCompareResult(null);
+              event.currentTarget.value = "";
+            }}
+          />
+          <button className="secondary" onClick={() => leftInputRef.current?.click()}>{leftCompare?.name ?? "Old PDF"}</button>
+          <button className="secondary" onClick={() => rightInputRef.current?.click()}>{rightCompare?.name ?? "New PDF"}</button>
+          <button className="primary" disabled={!leftCompare || !rightCompare} onClick={() => void compareFiles()}>Compare</button>
+        </div>
+
+        {compareResult && (
+          <div className="pdf-compare-grid">
+            <div><small>Old Pages</small><strong>{compareResult.left.pageCount}</strong></div>
+            <div><small>New Pages</small><strong>{compareResult.right.pageCount}</strong></div>
+            <div><small>Page Count</small><strong>{compareResult.samePageCount ? "Same" : "Changed"}</strong></div>
+            <div><small>Page Sizes</small><strong>{compareResult.samePageSizes ? "Same" : "Changed"}</strong></div>
+            <div><small>Old Size</small><strong>{(compareResult.left.sizeBytes / (1024 * 1024)).toFixed(2)} MB</strong></div>
+            <div><small>New Size</small><strong>{(compareResult.right.sizeBytes / (1024 * 1024)).toFixed(2)} MB</strong></div>
+          </div>
+        )}
+
+        {compareStatus && <p className="muted">{compareStatus}</p>}
+      </div>
+    </section>
   );
 }
 
