@@ -10,6 +10,7 @@ import {
   createBlankProject,
   deleteArtboard,
   deleteObject,
+  distributeObjects,
   duplicateArtboard,
   fitObjectInsideArtboard,
   moveArtboard,
@@ -561,6 +562,7 @@ function EditorShell({
 }: EditorShellProps) {
   const [gridVisible, setGridVisible] = useState(appSettings.gridDefault);
   const [snapEnabled, setSnapEnabled] = useState(appSettings.snapDefault);
+  const [smartGuide, setSmartGuide] = useState<{ vertical: boolean; horizontal: boolean }>({ vertical: false, horizontal: false });
 
   const artboard = useMemo(
     () => project.artboards.find((item) => item.id === selectedArtboardId) ?? project.artboards[0],
@@ -698,6 +700,8 @@ function EditorShell({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="safe-area" />
+            {smartGuide.vertical && <div className="smart-guide vertical" />}
+            {smartGuide.horizontal && <div className="smart-guide horizontal" />}
 
             {artboard.objects.filter((object) => object.visible).map((object) => (
               <CanvasObject
@@ -707,6 +711,7 @@ function EditorShell({
                 onSelect={() => onSelectObject(object.id)}
                 onChange={(input) => onCommit(updateObject(project, artboard.id, object.id, input))}
                 snap={snapEnabled}
+                onGuideChange={setSmartGuide}
               />
             ))}
 
@@ -774,6 +779,10 @@ function EditorShell({
               <button onClick={() => onCommit(alignObject(project, artboard.id, selectedObject.id, "middle"))}>Middle</button>
               <button onClick={() => onCommit(alignObject(project, artboard.id, selectedObject.id, "bottom"))}>Bottom</button>
             </div>
+            <div className="artboard-actions">
+              <button className="secondary" disabled={artboard.objects.length < 3} onClick={() => onCommit(distributeObjects(project, artboard.id, "horizontal"))}>Distribute H</button>
+              <button className="secondary" disabled={artboard.objects.length < 3} onClick={() => onCommit(distributeObjects(project, artboard.id, "vertical"))}>Distribute V</button>
+            </div>
             <button className="secondary full" onClick={() => onCommit(fitObjectInsideArtboard(project, artboard.id, selectedObject.id))}>Fit Inside Artboard</button>
             <div className="artboard-actions">
               <button className="secondary" onClick={() => onCommit(moveObjectLayer(project, artboard.id, selectedObject.id, "up"))}>Bring Up</button>
@@ -799,13 +808,15 @@ function CanvasObject({
   selected,
   onSelect,
   onChange,
-  snap
+  snap,
+  onGuideChange
 }: {
   object: DesignObject;
   selected: boolean;
   onSelect: () => void;
   onChange: (input: Parameters<typeof updateObject>[3]) => void;
   snap: boolean;
+  onGuideChange: (guide: { vertical: boolean; horizontal: boolean }) => void;
 }) {
   const [preview, setPreview] = useState<null | { x: number; y: number; width: number; height: number }>(null);
   const frame = preview ?? { x: object.x, y: object.y, width: object.width, height: object.height };
@@ -829,12 +840,14 @@ function CanvasObject({
     function move(pointerEvent: PointerEvent) {
       const dx = ((pointerEvent.clientX - startX) / rect.width) * 100;
       const dy = ((pointerEvent.clientY - startY) / rect.height) * 100;
-      setPreview({
-        x: Math.max(0, Math.min(100 - object.width, snapValue(origin.x + dx))),
-        y: Math.max(0, Math.min(100 - object.height, snapValue(origin.y + dy))),
-        width: object.width,
-        height: object.height
-      });
+      let x = Math.max(0, Math.min(100 - object.width, snapValue(origin.x + dx)));
+      let y = Math.max(0, Math.min(100 - object.height, snapValue(origin.y + dy)));
+      const vertical = Math.abs((x + object.width / 2) - 50) <= 1;
+      const horizontal = Math.abs((y + object.height / 2) - 50) <= 1;
+      if (vertical) x = 50 - object.width / 2;
+      if (horizontal) y = 50 - object.height / 2;
+      onGuideChange({ vertical, horizontal });
+      setPreview({ x, y, width: object.width, height: object.height });
     }
 
     function finish(pointerEvent: PointerEvent) {
@@ -843,6 +856,7 @@ function CanvasObject({
       const x = Math.max(0, Math.min(100 - object.width, snapValue(origin.x + dx)));
       const y = Math.max(0, Math.min(100 - object.height, snapValue(origin.y + dy)));
       setPreview(null);
+      onGuideChange({ vertical: false, horizontal: false });
       onChange({ x, y });
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", finish);
