@@ -119,3 +119,11 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .cloud-status-grid strong{margin-top:5px;font-size:11px;line-height:1.4;word-break:break-word}
 .cloud-project-date{font-size:10px;color:#75807c;padding:0 8px}
 @media(max-width:900px){.cloud-status-grid{grid-template-columns:1fr}}
+
+.save-state.cloud-disabled{color:#6f7975}
+.save-state.cloud-queued{color:#f0a33a}
+.save-state.cloud-syncing{color:#f0a33a}
+.save-state.cloud-saved{color:#00f6ac}
+.save-state.cloud-offline{color:#f0a33a}
+.save-state.cloud-conflict{color:#ffbf69}
+.save-state.cloud-error{color:#ff6b6b}
