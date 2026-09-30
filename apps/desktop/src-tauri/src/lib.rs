@@ -240,9 +240,25 @@ fn clear_cloud_token() -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<u64, String> {
+    let target = PathBuf::from(path);
+
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("Failed to create export directory: {error}"))?;
+    }
+
+    fs::write(&target, &bytes)
+        .map_err(|error| format!("Failed to write exported file: {error}"))?;
+
+    Ok(bytes.len() as u64)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             list_system_fonts,
             ensure_native_cache,
@@ -250,7 +266,8 @@ pub fn run() {
             clear_native_cache,
             store_cloud_token,
             load_cloud_token,
-            clear_cloud_token
+            clear_cloud_token,
+            write_binary_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running Zaxis KDP");
