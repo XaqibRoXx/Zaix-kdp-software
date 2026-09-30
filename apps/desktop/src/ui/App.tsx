@@ -316,7 +316,7 @@ export function App() {
             />
             <button className="secondary" onClick={() => fontInputRef.current?.click()}>Import Font</button>
             <button className="secondary">Import</button>
-            <button className="primary" onClick={createNewProject}>New Project</button>
+            <button className="primary" onClick={() => createNewProject()}>New Project</button>
           </div>
         </header>
 
@@ -348,6 +348,7 @@ export function App() {
             canUndo={historyRef.current.canUndo}
             canRedo={historyRef.current.canRedo}
             systemFonts={systemFonts}
+            appSettings={appSettings}
           />
         )}
         {screen === "assets" && (
@@ -501,6 +502,7 @@ interface EditorShellProps {
   canUndo: boolean;
   canRedo: boolean;
   systemFonts: string[];
+  appSettings: AppSettings;
 }
 
 function EditorShell({
@@ -514,10 +516,11 @@ function EditorShell({
   onRedo,
   canUndo,
   canRedo,
-  systemFonts
+  systemFonts,
+  appSettings
 }: EditorShellProps) {
-  const [gridVisible, setGridVisible] = useState(true);
-  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [gridVisible, setGridVisible] = useState(appSettings.gridDefault);
+  const [snapEnabled, setSnapEnabled] = useState(appSettings.snapDefault);
 
   const artboard = useMemo(
     () => project.artboards.find((item) => item.id === selectedArtboardId) ?? project.artboards[0],
