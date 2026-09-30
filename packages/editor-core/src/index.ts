@@ -496,6 +496,51 @@ export function fitObjectInsideArtboard(
   }));
 }
 
+export function distributeObjects(
+  project: ZaxisProject,
+  artboardId: string,
+  axis: "horizontal" | "vertical"
+): ZaxisProject {
+  return mapArtboard(project, artboardId, (artboard) => {
+    const movable = artboard.objects
+      .filter((object) => object.visible && !object.locked)
+      .slice()
+      .sort((a, b) => axis === "horizontal" ? a.x - b.x : a.y - b.y);
+
+    if (movable.length < 3) return artboard;
+
+    const first = movable[0];
+    const last = movable[movable.length - 1];
+    const firstCenter = axis === "horizontal"
+      ? first.x + first.width / 2
+      : first.y + first.height / 2;
+    const lastCenter = axis === "horizontal"
+      ? last.x + last.width / 2
+      : last.y + last.height / 2;
+    const step = (lastCenter - firstCenter) / (movable.length - 1);
+
+    const updates = new Map<string, number>();
+    movable.forEach((object, index) => {
+      const center = firstCenter + step * index;
+      const position = axis === "horizontal"
+        ? center - object.width / 2
+        : center - object.height / 2;
+      updates.set(object.id, position);
+    });
+
+    return {
+      ...artboard,
+      objects: artboard.objects.map((object) => {
+        const next = updates.get(object.id);
+        if (next === undefined) return object;
+        return axis === "horizontal"
+          ? { ...object, x: Math.max(0, Math.min(100 - object.width, next)) }
+          : { ...object, y: Math.max(0, Math.min(100 - object.height, next)) };
+      })
+    };
+  });
+}
+
 export function setObjectLocked(
   project: ZaxisProject,
   artboardId: string,
