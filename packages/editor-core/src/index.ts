@@ -135,7 +135,27 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
     ...project,
     artboards: project.artboards.map((artboard) => ({
       ...artboard,
-      objects: Array.isArray(artboard.objects) ? artboard.objects : []
+      objects: (Array.isArray(artboard.objects) ? artboard.objects : []).map((object) => {
+        if (object.type === "text") {
+          return {
+            ...object,
+            lineHeight: object.lineHeight ?? 1.2,
+            letterSpacing: object.letterSpacing ?? 0
+          };
+        }
+
+        if (object.type === "image") {
+          return {
+            ...object,
+            cropX: object.cropX ?? 50,
+            cropY: object.cropY ?? 50,
+            scale: object.scale ?? 1,
+            borderRadius: object.borderRadius ?? 0
+          };
+        }
+
+        return object;
+      })
     }))
   };
 }
