@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
+  KDP_RULES,
   SnapshotHistory,
   alignObject,
+  analyzeKdpProject,
   addArtboard,
   addImageObject,
   addPathObject,
@@ -22,8 +24,11 @@ import {
   resizeArtboard,
   setObjectLocked,
   setObjectVisible,
+  updateKdpSettings,
   updateObject,
   type DesignObject,
+  type KdpInkType,
+  type KdpPaperType,
   type ZaxisProject
 } from "@zaxis-kdp/editor-core";
 import type { SaveState, Unit } from "@zaxis-kdp/shared";
@@ -1026,6 +1031,17 @@ function EditorShell({
           </div>
         </div>
 
+        {project.mode === "kdp" && (
+          <KdpBookPanel
+            project={project}
+            onCommit={onCommit}
+            onOpenPage={(page) => {
+              const target = project.artboards[page - 1];
+              if (target) onSelectArtboard(target.id);
+            }}
+          />
+        )}
+
         <div className="layer-list">
           {[...artboard.objects].reverse().map((object) => (
             <div className={object.id === selectedObjectId ? "layer-row active" : "layer-row"} key={object.id}>
@@ -1466,6 +1482,135 @@ function CanvasObject({
       onPointerDown={beginDrag}
     >
       {handle}
+    </div>
+  );
+}
+
+function KdpBookPanel({
+  project,
+  onCommit,
+  onOpenPage
+}: {
+  project: ZaxisProject;
+  onCommit: (project: ZaxisProject) => void;
+  onOpenPage: (page: number) => void;
+}) {
+  const settings = project.kdpSettings;
+  const result = useMemo(() => analyzeKdpProject(project), [project]);
+
+  if (!settings) return null;
+
+  function update(input: Parameters<typeof updateKdpSettings>[1]) {
+    onCommit(updateKdpSettings(project, input));
+  }
+
+  function applyPageSize() {
+    const width = settings.trimWidthIn + (settings.bleed ? KDP_RULES.bleedIn : 0);
+    const height = settings.trimHeightIn + (settings.bleed ? KDP_RULES.bleedIn * 2 : 0);
+    onCommit(resizeAllArtboards(project, { width, height, unit: "in" }));
+  }
+
+  const errorCount = result.issues.filter((issue) => issue.severity === "error").length;
+  const warningCount = result.issues.filter((issue) => issue.severity === "warning").length;
+
+  return (
+    <div className="kdp-panel">
+      <div className="kdp-panel-head">
+        <div>
+          <strong>KDP Book & Preflight</strong>
+          <small>Rules {KDP_RULES.rulesetVersion}</small>
+        </div>
+        <span className={result.ready ? "kdp-ready" : "kdp-not-ready"}>
+          {result.ready ? "Ready" : errorCount + " errors"}
+        </span>
+      </div>
+
+      <div className="inspector-grid">
+        <label>Trim W
+          <input
+            type="number"
+            min="4"
+            max="8.5"
+            step="0.001"
+            value={settings.trimWidthIn}
+            onChange={(event) => update({ trimWidthIn: Number(event.target.value) })}
+          />
+        </label>
+        <label>Trim H
+          <input
+            type="number"
+            min="6"
+            max="11.69"
+            step="0.001"
+            value={settings.trimHeightIn}
+            onChange={(event) => update({ trimHeightIn: Number(event.target.value) })}
+          />
+        </label>
+      </div>
+
+      <label className="toggle-setting kdp-toggle">
+        <input
+          type="checkbox"
+          checked={settings.bleed}
+          onChange={(event) => update({ bleed: event.target.checked })}
+        />
+        Full bleed interior
+      </label>
+
+      <label className="inspector-field">Paper
+        <select
+          value={settings.paperType}
+          onChange={(event) => update({ paperType: event.target.value as KdpPaperType })}
+        >
+          <option value="white">White</option>
+          <option value="cream">Cream</option>
+          <option value="groundwood">Groundwood</option>
+          <option value="color">Color paper</option>
+        </select>
+      </label>
+
+      <label className="inspector-field">Ink
+        <select
+          value={settings.inkType}
+          onChange={(event) => update({ inkType: event.target.value as KdpInkType })}
+        >
+          <option value="black">Black</option>
+          <option value="standard-color">Standard Color</option>
+          <option value="premium-color">Premium Color</option>
+        </select>
+      </label>
+
+      <button className="secondary full" onClick={applyPageSize}>Apply KDP Page Size to All</button>
+
+      <div className="kdp-metrics">
+        <span><small>Pages</small><strong>{result.pageCount}</strong></span>
+        <span><small>Inside</small><strong>{result.requiredInsideMarginIn}"</strong></span>
+        <span><small>Outside</small><strong>{result.requiredOutsideMarginIn}"</strong></span>
+        <span><small>Spine</small><strong>{result.spineWidthIn}"</strong></span>
+      </div>
+
+      <div className="kdp-cover-size">
+        <small>Full paperback cover + bleed</small>
+        <strong>{result.coverWidthIn}" × {result.coverHeightIn}"</strong>
+        <span>{result.spineTextAllowed ? "Spine text allowed" : "No spine text below 80 pages"}</span>
+      </div>
+
+      <div className="preflight-list">
+        {result.issues.slice(0, 10).map((issue, index) => (
+          <button
+            key={issue.code + "-" + (issue.page ?? "book") + "-" + index}
+            className={"preflight-item " + issue.severity}
+            onClick={() => issue.page && onOpenPage(issue.page)}
+          >
+            <strong>{issue.severity.toUpperCase()}{issue.page ? " • Page " + issue.page : ""}</strong>
+            <small>{issue.message}</small>
+          </button>
+        ))}
+        {result.issues.length === 0 && <div className="kdp-all-clear">No current preflight issues.</div>}
+        {result.issues.length > 10 && <small className="muted">+ {result.issues.length - 10} more issues</small>}
+      </div>
+
+      <small className="muted">{warningCount} warnings • {errorCount} errors</small>
     </div>
   );
 }
