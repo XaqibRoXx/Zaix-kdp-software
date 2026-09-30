@@ -6,6 +6,8 @@ import {
   alignObject,
   analyzeKdpProject,
   calculatePaperbackCoverSize,
+  requiredInsideMarginIn,
+  requiredOutsideMarginIn,
   addArtboard,
   addImageObject,
   addPathObject,
@@ -1138,6 +1140,9 @@ function EditorShell({
 }: EditorShellProps) {
   const [gridVisible, setGridVisible] = useState(appSettings.gridDefault);
   const [snapEnabled, setSnapEnabled] = useState(appSettings.snapDefault);
+  const [showKdpTrim, setShowKdpTrim] = useState(true);
+  const [showKdpBleed, setShowKdpBleed] = useState(true);
+  const [showKdpSafe, setShowKdpSafe] = useState(true);
   const [smartGuide, setSmartGuide] = useState<{ vertical: boolean; horizontal: boolean }>({ vertical: false, horizontal: false });
   const [activeTool, setActiveTool] = useState<"select" | "direct">("select");
 
@@ -1302,6 +1307,14 @@ function EditorShell({
           <span className="toolbar-separator" />
           <button className={gridVisible ? "toggle-on" : ""} onClick={() => setGridVisible((value) => !value)}>Grid</button>
           <button className={snapEnabled ? "toggle-on" : ""} onClick={() => setSnapEnabled((value) => !value)}>Snap</button>
+          {project.mode === "kdp" && artboard.role !== "cover" && (
+            <>
+              <span className="toolbar-separator" />
+              <button className={showKdpTrim ? "toggle-on" : ""} onClick={() => setShowKdpTrim((value) => !value)}>Trim</button>
+              <button className={showKdpBleed ? "toggle-on" : ""} onClick={() => setShowKdpBleed((value) => !value)}>Bleed</button>
+              <button className={showKdpSafe ? "toggle-on" : ""} onClick={() => setShowKdpSafe((value) => !value)}>Safe</button>
+            </>
+          )}
         </div>
 
         <div className="canvas-stage" onClick={() => onSelectObject(null)}>
@@ -1316,6 +1329,15 @@ function EditorShell({
             <div className="safe-area" />
             {artboard.role === "cover" && project.kdpSettings && (
               <KdpCoverGuides project={project} />
+            )}
+            {project.mode === "kdp" && artboard.role !== "cover" && project.kdpSettings && (
+              <KdpInteriorGuides
+                project={project}
+                artboardId={artboard.id}
+                showTrim={showKdpTrim}
+                showBleed={showKdpBleed}
+                showSafe={showKdpSafe}
+              />
             )}
             {smartGuide.vertical && <div className="smart-guide vertical" />}
             {smartGuide.horizontal && <div className="smart-guide horizontal" />}
@@ -1485,6 +1507,92 @@ function EditorShell({
         )}
       </aside>
     </section>
+  );
+}
+
+function KdpInteriorGuides({
+  project,
+  artboardId,
+  showTrim,
+  showBleed,
+  showSafe
+}: {
+  project: ZaxisProject;
+  artboardId: string;
+  showTrim: boolean;
+  showBleed: boolean;
+  showSafe: boolean;
+}) {
+  const settings = project.kdpSettings;
+  if (!settings) return null;
+
+  const pages = project.artboards.filter((item) => (item.role ?? "page") === "page");
+  const pageIndex = pages.findIndex((item) => item.id === artboardId);
+  if (pageIndex < 0) return null;
+
+  const pageNumber = pageIndex + 1;
+  const isRightPage = pageNumber % 2 === 1;
+  const insideMargin = requiredInsideMarginIn(pages.length);
+  const outsideMargin = requiredOutsideMarginIn(settings.bleed);
+  const bleed = settings.bleed ? KDP_RULES.bleedIn : 0;
+  const pageWidth = settings.trimWidthIn + bleed;
+  const pageHeight = settings.trimHeightIn + bleed * 2;
+
+  const topTrim = (bleed / pageHeight) * 100;
+  const bottomTrim = 100 - topTrim;
+  const leftTrim = settings.bleed && !isRightPage ? (bleed / pageWidth) * 100 : 0;
+  const rightTrim = settings.bleed && isRightPage
+    ? (settings.trimWidthIn / pageWidth) * 100
+    : 100;
+
+  const safeTop = ((bleed + outsideMargin) / pageHeight) * 100;
+  const safeBottom = 100 - safeTop;
+
+  const safeLeft = isRightPage
+    ? (insideMargin / pageWidth) * 100
+    : ((bleed + outsideMargin) / pageWidth) * 100;
+
+  const safeRight = isRightPage
+    ? ((settings.trimWidthIn - outsideMargin) / pageWidth) * 100
+    : 100 - (insideMargin / pageWidth) * 100;
+
+  return (
+    <div className="kdp-interior-guides" aria-hidden="true">
+      {showBleed && settings.bleed && (
+        <div className="guide-label bleed-label">BLEED • 0.125"</div>
+      )}
+
+      {showTrim && (
+        <>
+          <div className="kdp-guide-line trim vertical" style={{ left: leftTrim + "%" }} />
+          <div className="kdp-guide-line trim vertical" style={{ left: rightTrim + "%" }} />
+          <div className="kdp-guide-line trim horizontal" style={{ top: topTrim + "%" }} />
+          <div className="kdp-guide-line trim horizontal" style={{ top: bottomTrim + "%" }} />
+          <div className="guide-label trim-label">TRIM</div>
+        </>
+      )}
+
+      {showSafe && (
+        <>
+          <div
+            className="kdp-safe-box"
+            style={{
+              left: safeLeft + "%",
+              top: safeTop + "%",
+              width: Math.max(0, safeRight - safeLeft) + "%",
+              height: Math.max(0, safeBottom - safeTop) + "%"
+            }}
+          />
+          <div className="guide-label safe-label">
+            SAFE • inside {insideMargin}" • outside {outsideMargin}"
+          </div>
+        </>
+      )}
+
+      <div className="guide-label page-side-label">
+        Page {pageNumber} • {isRightPage ? "Right / odd" : "Left / even"}
+      </div>
+    </div>
   );
 }
 
