@@ -45,6 +45,7 @@ import {
 } from "../state/fontStore";
 import {
   ZaxisCloudApi,
+  type CloudAsset,
   type CloudProjectSummary
 } from "../cloud/apiClient";
 import {
@@ -573,7 +574,11 @@ export function App() {
           />
         )}
         {screen === "assets" && (
-          <Placeholder title="Asset Library" copy="Cloud assets, linked files, font library, proxies and background-removal tools will live here." />
+          <AssetsScreen
+            settings={appSettings}
+            token={cloudToken}
+            project={project}
+          />
         )}
         {screen === "cloud" && (
           <CloudScreen
@@ -1615,6 +1620,145 @@ function ObjectInspector({
         </>
       )}
     </div>
+  );
+}
+
+function AssetsScreen({
+  settings,
+  token,
+  project
+}: {
+  settings: AppSettings;
+  token: string;
+  project: ZaxisProject;
+}) {
+  const [assets, setAssets] = useState<CloudAsset[]>([]);
+  const [status, setStatus] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  function api() {
+    return new ZaxisCloudApi(settings.cloudApiUrl.trim(), token.trim() || undefined);
+  }
+
+  async function refreshAssets() {
+    if (!settings.cloudApiUrl.trim() || !token.trim()) {
+      setAssets([]);
+      setStatus("Connect Cloud & Server first.");
+      return;
+    }
+
+    setStatus("Loading assets...");
+
+    try {
+      const result = await api().listAssets(project.id);
+      setAssets(result.assets);
+      setStatus(result.assets.length + " project asset" + (result.assets.length === 1 ? "" : "s") + " loaded.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not load cloud assets.");
+    }
+  }
+
+  useEffect(() => {
+    void refreshAssets();
+  }, [settings.cloudApiUrl, token, project.id]);
+
+  async function uploadFile(file: File) {
+    if (!settings.cloudApiUrl.trim() || !token.trim()) {
+      setStatus("Connect Cloud & Server first.");
+      return;
+    }
+
+    setUploading(true);
+    setStatus("Uploading " + file.name + "...");
+
+    try {
+      const result = await api().uploadAsset(file, project.id);
+      setStatus(
+        "Uploaded " + result.asset.original_name +
+        (result.asset.variants.proxy ? " • proxy generated" : " • original stored")
+      );
+      await refreshAssets();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Asset upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removeAsset(assetId: string) {
+    if (!window.confirm("Remove this cloud asset from the library?")) return;
+
+    try {
+      await api().deleteAsset(assetId);
+      await refreshAssets();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not remove asset.");
+    }
+  }
+
+  return (
+    <section className="content">
+      <div className="panel hero-panel">
+        <div>
+          <span className="eyebrow">CLOUD ASSET LIBRARY</span>
+          <h2>Originals stay on the server. Lightweight proxies keep the editor responsive.</h2>
+          <p>{status || "Upload images, PDFs or supported fonts to the active project."}</p>
+        </div>
+        <div className="hero-actions">
+          <input
+            ref={inputRef}
+            className="hidden-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.ttf,.otf,.woff,.woff2"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void uploadFile(file);
+              event.currentTarget.value = "";
+            }}
+          />
+          <button className="secondary" onClick={() => void refreshAssets()}>Refresh</button>
+          <button className="primary" disabled={uploading} onClick={() => inputRef.current?.click()}>
+            {uploading ? "Uploading..." : "Upload Asset"}
+          </button>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">ACTIVE PROJECT</span>
+            <h3>{project.name}</h3>
+          </div>
+          <span className="pill">{assets.length} assets</span>
+        </div>
+
+        <div className="asset-list">
+          {assets.length === 0 ? (
+            <div className="empty-projects">No cloud assets for this project yet.</div>
+          ) : assets.map((asset) => (
+            <div className="asset-row" key={asset.id}>
+              <div>
+                <strong>{asset.original_name}</strong>
+                <small>
+                  {asset.mime_type} • {(asset.size_bytes / (1024 * 1024)).toFixed(2)} MB
+                  {asset.variants.proxy ? " • Proxy ready" : ""}
+                </small>
+              </div>
+              <div className="asset-meta">
+                <small>{new Date(asset.created_at).toLocaleString()}</small>
+                {asset.variants.proxy && (
+                  <small>
+                    {asset.variants.proxy.width_px} × {asset.variants.proxy.height_px}
+                  </small>
+                )}
+              </div>
+              <button className="secondary danger" onClick={() => void removeAsset(asset.id)}>Remove</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
