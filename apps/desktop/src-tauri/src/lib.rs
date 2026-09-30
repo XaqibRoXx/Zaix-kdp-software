@@ -3,6 +3,7 @@ use std::{
     collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
+    process::Command,
     time::SystemTime,
 };
 
@@ -151,6 +152,94 @@ fn clear_native_cache(configured_path: String) -> Result<CacheStatus, String> {
     Ok(cache_status_for(&path))
 }
 
+
+fn credential_file_path() -> Result<PathBuf, String> {
+    let base = std::env::var("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .map_err(|_| "LOCALAPPDATA is not available.".to_string())?;
+
+    let directory = base.join("Zaxis KDP").join("Credentials");
+    fs::create_dir_all(&directory)
+        .map_err(|error| format!("Failed to create credential directory: {error}"))?;
+
+    Ok(directory.join("cloud-token.dpapi"))
+}
+
+#[tauri::command]
+fn store_cloud_token(token: String) -> Result<(), String> {
+    let token = token.trim().to_string();
+    if token.is_empty() {
+        return Err("Token cannot be empty.".to_string());
+    }
+
+    let path = credential_file_path()?;
+    let script = r#"
+$secure = ConvertTo-SecureString -String $env:ZAXIS_KDP_TOKEN -AsPlainText -Force
+$encrypted = ConvertFrom-SecureString -SecureString $secure
+[System.IO.File]::WriteAllText($env:ZAXIS_KDP_TOKEN_PATH, $encrypted)
+"#;
+
+    let status = Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .env("ZAXIS_KDP_TOKEN", token)
+        .env("ZAXIS_KDP_TOKEN_PATH", &path)
+        .status()
+        .map_err(|error| format!("Failed to start Windows credential encryption: {error}"))?;
+
+    if !status.success() {
+        return Err("Windows credential encryption failed.".to_string());
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn load_cloud_token() -> Result<Option<String>, String> {
+    let path = credential_file_path()?;
+
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let script = r#"
+$encrypted = [System.IO.File]::ReadAllText($env:ZAXIS_KDP_TOKEN_PATH)
+if ([string]::IsNullOrWhiteSpace($encrypted)) { exit 0 }
+$secure = ConvertTo-SecureString $encrypted
+$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+try {
+    [Console]::Out.Write([Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr))
+}
+finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+}
+"#;
+
+    let output = Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .env("ZAXIS_KDP_TOKEN_PATH", &path)
+        .output()
+        .map_err(|error| format!("Failed to load Windows credential: {error}"))?;
+
+    if !output.status.success() {
+        return Err("Windows credential decryption failed.".to_string());
+    }
+
+    let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok((!token.is_empty()).then_some(token))
+}
+
+#[tauri::command]
+fn clear_cloud_token() -> Result<(), String> {
+    let path = credential_file_path()?;
+
+    if path.exists() {
+        fs::remove_file(&path)
+            .map_err(|error| format!("Failed to remove stored cloud token: {error}"))?;
+    }
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -158,7 +247,10 @@ pub fn run() {
             list_system_fonts,
             ensure_native_cache,
             get_native_cache_status,
-            clear_native_cache
+            clear_native_cache,
+            store_cloud_token,
+            load_cloud_token,
+            clear_cloud_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running Zaxis KDP");
