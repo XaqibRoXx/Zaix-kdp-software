@@ -36,15 +36,25 @@ Last updated: 2026-09-30
 - [x] Initial editor layout scaffolded: tools, artboards panel, canvas, properties and status bar.
 
 ## In Progress
-- [ ] Real multi-artboard create/delete/duplicate/reorder behavior.
-- [ ] Editable artboard size/unit controls.
-- [ ] Undo/Redo wiring to real editor actions.
-- [ ] Autosave state machine and recovery queue.
+- [x] Real multi-artboard create/delete/duplicate/reorder behavior.
+- [x] Editable artboard size/unit controls.
+- [x] Undo/Redo wired to artboard editor actions.
+- [ ] Cloud/offline autosave state machine and recovery queue. Local recovery autosave is working.
 - [ ] Layers/object model.
 - [ ] Font-provider abstraction.
 - [ ] Clipboard/image ingestion architecture.
-- [ ] Project persistence layer.
+- [ ] Full project persistence layer. Current project local recovery persistence is working.
 - [ ] First runnable Windows development build verification.
+
+## Newly Completed in Current Implementation
+- [x] Debounced local recovery autosave with Saving/Saved/Error status.
+- [x] Active artboard selection.
+- [x] Add, duplicate, delete and move artboards.
+- [x] Custom width/height editing.
+- [x] Unit switching across px/in/cm/mm/pt/pica.
+- [x] Snapshot Undo/Redo engine connected to editor changes.
+- [x] Apply active artboard dimensions to all artboards.
+- [x] Current project restores from local recovery storage on restart.
 
 ## Pending — Phase 1
 - [ ] Dashboard project CRUD and recent projects.
@@ -55,10 +65,10 @@ Last updated: 2026-09-30
 - [ ] Alignment/distribution/guides/grid/snap.
 - [ ] Transform controls.
 - [ ] System/custom/cloud fonts.
-- [ ] Bulk artboard resize.
+- [x] Initial bulk artboard resize (apply active size/unit to all). Advanced content behavior remains Phase 1 work.
 - [ ] Graphic-design presets.
 - [ ] KDP/book presets in project creation.
-- [ ] Keyboard shortcuts.
+- [ ] Keyboard shortcuts including Ctrl+Z / Redo.
 - [ ] Local bounded cache controls.
 - [ ] First Windows installer/test build.
 
