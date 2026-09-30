@@ -65,6 +65,12 @@ import {
   setSyncRevision
 } from "../cloud/syncQueue";
 import {
+  renderProjectPdf,
+  type PdfExportTarget,
+  type PdfQualityPreset
+} from "../export/pdfExporter";
+import { ensurePdfExtension, savePdfToComputer } from "../export/savePdf";
+import {
   deleteProjectFromLibrary,
   listProjectSummaries,
   loadActiveProject,
@@ -125,6 +131,7 @@ export function App() {
     appSettings.cloudApiUrl.trim() ? "queued" : "disabled"
   );
   const [pendingCloudCount, setPendingCloudCount] = useState(0);
+  const [pdfExportOpen, setPdfExportOpen] = useState(false);
   const fontInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new SnapshotHistory(project));
 
@@ -549,6 +556,7 @@ export function App() {
             <span className={"save-state cloud-" + cloudSaveState}>
               Cloud: {cloudSaveLabel(cloudSaveState, pendingCloudCount)}
             </span>
+            <button className="secondary" onClick={() => setPdfExportOpen(true)}>Export PDF</button>
             <input
               ref={fontInputRef}
               className="hidden-input"
@@ -637,6 +645,15 @@ export function App() {
           />
         )}
       </main>
+
+      {pdfExportOpen && (
+        <PdfExportDialog
+          project={project}
+          settings={appSettings}
+          token={cloudToken}
+          onClose={() => setPdfExportOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -664,6 +681,178 @@ function titleFor(screen: Screen) {
   if (screen === "cloud") return "Cloud & Server";
   if (screen === "settings") return "Settings";
   return "Zaxis KDP";
+}
+
+function PdfExportDialog({
+  project,
+  settings,
+  token,
+  onClose
+}: {
+  project: ZaxisProject;
+  settings: AppSettings;
+  token: string;
+  onClose: () => void;
+}) {
+  const [target, setTarget] = useState<PdfExportTarget>(
+    project.mode === "kdp" ? "interior" : "all"
+  );
+  const [quality, setQuality] = useState<PdfQualityPreset>("maximum");
+  const [pageRange, setPageRange] = useState("");
+  const [destination, setDestination] = useState<"computer" | "cloud" | "both">("computer");
+  const [fileName, setFileName] = useState(project.name.replace(/[^A-Za-z0-9._-]+/g, "-") || "zaxis-kdp-export");
+  const [author, setAuthor] = useState("");
+  const [status, setStatus] = useState("");
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  async function runExport() {
+    setBusy(true);
+    setStatus("Rendering PDF...");
+    setWarnings([]);
+
+    try {
+      const result = await renderProjectPdf(project, {
+        target,
+        quality,
+        pageRange,
+        title: project.name,
+        author
+      });
+
+      const finalName = ensurePdfExtension(fileName);
+      const destinations: string[] = [];
+
+      if (destination === "computer" || destination === "both") {
+        const savedPath = await savePdfToComputer(result.bytes, finalName);
+
+        if (savedPath) {
+          destinations.push(savedPath.startsWith("browser-download:") ? "computer download" : savedPath);
+        } else if (destination === "computer") {
+          setStatus("Export cancelled.");
+          setBusy(false);
+          return;
+        }
+      }
+
+      if (destination === "cloud" || destination === "both") {
+        if (!settings.cloudApiUrl.trim() || !token.trim()) {
+          throw new Error("Cloud destination requires a connected Cloud & Server account.");
+        }
+
+        const buffer = result.bytes.buffer.slice(
+          result.bytes.byteOffset,
+          result.bytes.byteOffset + result.bytes.byteLength
+        ) as ArrayBuffer;
+
+        const file = new File([buffer], finalName, { type: "application/pdf" });
+        const uploaded = await new ZaxisCloudApi(
+          settings.cloudApiUrl.trim(),
+          token.trim()
+        ).uploadAsset(file, project.id);
+
+        destinations.push("cloud asset " + uploaded.asset.id);
+      }
+
+      setWarnings(result.warnings);
+      setStatus(
+        "Exported " +
+          result.pageCount +
+          " PDF page" +
+          (result.pageCount === 1 ? "" : "s") +
+          (destinations.length ? " • " + destinations.join(" • ") : "")
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "PDF export failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div className="export-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">PDF EXPORT</span>
+            <h2>Export {project.name}</h2>
+          </div>
+          <button className="secondary" onClick={onClose}>Close</button>
+        </div>
+
+        <div className="settings-grid">
+          <label>Content
+            <select value={target} onChange={(event) => setTarget(event.target.value as PdfExportTarget)}>
+              <option value="interior">Interior Pages</option>
+              <option value="cover">Paperback Cover</option>
+              <option value="all">Interior + Cover</option>
+            </select>
+          </label>
+
+          <label>Quality
+            <select value={quality} onChange={(event) => setQuality(event.target.value as PdfQualityPreset)}>
+              <option value="maximum">Maximum</option>
+              <option value="high">High</option>
+              <option value="standard">Standard</option>
+              <option value="small">Small File</option>
+            </select>
+          </label>
+
+          <label>Page Range
+            <input
+              value={pageRange}
+              onChange={(event) => setPageRange(event.target.value)}
+              placeholder="All or 1-10,12,15-18"
+            />
+          </label>
+
+          <label>Destination
+            <select
+              value={destination}
+              onChange={(event) => setDestination(event.target.value as "computer" | "cloud" | "both")}
+            >
+              <option value="computer">My Computer</option>
+              <option value="cloud">Cloud / Server</option>
+              <option value="both">Both</option>
+            </select>
+          </label>
+
+          <label>File Name
+            <input value={fileName} onChange={(event) => setFileName(event.target.value)} />
+          </label>
+
+          <label>Author
+            <input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="Optional" />
+          </label>
+        </div>
+
+        <div className="export-summary">
+          <span>Target: {target}</span>
+          <span>Quality: {quality}</span>
+          <span>Destination: {destination}</span>
+        </div>
+
+        {status && <p className="export-status">{status}</p>}
+
+        {warnings.length > 0 && (
+          <div className="export-warnings">
+            <strong>Export notes</strong>
+            {warnings.slice(0, 8).map((warning, index) => (
+              <small key={index}>{warning}</small>
+            ))}
+            {warnings.length > 8 && <small>+ {warnings.length - 8} more</small>}
+          </div>
+        )}
+
+        <div className="hero-actions export-actions">
+          <button className="secondary" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="primary" onClick={() => void runExport()} disabled={busy}>
+            {busy ? "Exporting..." : "Export PDF"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Dashboard({
