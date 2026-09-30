@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   SnapshotHistory,
+  alignObject,
   addArtboard,
   addImageObject,
   addShapeObject,
@@ -10,6 +11,7 @@ import {
   deleteArtboard,
   deleteObject,
   duplicateArtboard,
+  fitObjectInsideArtboard,
   moveArtboard,
   moveObjectLayer,
   normalizeProject,
@@ -59,6 +61,7 @@ export function App() {
   const [selectedArtboardId, setSelectedArtboardId] = useState(project.artboards[0].id);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [systemFonts, setSystemFonts] = useState<string[]>(["Arial", "Calibri", "Segoe UI", "Times New Roman"]);
+  const fontInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new SnapshotHistory(project));
 
   useEffect(() => {
@@ -168,6 +171,20 @@ export function App() {
     return () => window.removeEventListener("paste", onPaste);
   }, [project, screen, selectedArtboardId]);
 
+  async function importCustomFont(file: File) {
+    const family = file.name.replace(/\.(ttf|otf|woff2?|ttc)$/i, "").replace(/[_-]+/g, " ").trim() || "Custom Font";
+
+    try {
+      const bytes = await file.arrayBuffer();
+      const font = new FontFace(family, bytes);
+      await font.load();
+      document.fonts.add(font);
+      setSystemFonts((current) => Array.from(new Set([...current, family])).sort((a, b) => a.localeCompare(b)));
+    } catch {
+      // Invalid/unsupported font files are ignored for now; native install comes later.
+    }
+  }
+
   function createNewProject() {
     const next = createBlankProject({
       name: "Untitled Design",
@@ -222,6 +239,18 @@ export function App() {
           </div>
           <div className="top-actions">
             <span className={"save-state " + saveState}>{saveLabel(saveState)}</span>
+            <input
+              ref={fontInputRef}
+              className="hidden-input"
+              type="file"
+              accept=".ttf,.otf,.woff,.woff2,.ttc"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void importCustomFont(file);
+                event.currentTarget.value = "";
+              }}
+            />
+            <button className="secondary" onClick={() => fontInputRef.current?.click()}>Import Font</button>
             <button className="secondary">Import</button>
             <button className="primary" onClick={createNewProject}>New Project</button>
           </div>
@@ -478,6 +507,7 @@ function EditorShell({
                 object={object}
                 selected={object.id === selectedObjectId}
                 onSelect={() => onSelectObject(object.id)}
+                onChange={(input) => onCommit(updateObject(project, artboard.id, object.id, input))}
               />
             ))}
 
@@ -521,6 +551,15 @@ function EditorShell({
               onChange={(input) => onCommit(updateObject(project, artboard.id, selectedObject.id, input))}
               systemFonts={systemFonts}
             />
+            <div className="alignment-grid">
+              <button onClick={() => onCommit(alignObject(project, artboard.id, selectedObject.id, "left"))}>Left</button>
+              <button onClick={() => onCommit(alignObject(project, artboard.id, selectedObject.id, "center"))}>Center</button>
+              <button onClick={() => onCommit(alignObject(project, artboard.id, selectedObject.id, "right"))}>Right</button>
+              <button onClick={() => onCommit(alignObject(project, artboard.id, selectedObject.id, "top"))}>Top</button>
+              <button onClick={() => onCommit(alignObject(project, artboard.id, selectedObject.id, "middle"))}>Middle</button>
+              <button onClick={() => onCommit(alignObject(project, artboard.id, selectedObject.id, "bottom"))}>Bottom</button>
+            </div>
+            <button className="secondary full" onClick={() => onCommit(fitObjectInsideArtboard(project, artboard.id, selectedObject.id))}>Fit Inside Artboard</button>
             <div className="artboard-actions">
               <button className="secondary" onClick={() => onCommit(moveObjectLayer(project, artboard.id, selectedObject.id, "up"))}>Bring Up</button>
               <button className="secondary" onClick={() => onCommit(moveObjectLayer(project, artboard.id, selectedObject.id, "down"))}>Send Down</button>
@@ -543,32 +582,119 @@ function EditorShell({
 function CanvasObject({
   object,
   selected,
-  onSelect
+  onSelect,
+  onChange
 }: {
   object: DesignObject;
   selected: boolean;
   onSelect: () => void;
+  onChange: (input: Parameters<typeof updateObject>[3]) => void;
 }) {
+  const [preview, setPreview] = useState<null | { x: number; y: number; width: number; height: number }>(null);
+  const frame = preview ?? { x: object.x, y: object.y, width: object.width, height: object.height };
+
+  function beginDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (object.locked || event.button !== 0) return;
+
+    event.stopPropagation();
+    onSelect();
+
+    const artboardElement = event.currentTarget.parentElement;
+    if (!artboardElement) return;
+
+    const rect = artboardElement.getBoundingClientRect();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const origin = { x: object.x, y: object.y };
+
+    function move(pointerEvent: PointerEvent) {
+      const dx = ((pointerEvent.clientX - startX) / rect.width) * 100;
+      const dy = ((pointerEvent.clientY - startY) / rect.height) * 100;
+      setPreview({
+        x: Math.max(0, Math.min(100 - object.width, origin.x + dx)),
+        y: Math.max(0, Math.min(100 - object.height, origin.y + dy)),
+        width: object.width,
+        height: object.height
+      });
+    }
+
+    function finish(pointerEvent: PointerEvent) {
+      const dx = ((pointerEvent.clientX - startX) / rect.width) * 100;
+      const dy = ((pointerEvent.clientY - startY) / rect.height) * 100;
+      const x = Math.max(0, Math.min(100 - object.width, origin.x + dx));
+      const y = Math.max(0, Math.min(100 - object.height, origin.y + dy));
+      setPreview(null);
+      onChange({ x, y });
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+    }
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish, { once: true });
+  }
+
+  function beginResize(event: React.PointerEvent<HTMLButtonElement>) {
+    if (object.locked || event.button !== 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const artboardElement = event.currentTarget.closest(".artboard");
+    if (!(artboardElement instanceof HTMLElement)) return;
+
+    const rect = artboardElement.getBoundingClientRect();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const origin = { width: object.width, height: object.height };
+
+    function move(pointerEvent: PointerEvent) {
+      const dw = ((pointerEvent.clientX - startX) / rect.width) * 100;
+      const dh = ((pointerEvent.clientY - startY) / rect.height) * 100;
+      setPreview({
+        x: object.x,
+        y: object.y,
+        width: Math.max(2, Math.min(100 - object.x, origin.width + dw)),
+        height: Math.max(2, Math.min(100 - object.y, origin.height + dh))
+      });
+    }
+
+    function finish(pointerEvent: PointerEvent) {
+      const dw = ((pointerEvent.clientX - startX) / rect.width) * 100;
+      const dh = ((pointerEvent.clientY - startY) / rect.height) * 100;
+      const width = Math.max(2, Math.min(100 - object.x, origin.width + dw));
+      const height = Math.max(2, Math.min(100 - object.y, origin.height + dh));
+      setPreview(null);
+      onChange({ width, height });
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+    }
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish, { once: true });
+  }
+
   const commonStyle = {
-    left: object.x + "%",
-    top: object.y + "%",
-    width: object.width + "%",
-    height: object.height + "%",
+    left: frame.x + "%",
+    top: frame.y + "%",
+    width: frame.width + "%",
+    height: frame.height + "%",
     opacity: object.opacity,
     transform: "rotate(" + object.rotation + "deg)"
   };
+
+  const handle = selected && !object.locked ? (
+    <button className="resize-handle" aria-label="Resize object" onPointerDown={beginResize} />
+  ) : null;
 
   if (object.type === "image") {
     return (
       <div
         className={selected ? "design-object image-object selected" : "design-object image-object"}
         style={commonStyle}
-        onClick={(event) => {
-          event.stopPropagation();
-          onSelect();
-        }}
+        onPointerDown={beginDrag}
       >
         <img src={object.src} alt={object.alt} style={{ objectFit: object.fit }} />
+        {handle}
       </div>
     );
   }
@@ -585,12 +711,10 @@ function CanvasObject({
           fontWeight: object.fontWeight,
           textAlign: object.textAlign
         }}
-        onClick={(event) => {
-          event.stopPropagation();
-          onSelect();
-        }}
+        onPointerDown={beginDrag}
       >
         {object.text}
+        {handle}
       </div>
     );
   }
@@ -604,11 +728,10 @@ function CanvasObject({
         border: object.strokeWidth + "px solid " + object.stroke,
         borderRadius: object.type === "ellipse" ? "50%" : object.cornerRadius + "px"
       }}
-      onClick={(event) => {
-        event.stopPropagation();
-        onSelect();
-      }}
-    />
+      onPointerDown={beginDrag}
+    >
+      {handle}
+    </div>
   );
 }
 
