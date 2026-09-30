@@ -3,9 +3,14 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   KDP_RULES,
   SnapshotHistory,
+  addBookChapter,
   alignObject,
   analyzeKdpProject,
   calculatePaperbackCoverSize,
+  createChapter,
+  deleteBookChapter,
+  getPageNumberLabel,
+  normalizeBookStructure,
   requiredInsideMarginIn,
   requiredOutsideMarginIn,
   addArtboard,
@@ -28,11 +33,16 @@ import {
   resizeArtboard,
   setObjectLocked,
   setObjectVisible,
+  updateBookChapter,
   updateKdpSettings,
   updateObject,
+  updatePageNumberSettings,
+  updateTocTitle,
   type DesignObject,
   type KdpInkType,
   type KdpPaperType,
+  type PageNumberFormat,
+  type PageNumberPosition,
   type ZaxisProject
 } from "@zaxis-kdp/editor-core";
 import type { SaveState, Unit } from "@zaxis-kdp/shared";
@@ -1339,6 +1349,9 @@ function EditorShell({
                 showSafe={showKdpSafe}
               />
             )}
+            {project.mode === "kdp" && artboard.role !== "cover" && (
+              <KdpPageNumberOverlay project={project} artboardId={artboard.id} />
+            )}
             {smartGuide.vertical && <div className="smart-guide vertical" />}
             {smartGuide.horizontal && <div className="smart-guide horizontal" />}
 
@@ -1507,6 +1520,45 @@ function EditorShell({
         )}
       </aside>
     </section>
+  );
+}
+
+function KdpPageNumberOverlay({
+  project,
+  artboardId
+}: {
+  project: ZaxisProject;
+  artboardId: string;
+}) {
+  const structure = normalizeBookStructure(project.bookStructure);
+  const pages = project.artboards.filter((item) => (item.role ?? "page") === "page");
+  const index = pages.findIndex((item) => item.id === artboardId);
+  if (index < 0) return null;
+
+  const physicalPage = index + 1;
+  const label = getPageNumberLabel(physicalPage, structure);
+  if (!label) return null;
+
+  const position = structure.pageNumbers.position;
+  const outsideRight = physicalPage % 2 === 1;
+  const style: React.CSSProperties = {};
+
+  if (position.startsWith("top")) style.top = "3%";
+  else style.bottom = "3%";
+
+  if (position.endsWith("center")) {
+    style.left = "50%";
+    style.transform = "translateX(-50%)";
+  } else if (outsideRight) {
+    style.right = "5%";
+  } else {
+    style.left = "5%";
+  }
+
+  return (
+    <div className="kdp-auto-page-number" style={style} aria-hidden="true">
+      {label}
+    </div>
   );
 }
 
@@ -1981,6 +2033,7 @@ function KdpBookPanel({
   onOpenArtboard: (artboardId: string) => void;
 }) {
   const settings = project.kdpSettings;
+  const structure = normalizeBookStructure(project.bookStructure);
   const result = useMemo(() => analyzeKdpProject(project), [project]);
 
   if (!settings) return null;
@@ -1999,6 +2052,20 @@ function KdpBookPanel({
     const result = createOrUpdateKdpCoverArtboard(project);
     onCommit(result.project);
     if (result.artboardId) onOpenArtboard(result.artboardId);
+  };
+
+  const addChapter = () => {
+    const title = window.prompt("Chapter title", "Chapter " + (structure.chapters.length + 1));
+    if (!title?.trim()) return;
+
+    const pageValue = window.prompt(
+      "Chapter starts on physical interior page",
+      String(Math.min(result.pageCount, Math.max(1, structure.chapters.at(-1)?.startPage ?? 1)))
+    );
+    if (!pageValue) return;
+
+    const startPage = Math.max(1, Math.min(result.pageCount || 1, Number(pageValue) || 1));
+    onCommit(addBookChapter(project, createChapter(title, startPage)));
   };
 
   const errorCount = result.issues.filter((issue) => issue.severity === "error").length;
@@ -2087,6 +2154,124 @@ function KdpBookPanel({
         <small>Full paperback cover + bleed</small>
         <strong>{result.coverWidthIn}" × {result.coverHeightIn}"</strong>
         <span>{result.spineTextAllowed ? "Spine text allowed" : "No spine text below 80 pages"}</span>
+      </div>
+
+      <div className="kdp-subsection">
+        <div className="kdp-subsection-head">
+          <strong>Page Numbers</strong>
+          <label className="toggle-setting">
+            <input
+              type="checkbox"
+              checked={structure.pageNumbers.enabled}
+              onChange={(event) => onCommit(updatePageNumberSettings(project, { enabled: event.target.checked }))}
+            />
+            Enabled
+          </label>
+        </div>
+
+        <div className="inspector-grid">
+          <label>Start Page
+            <input
+              type="number"
+              min="1"
+              value={structure.pageNumbers.startPage}
+              onChange={(event) => onCommit(updatePageNumberSettings(project, { startPage: Number(event.target.value) }))}
+            />
+          </label>
+          <label>Start Number
+            <input
+              type="number"
+              min="1"
+              value={structure.pageNumbers.startNumber}
+              onChange={(event) => onCommit(updatePageNumberSettings(project, { startNumber: Number(event.target.value) }))}
+            />
+          </label>
+        </div>
+
+        <label className="inspector-field">Format
+          <select
+            value={structure.pageNumbers.format}
+            onChange={(event) => onCommit(updatePageNumberSettings(project, { format: event.target.value as PageNumberFormat }))}
+          >
+            <option value="arabic">1, 2, 3</option>
+            <option value="roman-lower">i, ii, iii</option>
+            <option value="roman-upper">I, II, III</option>
+          </select>
+        </label>
+
+        <label className="inspector-field">Position
+          <select
+            value={structure.pageNumbers.position}
+            onChange={(event) => onCommit(updatePageNumberSettings(project, { position: event.target.value as PageNumberPosition }))}
+          >
+            <option value="bottom-outside">Bottom Outside</option>
+            <option value="bottom-center">Bottom Center</option>
+            <option value="top-outside">Top Outside</option>
+            <option value="top-center">Top Center</option>
+          </select>
+        </label>
+
+        <label className="toggle-setting kdp-toggle">
+          <input
+            type="checkbox"
+            checked={structure.pageNumbers.skipChapterOpeners}
+            onChange={(event) => onCommit(updatePageNumberSettings(project, { skipChapterOpeners: event.target.checked }))}
+          />
+          Skip page number on chapter opening pages
+        </label>
+      </div>
+
+      <div className="kdp-subsection">
+        <div className="kdp-subsection-head">
+          <strong>Chapters & TOC</strong>
+          <button className="secondary" onClick={addChapter}>+ Chapter</button>
+        </div>
+
+        <label className="inspector-field">TOC Title
+          <input
+            value={structure.tocTitle}
+            onChange={(event) => onCommit(updateTocTitle(project, event.target.value))}
+          />
+        </label>
+
+        <div className="chapter-list">
+          {structure.chapters.length === 0 ? (
+            <small className="muted">No chapters yet. Add chapters to build TOC metadata.</small>
+          ) : structure.chapters.map((chapter) => (
+            <div className="chapter-row" key={chapter.id}>
+              <input
+                value={chapter.title}
+                onChange={(event) => onCommit(updateBookChapter(project, chapter.id, { title: event.target.value }))}
+              />
+              <input
+                type="number"
+                min="1"
+                max={Math.max(1, result.pageCount)}
+                value={chapter.startPage}
+                onChange={(event) => onCommit(updateBookChapter(project, chapter.id, { startPage: Number(event.target.value) }))}
+              />
+              <button
+                className="danger-text"
+                onClick={() => onCommit(deleteBookChapter(project, chapter.id))}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {structure.chapters.length > 0 && (
+          <div className="toc-preview">
+            <strong>{structure.tocTitle}</strong>
+            {structure.chapters.map((chapter) => (
+              <span key={chapter.id}>
+                <em>{chapter.title}</em>
+                <i />
+                <b>{chapter.startPage}</b>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="preflight-list">
