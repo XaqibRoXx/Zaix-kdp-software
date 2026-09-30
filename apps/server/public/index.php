@@ -7,6 +7,7 @@ use ZaxisKdp\Auth;
 use ZaxisKdp\Database;
 use ZaxisKdp\Http;
 use ZaxisKdp\Pairing;
+use ZaxisKdp\ProjectLock;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -222,6 +223,91 @@ try {
         ]);
     }
 
+    if (preg_match('#^/api/v1/projects/([^/]+)/lock$#', $path, $matches)) {
+        $projectId = rawurldecode($matches[1]);
+
+        $ownerStmt = $db->prepare(
+            'SELECT id FROM projects
+             WHERE id = :id AND owner_user_id = :owner AND deleted_at IS NULL
+             LIMIT 1'
+        );
+        $ownerStmt->execute(['id' => $projectId, 'owner' => $user['id']]);
+
+        if (!$ownerStmt->fetch()) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Project not found.',
+                'request_id' => $requestId,
+            ], 404);
+        }
+
+        if ($method === 'GET') {
+            Http::json([
+                'ok' => true,
+                'lock' => ProjectLock::status($db, $projectId),
+                'request_id' => $requestId,
+            ]);
+        }
+
+        $body = Http::body();
+        $clientId = trim((string) ($body['client_id'] ?? ($_SERVER['HTTP_X_ZAXIS_CLIENT_ID'] ?? '')));
+
+        if ($method === 'POST') {
+            if ($clientId === '') {
+                Http::json([
+                    'ok' => false,
+                    'error' => 'client_id is required.',
+                    'request_id' => $requestId,
+                ], 422);
+            }
+
+            try {
+                $result = ProjectLock::acquire(
+                    $db,
+                    $projectId,
+                    (int) $user['id'],
+                    $clientId,
+                    trim((string) ($body['client_name'] ?? 'Windows Desktop')),
+                    (int) ($body['ttl_seconds'] ?? 120)
+                );
+            } catch (InvalidArgumentException $error) {
+                Http::json([
+                    'ok' => false,
+                    'error' => $error->getMessage(),
+                    'request_id' => $requestId,
+                ], 422);
+            }
+
+            if (!$result['acquired']) {
+                Http::json([
+                    'ok' => false,
+                    'error' => 'Project is locked by another editor.',
+                    'lock' => $result['lock'],
+                    'request_id' => $requestId,
+                ], 423);
+            }
+
+            Http::json([
+                'ok' => true,
+                'lock' => $result['lock'],
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if ($method === 'DELETE') {
+            Http::json([
+                'ok' => true,
+                'released' => ProjectLock::release(
+                    $db,
+                    $projectId,
+                    (int) $user['id'],
+                    $clientId
+                ),
+                'request_id' => $requestId,
+            ]);
+        }
+    }
+
     if ($method === 'GET' && $path === '/api/v1/projects') {
         $stmt = $db->prepare(
             'SELECT id, name, mode, current_revision, created_at, updated_at
@@ -404,6 +490,17 @@ try {
     if ($method === 'PUT' && preg_match('#^/api/v1/projects/([^/]+)/snapshot$#', $path, $matches)) {
         $projectId = rawurldecode($matches[1]);
         $body = Http::body();
+        $clientId = trim((string) ($_SERVER['HTTP_X_ZAXIS_CLIENT_ID'] ?? ($body['client_id'] ?? '')));
+        $blockingLock = ProjectLock::blockingLock($db, $projectId, $clientId);
+
+        if ($blockingLock) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Project is locked by another editor.',
+                'lock' => $blockingLock,
+                'request_id' => $requestId,
+            ], 423);
+        }
         $baseRevision = (int) ($body['base_revision'] ?? -1);
         $clientEventId = trim((string) ($body['client_event_id'] ?? ''));
         $label = isset($body['label']) ? trim((string) $body['label']) : null;
