@@ -41,12 +41,15 @@ Last updated: 2026-09-30
 - [x] Undo/Redo wired to artboard editor actions.
 - [ ] Cloud/offline autosave state machine and recovery queue. Local recovery autosave is working.
 - [x] Initial layers/object model with visibility, locking and z-order controls.
-- [ ] Font-provider abstraction.
+- [ ] Full font-provider abstraction. Native Windows system-font discovery is now wired; project/cloud/custom font install remains.
 - [x] Initial clipboard image ingestion: pasted clipboard images become editable image objects.
 - [ ] Full project persistence layer. Current project local recovery persistence is working.
 - [ ] First runnable Windows development build verification.
 
 ## Newly Completed in Current Implementation
+- [x] Native Windows font-folder discovery through Tauri.
+- [x] Installed TTF/OTF/TTC font names exposed to the text inspector.
+- [x] Text font selector uses system-font results with development fallbacks.
 - [x] Ctrl+V clipboard image paste into active artboard.
 - [x] Pasted PNG/bitmap becomes an editable image object.
 - [x] Pasted images appear in Layers and local recovery state.
@@ -79,7 +82,7 @@ Last updated: 2026-09-30
 - [ ] Advanced image crop/masks. Clipboard paste plus contain/cover/fill image fit are working.
 - [ ] Alignment/distribution/guides/grid/snap.
 - [ ] Transform controls.
-- [ ] System/custom/cloud fonts.
+- [ ] Custom/cloud font upload/install. Windows installed-font discovery is working.
 - [x] Initial bulk artboard resize (apply active size/unit to all). Advanced content behavior remains Phase 1 work.
 - [ ] Graphic-design presets.
 - [ ] KDP/book presets in project creation.
