@@ -1,6 +1,6 @@
 import type { Unit } from "@zaxis-kdp/shared";
 
-export type DesignObjectType = "text" | "rectangle" | "ellipse" | "image";
+export type DesignObjectType = "text" | "rectangle" | "ellipse" | "image" | "path";
 
 export interface DesignObjectBase {
   id: string;
@@ -47,7 +47,22 @@ export interface ImageObject extends DesignObjectBase {
   borderRadius: number;
 }
 
-export type DesignObject = TextObject | ShapeObject | ImageObject;
+export interface PathPoint {
+  id: string;
+  x: number;
+  y: number;
+}
+
+export interface PathObject extends DesignObjectBase {
+  type: "path";
+  points: PathPoint[];
+  closed: boolean;
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+}
+
+export type DesignObject = TextObject | ShapeObject | ImageObject | PathObject;
 
 export interface Artboard {
   id: string;
@@ -112,6 +127,8 @@ export interface UpdateObjectInput {
   cropY?: number;
   scale?: number;
   borderRadius?: number;
+  points?: PathPoint[];
+  closed?: boolean;
 }
 
 function id(prefix: string) {
@@ -151,6 +168,14 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
             cropY: object.cropY ?? 50,
             scale: object.scale ?? 1,
             borderRadius: object.borderRadius ?? 0
+          };
+        }
+
+        if (object.type === "path") {
+          return {
+            ...object,
+            points: Array.isArray(object.points) ? object.points : [],
+            closed: object.closed ?? false
           };
         }
 
@@ -351,6 +376,43 @@ export function addImageObject(
   };
 }
 
+export function addPathObject(
+  project: ZaxisProject,
+  artboardId: string
+): { project: ZaxisProject; objectId: string } {
+  const objectId = id("object");
+  const nextObject: PathObject = {
+    id: objectId,
+    name: "Path",
+    type: "path",
+    x: 20,
+    y: 20,
+    width: 40,
+    height: 30,
+    rotation: 0,
+    opacity: 1,
+    visible: true,
+    locked: false,
+    points: [
+      { id: id("point"), x: 5, y: 80 },
+      { id: id("point"), x: 50, y: 10 },
+      { id: id("point"), x: 95, y: 80 }
+    ],
+    closed: false,
+    fill: "transparent",
+    stroke: "#00f6ac",
+    strokeWidth: 2
+  };
+
+  return {
+    objectId,
+    project: mapArtboard(project, artboardId, (artboard) => ({
+      ...artboard,
+      objects: [...artboard.objects, nextObject]
+    }))
+  };
+}
+
 export function addShapeObject(
   project: ZaxisProject,
   artboardId: string,
@@ -441,6 +503,22 @@ export function updateObject(
           cropY: Math.max(0, Math.min(100, input.cropY ?? object.cropY)),
           scale: Math.max(0.1, Math.min(5, input.scale ?? object.scale)),
           borderRadius: Math.max(0, input.borderRadius ?? object.borderRadius)
+        };
+      }
+
+      if (object.type === "path") {
+        return {
+          ...common,
+          type: "path" as const,
+          points: (input.points ?? object.points).map((point) => ({
+            ...point,
+            x: Math.max(0, Math.min(100, point.x)),
+            y: Math.max(0, Math.min(100, point.y))
+          })),
+          closed: input.closed ?? object.closed,
+          fill: input.fill ?? object.fill,
+          stroke: input.stroke ?? object.stroke,
+          strokeWidth: Math.max(0, input.strokeWidth ?? object.strokeWidth)
         };
       }
 
