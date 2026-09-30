@@ -4,3 +4,24 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .artboard-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
 .artboard-actions .secondary{width:100%;text-align:center;margin:0;padding:8px 6px;font-size:11px}
 .save-state.saving{color:#f0a33a}.save-state.saved{color:#00f6ac}.save-state.error{color:#ff6b6b}.save-state.offline{color:#f0a33a}
+
+.artboard{position:relative;overflow:hidden}
+.safe-area{position:absolute;inset:24px;pointer-events:none;z-index:1}
+.empty-artboard{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:5px;pointer-events:none;color:#7f8985}
+.empty-artboard strong{color:#222;font-size:22px}.empty-artboard span,.empty-artboard small{font-size:11px}
+.design-object{position:absolute;z-index:2;cursor:pointer;user-select:none}
+.design-object.selected{outline:2px solid #00f6ac;outline-offset:2px}
+.text-object{overflow:hidden;line-height:1.15;display:flex;align-items:flex-start;padding:2px}
+.shape-object{min-width:6px;min-height:6px}
+.layer-list{display:grid;gap:6px;max-height:220px;overflow:auto;margin-bottom:8px}
+.layer-row{display:grid;grid-template-columns:minmax(0,1fr) 28px 28px;gap:4px;align-items:center;border:1px solid #1c2220;border-radius:7px;padding:4px;background:#0a0d0c}
+.layer-row.active{border-color:#00f6ac;background:#07140f}
+.layer-row button{border:0;background:transparent;color:#aeb7b3;cursor:pointer;padding:5px}
+.layer-row .layer-name{text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.object-inspector{display:grid;gap:8px}
+.inspector-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.inspector-grid label,.inspector-field{display:grid;gap:4px;color:#7d8783;font-size:10px}
+.inspector-grid input,.inspector-field input,.inspector-field textarea{width:100%;background:#111513;color:#fff;border:1px solid #2b3330;border-radius:6px;padding:7px}
+.inspector-field textarea{min-height:58px;resize:vertical}
+.inspector-field input[type="color"]{height:34px;padding:3px}
+.danger{border-color:#522525;color:#ff8585}
