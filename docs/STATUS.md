@@ -180,6 +180,11 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Cloud conflict review panel.
+- [x] Conflict inspector loads queued local snapshot and current cloud snapshot/revision.
+- [x] Use Cloud resolution removes queued local conflict, updates sync base, and creates a local safety revision before replacement.
+- [x] Keep Local resolution explicitly pushes against the current remote revision only after user confirmation.
+- [x] Conflict resolution never silently overwrites without an explicit choice.
 - [x] Cloud asset schema extended with proxy/thumbnail variants.
 - [x] Migration added for existing servers.
 - [x] Authenticated multipart asset upload endpoint.
@@ -228,7 +233,7 @@ Last updated: 2026-09-30
 - [x] Windows user-bound encrypted API token storage with save/load/clear commands.
 - [x] Automatic Canva-style cloud autosave queue.
 - [x] Offline operation queue and automatic reconnect flush.
-- [ ] Automatic merge UI remains. Sync queue now tracks true base revisions and blocks silent overwrite on remote revision changes.
+- [ ] Automatic structural merge remains. Conflict review UI now supports explicit Use Cloud / Keep Local resolution with safety revision before local replacement.
 - [x] One-time cPanel web installer + one-time connection-code pairing workflow.
 - [x] Asset upload/list/delete/content endpoints plus automatic image proxy generation.
 
