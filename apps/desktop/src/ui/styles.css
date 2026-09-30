@@ -77,3 +77,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .revision-list>button:hover{border-color:#00f6ac}
 .revision-list strong,.revision-list small{display:block}
 .revision-list small{color:#75807c;margin-top:2px;font-size:9px}
+
+.smart-guide{position:absolute;z-index:20;pointer-events:none;background:#00f6ac}
+.smart-guide.vertical{top:0;bottom:0;left:50%;width:1px}
+.smart-guide.horizontal{left:0;right:0;top:50%;height:1px}
