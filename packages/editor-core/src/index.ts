@@ -49,6 +49,8 @@ export interface ImageObject extends DesignObjectBase {
   cropY: number;
   scale: number;
   borderRadius: number;
+  maskType: "none" | "ellipse" | "polygon";
+  maskPoints: PathPoint[];
 }
 
 export interface PathHandle {
@@ -143,6 +145,8 @@ export interface UpdateObjectInput {
   cropY?: number;
   scale?: number;
   borderRadius?: number;
+  maskType?: "none" | "ellipse" | "polygon";
+  maskPoints?: PathPoint[];
   points?: PathPoint[];
   closed?: boolean;
 }
@@ -190,7 +194,14 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
             cropX: object.cropX ?? 50,
             cropY: object.cropY ?? 50,
             scale: object.scale ?? 1,
-            borderRadius: object.borderRadius ?? 0
+            borderRadius: object.borderRadius ?? 0,
+            maskType: object.maskType ?? "none",
+            maskPoints: (Array.isArray(object.maskPoints) ? object.maskPoints : [
+              { id: id("mask"), x: 0, y: 0 },
+              { id: id("mask"), x: 100, y: 0 },
+              { id: id("mask"), x: 100, y: 100 },
+              { id: id("mask"), x: 0, y: 100 }
+            ]).map((point) => ({ ...point, smooth: false }))
           };
         }
 
@@ -398,7 +409,14 @@ export function addImageObject(
     cropX: 50,
     cropY: 50,
     scale: 1,
-    borderRadius: 0
+    borderRadius: 0,
+    maskType: "none",
+    maskPoints: [
+      { id: id("mask"), x: 0, y: 0 },
+      { id: id("mask"), x: 100, y: 0 },
+      { id: id("mask"), x: 100, y: 100 },
+      { id: id("mask"), x: 0, y: 100 }
+    ]
   };
 
   return {
@@ -548,7 +566,13 @@ export function updateObject(
           cropX: Math.max(0, Math.min(100, input.cropX ?? object.cropX)),
           cropY: Math.max(0, Math.min(100, input.cropY ?? object.cropY)),
           scale: Math.max(0.1, Math.min(5, input.scale ?? object.scale)),
-          borderRadius: Math.max(0, input.borderRadius ?? object.borderRadius)
+          borderRadius: Math.max(0, input.borderRadius ?? object.borderRadius),
+          maskType: input.maskType ?? object.maskType,
+          maskPoints: (input.maskPoints ?? object.maskPoints).map((point) => ({
+            ...point,
+            x: Math.max(0, Math.min(100, point.x)),
+            y: Math.max(0, Math.min(100, point.y))
+          }))
         };
       }
 
