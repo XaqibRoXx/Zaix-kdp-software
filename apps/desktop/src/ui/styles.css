@@ -104,3 +104,5 @@ button:disabled{opacity:.4;cursor:not-allowed}
 
 .path-point-row .curve-toggle{border-color:#29312e;color:#9aa4a0;background:#0d100f}
 .path-point-row .curve-toggle.active{border-color:#00f6ac;color:#00f6ac;background:#07140f}
+
+.secondary.toggle-on{border-color:#00f6ac;color:#00f6ac;background:#07140f}
