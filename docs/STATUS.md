@@ -42,11 +42,16 @@ Last updated: 2026-09-30
 - [ ] Cloud/offline autosave state machine and recovery queue. Local recovery autosave is working.
 - [x] Initial layers/object model with visibility, locking and z-order controls.
 - [ ] Font-provider abstraction.
-- [ ] Clipboard/image ingestion architecture.
+- [x] Initial clipboard image ingestion: pasted clipboard images become editable image objects.
 - [ ] Full project persistence layer. Current project local recovery persistence is working.
 - [ ] First runnable Windows development build verification.
 
 ## Newly Completed in Current Implementation
+- [x] Ctrl+V clipboard image paste into active artboard.
+- [x] Pasted PNG/bitmap becomes an editable image object.
+- [x] Pasted images appear in Layers and local recovery state.
+- [x] Image contain/cover/fill controls.
+- [x] Image alt-text field foundation.
 - [x] Basic object selection on canvas and from Layers panel.
 - [x] Text object creation and editing.
 - [x] Rectangle and ellipse object creation.
@@ -71,7 +76,7 @@ Last updated: 2026-09-30
 - [ ] Full direct-selection/vector-node system. Basic object selection is working.
 - [ ] Advanced text engine. Basic editable text objects, font family/size/color are working.
 - [ ] Advanced vector paths/bezier editor. Rectangle and ellipse objects are working.
-- [ ] Images/crop/masks/fit/fill.
+- [ ] Advanced image crop/masks. Clipboard paste plus contain/cover/fill image fit are working.
 - [ ] Alignment/distribution/guides/grid/snap.
 - [ ] Transform controls.
 - [ ] System/custom/cloud fonts.
