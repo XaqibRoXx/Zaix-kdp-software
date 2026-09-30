@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   SnapshotHistory,
   addArtboard,
+  addImageObject,
   addShapeObject,
   addTextObject,
   createBlankProject,
@@ -127,6 +128,33 @@ export function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   });
+
+  useEffect(() => {
+    function onPaste(event: ClipboardEvent) {
+      if (screen !== "editor") return;
+
+      const items = Array.from(event.clipboardData?.items ?? []);
+      const imageItem = items.find((item) => item.type.startsWith("image/"));
+      if (!imageItem) return;
+
+      const file = imageItem.getAsFile();
+      if (!file) return;
+
+      event.preventDefault();
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result !== "string") return;
+        const result = addImageObject(project, selectedArtboardId, reader.result, file.name || "Pasted image");
+        commit(result.project);
+        setSelectedObjectId(result.objectId);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [project, screen, selectedArtboardId]);
 
   function createNewProject() {
     const next = createBlankProject({
@@ -371,7 +399,7 @@ function EditorShell({
         <button title="Rectangle" onClick={() => createShape("rectangle")}>R</button>
         <button title="Ellipse" onClick={() => createShape("ellipse")}>O</button>
         <button title="Pen">P</button>
-        <button title="Image">I</button>
+        <button title="Image — use Ctrl+V to paste">I</button>
         <button title="Hand">H</button>
         <button title="Zoom">Z</button>
       </aside>
@@ -514,6 +542,21 @@ function CanvasObject({
     transform: "rotate(" + object.rotation + "deg)"
   };
 
+  if (object.type === "image") {
+    return (
+      <div
+        className={selected ? "design-object image-object selected" : "design-object image-object"}
+        style={commonStyle}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelect();
+        }}
+      >
+        <img src={object.src} alt={object.alt} style={{ objectFit: object.fit }} />
+      </div>
+    );
+  }
+
   if (object.type === "text") {
     return (
       <div
@@ -579,7 +622,20 @@ function ObjectInspector({
         <input type="number" min="0" max="1" step="0.05" value={object.opacity} onChange={(event) => onChange({ opacity: Number(event.target.value) })} />
       </label>
 
-      {object.type === "text" ? (
+      {object.type === "image" ? (
+        <>
+          <label className="inspector-field">Fit
+            <select value={object.fit} onChange={(event) => onChange({ fit: event.target.value as "contain" | "cover" | "fill" })}>
+              <option value="contain">Contain</option>
+              <option value="cover">Cover</option>
+              <option value="fill">Fill</option>
+            </select>
+          </label>
+          <label className="inspector-field">Alt Text
+            <input value={object.alt} onChange={(event) => onChange({ alt: event.target.value })} />
+          </label>
+        </>
+      ) : object.type === "text" ? (
         <>
           <label className="inspector-field">Text
             <textarea value={object.text} onChange={(event) => onChange({ text: event.target.value })} />
