@@ -1326,7 +1326,7 @@ function EditorShell({
             }}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="safe-area" />
+            {project.mode !== "kdp" && <div className="safe-area" />}
             {artboard.role === "cover" && project.kdpSettings && (
               <KdpCoverGuides project={project} />
             )}
