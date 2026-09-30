@@ -30,6 +30,22 @@ export interface SnapshotPushResponse {
   idempotent_replay?: boolean;
 }
 
+export interface CloudAsset {
+  id: string;
+  project_id: string | null;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  sha256: string;
+  created_at: string;
+  variants: Record<string, {
+    mime_type: string;
+    width_px: number | null;
+    height_px: number | null;
+    size_bytes: number;
+  }>;
+}
+
 export class CloudApiError extends Error {
   constructor(
     message: string,
@@ -127,6 +143,82 @@ export class ZaxisCloudApi {
         created_at: string;
       }>;
     }>("/api/v1/projects/" + encodeURIComponent(projectId) + "/revisions");
+  }
+
+  async listAssets(projectId?: string) {
+    const query = projectId ? "?project_id=" + encodeURIComponent(projectId) : "";
+    return this.request<{ ok: boolean; assets: CloudAsset[] }>("/api/v1/assets" + query);
+  }
+
+  async uploadAsset(file: File, projectId?: string) {
+    const form = new FormData();
+    form.append("file", file);
+    if (projectId) form.append("project_id", projectId);
+
+    const url = this.baseUrl.replace(/\/+$/, "") + "/api/v1/assets";
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "X-Zaxis-Client": "desktop/0.1.0"
+    };
+
+    if (this.token) {
+      headers.Authorization = "Bearer " + this.token;
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: form
+    });
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const serverMessage =
+        payload && typeof payload === "object" && "error" in payload
+          ? String((payload as { error?: unknown }).error ?? "")
+          : "";
+
+      throw new CloudApiError(
+        serverMessage || "Asset upload failed with HTTP " + response.status,
+        response.status,
+        payload
+      );
+    }
+
+    return payload as { ok: boolean; asset: CloudAsset };
+  }
+
+  async deleteAsset(assetId: string) {
+    return this.request<{ ok: boolean; deleted: boolean }>(
+      "/api/v1/assets/" + encodeURIComponent(assetId),
+      { method: "DELETE" }
+    );
+  }
+
+  async fetchAssetBlob(assetId: string, variant: "original" | "proxy" = "proxy") {
+    const url =
+      this.baseUrl.replace(/\/+$/, "") +
+      "/api/v1/assets/" +
+      encodeURIComponent(assetId) +
+      "/content?variant=" +
+      encodeURIComponent(variant);
+
+    const headers: Record<string, string> = {
+      "X-Zaxis-Client": "desktop/0.1.0"
+    };
+
+    if (this.token) {
+      headers.Authorization = "Bearer " + this.token;
+    }
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      throw new CloudApiError("Asset download failed with HTTP " + response.status, response.status);
+    }
+
+    return response.blob();
   }
 
   private async request<T>(
