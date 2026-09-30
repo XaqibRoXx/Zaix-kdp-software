@@ -111,3 +111,11 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .mask-point-row{display:grid;grid-template-columns:30px 1fr 1fr;gap:5px;align-items:center}
 .mask-point-row span{font-size:10px;color:#7f8985}
 .mask-point-row input{width:100%;background:#111513;color:#fff;border:1px solid #2b3330;border-radius:5px;padding:5px;font-size:10px}
+
+.cloud-status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px}
+.cloud-status-grid>div{border:1px solid #1f2623;background:#090c0b;border-radius:8px;padding:10px}
+.cloud-status-grid small,.cloud-status-grid strong{display:block}
+.cloud-status-grid small{color:#75807c;font-size:10px}
+.cloud-status-grid strong{margin-top:5px;font-size:11px;line-height:1.4;word-break:break-word}
+.cloud-project-date{font-size:10px;color:#75807c;padding:0 8px}
+@media(max-width:900px){.cloud-status-grid{grid-template-columns:1fr}}
