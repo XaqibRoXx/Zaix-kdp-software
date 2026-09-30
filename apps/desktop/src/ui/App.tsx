@@ -376,9 +376,7 @@ export function App() {
           "Owned until " + new Date(result.lock.expires_at).toLocaleTimeString()
         );
 
-        if (cloudSaveState === "locked") {
-          void flushCloudQueue();
-        }
+        void flushCloudQueue();
       } catch (error) {
         if (disposed) return;
 
@@ -433,7 +431,6 @@ export function App() {
     project.id,
     appSettings.cloudApiUrl,
     cloudToken,
-    cloudSaveState,
     flushCloudQueue
   ]);
 
