@@ -202,3 +202,9 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .revision-cloud-row small{color:#748079;margin-top:3px}
 .revision-cloud-row>div:nth-child(2){text-align:right}
 @media(max-width:800px){.revision-cloud-row{grid-template-columns:1fr}.revision-cloud-row>div:nth-child(2){text-align:left}}
+
+.save-state.cloud-locked,.save-state.lock-blocked{color:#f0a33a}
+.save-state.lock-owned{color:#00f6ac}
+.save-state.lock-acquiring,.save-state.lock-offline{color:#d8bf7c}
+.save-state.lock-error{color:#ff6b6b}
+.save-state.lock-disabled{color:#77817d}
