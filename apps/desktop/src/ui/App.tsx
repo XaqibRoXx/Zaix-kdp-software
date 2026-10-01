@@ -77,6 +77,7 @@ import {
   makeClientEventId,
   type CloudAsset,
   type CloudProjectSummary,
+  type CloudShare,
   type ServerDiagnostics
 } from "../cloud/apiClient";
 import {
