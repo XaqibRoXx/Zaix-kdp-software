@@ -176,6 +176,7 @@ final class AdminService
             'backup_include_assets' => false,
             'backup_secondary_path' => '',
             'recycle_retention_days' => 30,
+            'worker_url_override' => '',
         ];
 
         $stmt = $db->query('SELECT setting_key, setting_value FROM server_settings');
