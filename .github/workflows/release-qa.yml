@@ -32,6 +32,9 @@ jobs:
       - name: Build desktop frontend
         run: npm run build:desktop
 
+      - name: Large-book stress smoke
+        run: npm run qa:large-book
+
   server-worker-check:
     runs-on: ubuntu-latest
     steps:
