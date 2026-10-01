@@ -3374,24 +3374,34 @@ function PdfToolsScreen() {
 function AssetsScreen({
   settings,
   token,
-  project
+  project,
+  selectedArtboardId,
+  selectedObjectId,
+  onCommit
 }: {
   settings: AppSettings;
   token: string;
   project: ZaxisProject;
+  selectedArtboardId: string;
+  selectedObjectId: string | null;
+  onCommit: (project: ZaxisProject) => void;
 }) {
   const [assets, setAssets] = useState<CloudAsset[]>([]);
   const [shares, setShares] = useState<CloudShare[]>([]);
   const [status, setStatus] = useState("");
   const [shareStatus, setShareStatus] = useState("");
+  const [linkedStatus, setLinkedStatus] = useState("");
   const [uploading, setUploading] = useState(false);
   const [selectedShareAssetId, setSelectedShareAssetId] = useState("");
+  const [batchFromAssetId, setBatchFromAssetId] = useState("");
+  const [replacingAssetId, setReplacingAssetId] = useState("");
   const [shareTitle, setShareTitle] = useState("");
   const [sharePassword, setSharePassword] = useState("");
   const [shareExpiresAt, setShareExpiresAt] = useState("");
   const [shareAllowDownload, setShareAllowDownload] = useState(true);
   const [shareProofMode, setShareProofMode] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const replaceInputRef = useRef<HTMLInputElement | null>(null);
 
   function api() {
     return new ZaxisCloudApi(settings.cloudApiUrl.trim(), token.trim() || undefined);
@@ -3405,6 +3415,10 @@ function AssetsScreen({
     );
   }
 
+  function imageAssets() {
+    return assets.filter((asset) => asset.mime_type.startsWith("image/"));
+  }
+
   function resolvedShareUrl(share: CloudShare) {
     if (/^https?:\/\//i.test(share.url)) return share.url;
 
@@ -3412,6 +3426,63 @@ function AssetsScreen({
       .replace(/\/+$/, "");
 
     return base + (share.url.startsWith("/") ? share.url : "/" + share.url);
+  }
+
+  function selectedImageObject() {
+    const artboard = project.artboards.find((item) => item.id === selectedArtboardId);
+    const object = artboard?.objects.find((item) => item.id === selectedObjectId);
+    return object?.type === "image" ? object : null;
+  }
+
+  function linkedImageObjects() {
+    return project.artboards.flatMap((artboard) =>
+      artboard.objects
+        .filter((object) => object.type === "image" && !!object.linkedAssetId)
+        .map((object) => ({
+          artboardId: artboard.id,
+          artboardName: artboard.name,
+          object
+        }))
+    );
+  }
+
+  function assetById(id: string | undefined) {
+    return id ? assets.find((asset) => asset.id === id) : undefined;
+  }
+
+  function linkStateFor(assetId: string) {
+    const refs = linkedImageObjects().filter((item) => item.object.linkedAssetId === assetId);
+
+    if (refs.length === 0) return { refs, state: "unused" as const };
+
+    const asset = assetById(assetId);
+    if (!asset) return { refs, state: "missing" as const };
+
+    const outdated = refs.some(
+      (item) =>
+        (item.object.linkedAssetVersion ?? 0) < asset.version ||
+        (!!item.object.linkedAssetSha256 &&
+          item.object.linkedAssetSha256 !== asset.sha256)
+    );
+
+    return { refs, state: outdated ? "outdated" as const : "current" as const };
+  }
+
+  async function blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error ?? new Error("Could not read asset."));
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function assetPreviewData(asset: CloudAsset) {
+    const blob = await api().fetchAssetBlob(
+      asset.id,
+      asset.variants.proxy ? "proxy" : "original"
+    );
+    return blobToDataUrl(blob);
   }
 
   async function refreshLibrary() {
@@ -3443,6 +3514,21 @@ function AssetsScreen({
         current && available.some((asset) => asset.id === current)
           ? current
           : available[0]?.id ?? ""
+      );
+
+      const linkedIds = Array.from(
+        new Set(
+          project.artboards.flatMap((artboard) =>
+            artboard.objects
+              .filter((object) => object.type === "image" && !!object.linkedAssetId)
+              .map((object) => object.type === "image" ? object.linkedAssetId ?? "" : "")
+              .filter(Boolean)
+          )
+        )
+      );
+
+      setBatchFromAssetId((current) =>
+        current && linkedIds.includes(current) ? current : linkedIds[0] ?? ""
       );
 
       setStatus(
@@ -3488,16 +3574,182 @@ function AssetsScreen({
     }
   }
 
+  async function replaceAssetContent(file: File) {
+    if (!replacingAssetId) return;
+
+    setLinkedStatus("Replacing cloud asset while keeping the same linked asset ID...");
+
+    try {
+      const result = await api().replaceAssetContent(replacingAssetId, file);
+      setLinkedStatus(
+        "Asset replaced • version " +
+          result.asset.version +
+          " • linked project objects can now be refreshed."
+      );
+      await refreshLibrary();
+    } catch (error) {
+      setLinkedStatus(error instanceof Error ? error.message : "Asset replacement failed.");
+    } finally {
+      setReplacingAssetId("");
+    }
+  }
+
+  function chooseReplacementFile(assetId: string) {
+    setReplacingAssetId(assetId);
+    replaceInputRef.current?.click();
+  }
+
   async function removeAsset(assetId: string) {
-    if (!window.confirm("Remove this cloud asset from the library? Existing share links to this asset will stop serving it.")) {
+    const linked = linkStateFor(assetId).refs.length;
+
+    if (!window.confirm(
+      "Remove this cloud asset from the library?" +
+        (linked > 0 ? " " + linked + " linked project image(s) will become missing." : "") +
+        " Existing share links to this asset will stop serving it."
+    )) {
       return;
     }
 
     try {
       await api().deleteAsset(assetId);
+      setLinkedStatus(linked > 0 ? linked + " linked image(s) are now marked missing." : "");
       await refreshLibrary();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not remove asset.");
+    }
+  }
+
+  async function linkSelectedImage(asset: CloudAsset) {
+    const selected = selectedImageObject();
+
+    if (!selected) {
+      setLinkedStatus("Select an image object in the Editor first, then return to Assets.");
+      return;
+    }
+
+    if (!asset.mime_type.startsWith("image/")) {
+      setLinkedStatus("Only image assets can be linked to an image object.");
+      return;
+    }
+
+    setLinkedStatus("Linking selected image to " + asset.original_name + "...");
+
+    try {
+      const src = await assetPreviewData(asset);
+      const next = linkImageObjectToCloudAsset(
+        project,
+        selectedArtboardId,
+        selected.id,
+        {
+          src,
+          assetId: asset.id,
+          assetVersion: asset.version,
+          sha256: asset.sha256,
+          alt: asset.original_name
+        }
+      );
+
+      onCommit(next);
+      setBatchFromAssetId(asset.id);
+      setLinkedStatus("Selected image is now linked to cloud asset version " + asset.version + ".");
+    } catch (error) {
+      setLinkedStatus(error instanceof Error ? error.message : "Could not link cloud asset.");
+    }
+  }
+
+  async function refreshLinkedUpdates() {
+    const linked = linkedImageObjects();
+    const byId = new Map(assets.map((asset) => [asset.id, asset]));
+    const changedIds = Array.from(
+      new Set(
+        linked
+          .filter((item) => {
+            const asset = item.object.linkedAssetId
+              ? byId.get(item.object.linkedAssetId)
+              : undefined;
+
+            return !!asset && (
+              (item.object.linkedAssetVersion ?? 0) < asset.version ||
+              item.object.linkedAssetSha256 !== asset.sha256
+            );
+          })
+          .map((item) => item.object.linkedAssetId as string)
+      )
+    );
+
+    if (changedIds.length === 0) {
+      setLinkedStatus("All available linked assets are current.");
+      return;
+    }
+
+    setLinkedStatus("Refreshing " + changedIds.length + " linked asset update(s)...");
+
+    try {
+      let next = project;
+
+      for (const assetId of changedIds) {
+        const asset = byId.get(assetId);
+        if (!asset) continue;
+
+        const src = await assetPreviewData(asset);
+        next = replaceLinkedAssetReferences(next, assetId, {
+          src,
+          assetId: asset.id,
+          assetVersion: asset.version,
+          sha256: asset.sha256,
+          alt: asset.original_name
+        });
+      }
+
+      onCommit(next);
+      setLinkedStatus("Linked asset updates applied across the project.");
+    } catch (error) {
+      setLinkedStatus(error instanceof Error ? error.message : "Could not refresh linked assets.");
+    }
+  }
+
+  async function batchRelink() {
+    const target = assetById(selectedShareAssetId);
+
+    if (!batchFromAssetId || !target || !target.mime_type.startsWith("image/")) {
+      setLinkedStatus("Choose a linked source and an image replacement asset.");
+      return;
+    }
+
+    const refs = linkedImageObjects().filter(
+      (item) => item.object.linkedAssetId === batchFromAssetId
+    );
+
+    if (refs.length === 0) {
+      setLinkedStatus("No project references use that linked source.");
+      return;
+    }
+
+    if (!window.confirm(
+      "Relink " +
+        refs.length +
+        " project image(s) to " +
+        target.original_name +
+        "?"
+    )) {
+      return;
+    }
+
+    try {
+      const src = await assetPreviewData(target);
+      const next = replaceLinkedAssetReferences(project, batchFromAssetId, {
+        src,
+        assetId: target.id,
+        assetVersion: target.version,
+        sha256: target.sha256,
+        alt: target.original_name
+      });
+
+      onCommit(next);
+      setBatchFromAssetId(target.id);
+      setLinkedStatus(refs.length + " linked image(s) relinked.");
+    } catch (error) {
+      setLinkedStatus(error instanceof Error ? error.message : "Batch relink failed.");
     }
   }
 
@@ -3648,14 +3900,30 @@ function AssetsScreen({
   }
 
   const availableForSharing = shareableAssets();
+  const availableImages = imageAssets();
+  const linked = linkedImageObjects();
+  const linkedIds = Array.from(
+    new Set(linked.map((item) => item.object.linkedAssetId).filter(Boolean))
+  ) as string[];
+  const missingCount = linked.filter(
+    (item) => !assetById(item.object.linkedAssetId)
+  ).length;
+  const outdatedCount = linked.filter((item) => {
+    const asset = assetById(item.object.linkedAssetId);
+    return !!asset && (
+      (item.object.linkedAssetVersion ?? 0) < asset.version ||
+      item.object.linkedAssetSha256 !== asset.sha256
+    );
+  }).length;
+  const selectedImage = selectedImageObject();
 
   return (
     <section className="content">
       <div className="panel hero-panel">
         <div>
           <span className="eyebrow">PHASE 3 • CLOUD ASSETS & SHARING</span>
-          <h2>Originals stay in cloud storage. Public proof links stay stable even when the file is replaced.</h2>
-          <p>{status || "Upload project assets and create secure public PDF/image links."}</p>
+          <h2>Linked originals stay stable in cloud storage while project images track asset versions and lightweight proxies.</h2>
+          <p>{status || "Upload assets, manage linked image lifecycle and create secure public proof links."}</p>
         </div>
         <div className="hero-actions">
           <input
@@ -3669,10 +3937,137 @@ function AssetsScreen({
               event.currentTarget.value = "";
             }}
           />
+          <input
+            ref={replaceInputRef}
+            className="hidden-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.ttf,.otf,.woff,.woff2"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void replaceAssetContent(file);
+              event.currentTarget.value = "";
+            }}
+          />
           <button className="secondary" onClick={() => void refreshLibrary()}>Refresh</button>
           <button className="primary" disabled={uploading} onClick={() => inputRef.current?.click()}>
             {uploading ? "Uploading..." : "Upload Asset"}
           </button>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">LINKED ASSET MANAGER</span>
+            <h3>Project Image Lifecycle</h3>
+          </div>
+          <div className="hero-actions">
+            <span className="pill">{linked.length} linked</span>
+            <span className={outdatedCount > 0 ? "pill warning-pill" : "pill"}>{outdatedCount} updates</span>
+            <span className={missingCount > 0 ? "pill danger-pill" : "pill"}>{missingCount} missing</span>
+          </div>
+        </div>
+
+        <div className="linked-asset-summary">
+          <div>
+            <small>Selected Editor Object</small>
+            <strong>{selectedImage ? selectedImage.name : "No image selected"}</strong>
+            <span>
+              {selectedImage?.linkedAssetId
+                ? "Linked to " + selectedImage.linkedAssetId
+                : selectedImage
+                  ? "Embedded/local image"
+                  : "Select an image in Editor to link it"}
+            </span>
+          </div>
+
+          <div className="hero-actions">
+            <button
+              className="secondary"
+              disabled={outdatedCount === 0}
+              onClick={() => void refreshLinkedUpdates()}
+            >
+              Refresh All Linked Updates
+            </button>
+          </div>
+        </div>
+
+        <div className="settings-grid linked-batch-grid">
+          <label>Batch Relink Source
+            <select
+              value={batchFromAssetId}
+              onChange={(event) => setBatchFromAssetId(event.target.value)}
+            >
+              {linkedIds.length === 0 && <option value="">No linked sources</option>}
+              {linkedIds.map((assetId) => {
+                const asset = assetById(assetId);
+                return (
+                  <option key={assetId} value={assetId}>
+                    {asset?.original_name ?? "Missing " + assetId}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+
+          <label>Replacement Image Asset
+            <select
+              value={selectedShareAssetId}
+              onChange={(event) => setSelectedShareAssetId(event.target.value)}
+            >
+              {availableImages.length === 0 && <option value="">No cloud images</option>}
+              {availableImages.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.original_name} • v{asset.version}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="hero-actions">
+          <button
+            className="secondary"
+            disabled={!batchFromAssetId || !selectedShareAssetId}
+            onClick={() => void batchRelink()}
+          >
+            Batch Relink References
+          </button>
+        </div>
+
+        {linkedStatus && <p className="muted">{linkedStatus}</p>}
+
+        <div className="linked-reference-list">
+          {linked.length === 0 ? (
+            <div className="empty-projects">No linked cloud images in this project yet.</div>
+          ) : linked.map((item) => {
+            const asset = assetById(item.object.linkedAssetId);
+            const state = !asset
+              ? "missing"
+              : (item.object.linkedAssetVersion ?? 0) < asset.version ||
+                item.object.linkedAssetSha256 !== asset.sha256
+                ? "outdated"
+                : "current";
+
+            return (
+              <div className={"linked-reference-row " + state} key={item.artboardId + ":" + item.object.id}>
+                <div>
+                  <strong>{item.object.name}</strong>
+                  <small>{item.artboardName}</small>
+                </div>
+                <div>
+                  <strong>{asset?.original_name ?? "Cloud asset missing"}</strong>
+                  <small>
+                    Local v{item.object.linkedAssetVersion ?? 0}
+                    {asset ? " • Cloud v" + asset.version : ""}
+                  </small>
+                </div>
+                <span className={"linked-state " + state}>
+                  {state === "current" ? "Current" : state === "outdated" ? "Update Available" : "Missing"}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -3848,45 +4243,77 @@ function AssetsScreen({
         <div className="asset-list">
           {assets.length === 0 ? (
             <div className="empty-projects">No cloud assets for this project yet.</div>
-          ) : assets.map((asset) => (
-            <div
-              className={
-                asset.id === selectedShareAssetId
-                  ? "asset-row selected-for-share"
-                  : "asset-row"
-              }
-              key={asset.id}
-            >
-              <div>
-                <strong>{asset.original_name}</strong>
-                <small>
-                  {asset.mime_type} • {(asset.size_bytes / (1024 * 1024)).toFixed(2)} MB
-                  {asset.variants.proxy ? " • Proxy ready" : ""}
-                </small>
-              </div>
-              <div className="asset-meta">
-                <small>{new Date(asset.created_at).toLocaleString()}</small>
-                {asset.variants.proxy && (
+          ) : assets.map((asset) => {
+            const linkInfo = linkStateFor(asset.id);
+            return (
+              <div
+                className={
+                  asset.id === selectedShareAssetId
+                    ? "asset-row selected-for-share"
+                    : "asset-row"
+                }
+                key={asset.id}
+              >
+                <div>
+                  <strong>{asset.original_name}</strong>
                   <small>
-                    {asset.variants.proxy.width_px} × {asset.variants.proxy.height_px}
+                    {asset.mime_type} • {(asset.size_bytes / (1024 * 1024)).toFixed(2)} MB
+                    {asset.variants.proxy ? " • Proxy ready" : ""}
+                    {" • v" + asset.version}
                   </small>
-                )}
-              </div>
-              <div className="hero-actions">
-                {(asset.mime_type === "application/pdf" || asset.mime_type.startsWith("image/")) && (
+                  <small className={"asset-link-state " + linkInfo.state}>
+                    {linkInfo.refs.length === 0
+                      ? "Not linked in project"
+                      : linkInfo.refs.length +
+                        " reference" +
+                        (linkInfo.refs.length === 1 ? "" : "s") +
+                        " • " +
+                        (linkInfo.state === "current"
+                          ? "Current"
+                          : linkInfo.state === "outdated"
+                            ? "Update available"
+                            : "Missing")}
+                  </small>
+                </div>
+                <div className="asset-meta">
+                  <small>Updated {new Date(asset.updated_at).toLocaleString()}</small>
+                  {asset.variants.proxy && (
+                    <small>
+                      {asset.variants.proxy.width_px} × {asset.variants.proxy.height_px}
+                    </small>
+                  )}
+                </div>
+                <div className="hero-actions">
+                  {asset.mime_type.startsWith("image/") && (
+                    <button
+                      className="secondary"
+                      disabled={!selectedImage}
+                      onClick={() => void linkSelectedImage(asset)}
+                    >
+                      Link to Selected Image
+                    </button>
+                  )}
                   <button
                     className="secondary"
-                    onClick={() => setSelectedShareAssetId(asset.id)}
+                    onClick={() => chooseReplacementFile(asset.id)}
                   >
-                    {asset.id === selectedShareAssetId ? "Selected for Share" : "Use for Share"}
+                    Replace Cloud File
                   </button>
-                )}
-                <button className="secondary danger" onClick={() => void removeAsset(asset.id)}>
-                  Remove
-                </button>
+                  {(asset.mime_type === "application/pdf" || asset.mime_type.startsWith("image/")) && (
+                    <button
+                      className="secondary"
+                      onClick={() => setSelectedShareAssetId(asset.id)}
+                    >
+                      {asset.id === selectedShareAssetId ? "Selected" : "Select"}
+                    </button>
+                  )}
+                  <button className="secondary danger" onClick={() => void removeAsset(asset.id)}>
+                    Remove
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
