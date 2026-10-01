@@ -21,7 +21,8 @@
     "pdf-lib": "^1.17.1",
     "jszip": "^3.10.1",
     "pdfjs-dist": "^6.3.289",
-    "@pdf-lib/fontkit": "^1.1.1"
+    "@pdf-lib/fontkit": "^1.1.1",
+    "@tauri-apps/plugin-updater": "2.12.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.8.4",
