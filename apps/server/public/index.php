@@ -283,7 +283,11 @@ try {
              FROM backups'
         )->fetch() ?: ['backup_count' => 0, 'last_backup_at' => null];
 
-        $workerUrl = trim((string) Config::env('WORKER_URL', ''));
+        $serverSettings = AdminService::getSettings($db);
+        $workerUrl = trim((string) ($serverSettings['worker_url_override'] ?? ''));
+        if ($workerUrl === '') {
+            $workerUrl = trim((string) Config::env('WORKER_URL', ''));
+        }
         $workerHealthy = null;
         $workerError = null;
 
@@ -955,6 +959,7 @@ try {
         }
 
         $body = Http::body();
+        $workerUrlOverride = trim((string) ($features['worker_url_override'] ?? ''));
         $assetIds = isset($body['asset_ids']) && is_array($body['asset_ids'])
             ? array_values(array_unique(array_filter(array_map('strval', $body['asset_ids']))))
             : [];
@@ -1002,7 +1007,7 @@ try {
             $tmp = null;
 
             try {
-                $tmp = ImageWorker::removeBackground($content['path'], $mode, $model);
+                $tmp = ImageWorker::removeBackground($content['path'], $mode, $model, $workerUrlOverride);
                 $baseName = preg_replace('/\.[^.]+$/', '', (string) $assetRow['original_name']) ?: 'image';
 
                 $processed = AssetStorage::storeUpload(
@@ -1092,6 +1097,7 @@ try {
 
         $assetId = rawurldecode($matches[1]);
         $body = Http::body();
+        $workerUrlOverride = trim((string) ($features['worker_url_override'] ?? ''));
         $mode = trim((string) ($body['mode'] ?? 'quality'));
         $model = trim((string) ($body['model'] ?? 'birefnet-general'));
 
