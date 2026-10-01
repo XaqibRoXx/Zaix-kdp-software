@@ -713,7 +713,7 @@ export function App() {
       <main className="workspace">
         <header className="topbar">
           <div>
-            <small>ZAXIS KDP / PHASE 2</small>
+            <small>ZAXIS KDP / PHASE 3</small>
             <h1>{screen === "editor" ? project.name : titleFor(screen)}</h1>
           </div>
           <div className="top-actions">
@@ -883,6 +883,7 @@ function PdfExportDialog({
   const [colorMode, setColorMode] = useState<PdfColorMode>("rgb");
   const [cropMarks, setCropMarks] = useState(false);
   const [batchSeparate, setBatchSeparate] = useState(false);
+  const [autoShareCloudPdf, setAutoShareCloudPdf] = useState(true);
   const [pageRange, setPageRange] = useState("");
   const [destination, setDestination] = useState<"computer" | "cloud" | "both">("computer");
   const [fileName, setFileName] = useState(project.name.replace(/[^A-Za-z0-9._-]+/g, "-") || "zaxis-kdp-export");
@@ -976,12 +977,31 @@ function PdfExportDialog({
         ) as ArrayBuffer;
 
         const file = new File([buffer], outputName, { type: outputMime });
-        const uploaded = await new ZaxisCloudApi(
+        const cloudApi = new ZaxisCloudApi(
           settings.cloudApiUrl.trim(),
           token.trim()
-        ).uploadAsset(file, project.id);
+        );
+        const uploaded = await cloudApi.uploadAsset(file, project.id);
 
         destinations.push("cloud asset " + uploaded.asset.id);
+
+        if (autoShareCloudPdf && outputMime === "application/pdf") {
+          const shared = await cloudApi.createShare({
+            assetId: uploaded.asset.id,
+            projectId: project.id,
+            title: project.name + " PDF",
+            allowDownload: true,
+            proofMode: false
+          });
+
+          const shareBase = (settings.shareDomain.trim() || settings.cloudApiUrl.trim())
+            .replace(/\/+$/, "");
+          const shareUrl = /^https?:\/\//i.test(shared.share.url)
+            ? shared.share.url
+            : shareBase + (shared.share.url.startsWith("/") ? shared.share.url : "/" + shared.share.url);
+
+          destinations.push("public link " + shareUrl);
+        }
       }
 
       setWarnings(exportWarnings);
@@ -1070,6 +1090,16 @@ function PdfExportDialog({
             <input type="checkbox" checked={batchSeparate} onChange={(event) => setBatchSeparate(event.target.checked)} />
             Batch separate Interior + Cover ZIP
           </label>
+          {(destination === "cloud" || destination === "both") && !batchSeparate && (
+            <label className="toggle-setting">
+              <input
+                type="checkbox"
+                checked={autoShareCloudPdf}
+                onChange={(event) => setAutoShareCloudPdf(event.target.checked)}
+              />
+              Create persistent public share link after cloud PDF export
+            </label>
+          )}
           {quality === "custom" && (
             <>
               <label>Custom Image DPI
@@ -1157,14 +1187,14 @@ function Dashboard({
         <Metric label="Local Projects" value={String(projects.length)} />
         <Metric label="Active Artboards" value={String(project.artboards.length)} />
         <Metric label="Active Objects" value={String(objectCount)} />
-        <Metric label="Phase" value="2 / 4" />
+        <Metric label="Phase" value="3 / 4" />
       </div>
 
       <div className="panel hero-panel">
         <div>
           <span className="eyebrow">START DESIGNING</span>
           <h2>Book layouts and full graphic design in one cloud-first Windows workspace.</h2>
-          <p>Local project recovery library is active now; cloud project sync comes in Phase 2.</p>
+          <p>Local project recovery library is active now; cloud sync and KDP/PDF production are complete; Phase 3 sharing is active.</p>
         </div>
         <div className="hero-actions">
           <button className="secondary" onClick={onOpen}>Open Active</button>
@@ -1219,7 +1249,7 @@ function Dashboard({
         <div className="panel-heading">
           <div>
             <span className="eyebrow">DEVELOPMENT</span>
-            <h3>Phase 2 Cloud Foundation</h3>
+            <h3>Phase 3 Sharing & Production</h3>
           </div>
           <span className="pill">In Progress</span>
         </div>
