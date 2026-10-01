@@ -70,6 +70,50 @@ $db->exec(
      VALUES (1, REPEAT('b', 64), DATE_ADD(NOW(), INTERVAL 1 HOUR))"
 );
 
+$storageRoot = rtrim((string) getenv('STORAGE_PATH'), '/\\');
+$assetKey = 'assets/phase4/original.txt';
+$variantKey = 'assets/phase4/proxy.txt';
+$assetPath = $storageRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $assetKey);
+$variantPath = $storageRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $variantKey);
+
+if (!is_dir(dirname($assetPath)) && !mkdir(dirname($assetPath), 0750, true) && !is_dir(dirname($assetPath))) {
+    throw new RuntimeException('Could not create Phase 4 asset fixture directory.');
+}
+
+$assetBytes = "phase4-original-asset\n";
+$variantBytes = "phase4-proxy-asset\n";
+file_put_contents($assetPath, $assetBytes);
+file_put_contents($variantPath, $variantBytes);
+
+$assetStmt = $db->prepare(
+    "INSERT INTO assets
+     (id, owner_user_id, project_id, original_name, mime_type, size_bytes, sha256, storage_key)
+     VALUES
+     ('22222222-2222-4222-8222-222222222222', 1, '11111111-1111-4111-8111-111111111111',
+      'original.txt', 'text/plain', :size, :sha, :storage_key)"
+);
+$assetStmt->execute([
+    'size' => strlen($assetBytes),
+    'sha' => hash('sha256', $assetBytes),
+    'storage_key' => $assetKey,
+]);
+
+$variantStmt = $db->prepare(
+    "INSERT INTO asset_variants
+     (asset_id, variant_type, mime_type, size_bytes, storage_key)
+     VALUES
+     ('22222222-2222-4222-8222-222222222222', 'proxy', 'text/plain', :size, :storage_key)"
+);
+$variantStmt->execute([
+    'size' => strlen($variantBytes),
+    'storage_key' => $variantKey,
+]);
+
+$db->exec(
+    "INSERT INTO server_settings (setting_key, setting_value, updated_by)
+     VALUES ('backup_include_assets', 'true', 1)"
+);
+
 $backup = BackupService::create($db, 1);
 $backupIdStmt = $db->prepare('SELECT id FROM backups WHERE file_name = :file_name LIMIT 1');
 $backupIdStmt->execute(['file_name' => $backup['file_name']]);
@@ -94,6 +138,10 @@ $db->exec(
      (user_id, name, token_hash)
      VALUES (2, 'Temporary Token', REPEAT('c', 64))"
 );
+
+// Prove that restore repairs binary storage, not only database rows.
+file_put_contents($assetPath, "corrupted-after-backup\n");
+@unlink($variantPath);
 
 $result = BackupService::restore($db, $backupId, 1);
 
@@ -127,6 +175,27 @@ assertQa(
     'Project locks must not be resurrected by restore.'
 );
 
+assertQa(is_file($assetPath), 'Original asset file was not restored.');
+assertQa(is_file($variantPath), 'Proxy asset file was not restored.');
+assertQa(file_get_contents($assetPath) === $assetBytes, 'Original asset bytes were not restored exactly.');
+assertQa(file_get_contents($variantPath) === $variantBytes, 'Proxy asset bytes were not restored exactly.');
+assertQa(
+    hash_file('sha256', $assetPath) === hash('sha256', $assetBytes),
+    'Restored original asset SHA-256 does not match backup source.'
+);
+assertQa(
+    (int) $db->query("SELECT COUNT(*) FROM assets WHERE id = '22222222-2222-4222-8222-222222222222'")->fetchColumn() === 1,
+    'Asset database row was not restored.'
+);
+assertQa(
+    (int) $db->query("SELECT COUNT(*) FROM asset_variants WHERE asset_id = '22222222-2222-4222-8222-222222222222'")->fetchColumn() === 1,
+    'Asset variant database row was not restored.'
+);
+assertQa(
+    (bool) ($result['assets_restored'] ?? false),
+    'Restore did not report asset binary restoration.'
+);
+
 assertQa(
     isset($result['safety_backup']['path']) && is_file((string) $result['safety_backup']['path']),
     'Pre-restore safety backup was not created.'
@@ -147,4 +216,6 @@ echo json_encode([
     'users' => $userCount,
     'tokens_after_restore' => 0,
     'locks_after_restore' => 0,
+    'asset_sha256' => hash_file('sha256', $assetPath),
+    'asset_variant_restored' => is_file($variantPath),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
