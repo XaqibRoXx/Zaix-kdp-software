@@ -41,7 +41,6 @@ async function loadPdf(file: File): Promise<{ task: ReturnType<typeof getDocumen
   const data = new Uint8Array(await file.arrayBuffer());
   const task = getDocument({
     data,
-    enableScripting: false,
     isEvalSupported: false
   });
   const doc = await task.promise;
