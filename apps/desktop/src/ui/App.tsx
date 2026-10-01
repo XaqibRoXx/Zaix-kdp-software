@@ -874,6 +874,8 @@ function PdfExportDialog({
     project.mode === "kdp" ? "interior" : "all"
   );
   const [quality, setQuality] = useState<PdfQualityPreset>("maximum");
+  const [customDpi, setCustomDpi] = useState(240);
+  const [customJpegQuality, setCustomJpegQuality] = useState(0.85);
   const [pageRange, setPageRange] = useState("");
   const [destination, setDestination] = useState<"computer" | "cloud" | "both">("computer");
   const [fileName, setFileName] = useState(project.name.replace(/[^A-Za-z0-9._-]+/g, "-") || "zaxis-kdp-export");
@@ -893,7 +895,9 @@ function PdfExportDialog({
         quality,
         pageRange,
         title: project.name,
-        author
+        author,
+        customDpi,
+        customJpegQuality
       });
 
       const finalName = ensurePdfExtension(fileName);
@@ -971,6 +975,7 @@ function PdfExportDialog({
               <option value="high">High</option>
               <option value="standard">Standard</option>
               <option value="small">Small File</option>
+              <option value="custom">Custom</option>
             </select>
           </label>
 
@@ -1000,11 +1005,37 @@ function PdfExportDialog({
           <label>Author
             <input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="Optional" />
           </label>
+          {quality === "custom" && (
+            <>
+              <label>Custom Image DPI
+                <input
+                  type="number"
+                  min="72"
+                  max="600"
+                  value={customDpi}
+                  onChange={(event) => setCustomDpi(Number(event.target.value))}
+                />
+              </label>
+              <label>Custom JPEG Quality
+                <input
+                  type="number"
+                  min="0.35"
+                  max="0.98"
+                  step="0.01"
+                  value={customJpegQuality}
+                  onChange={(event) => setCustomJpegQuality(Number(event.target.value))}
+                />
+              </label>
+            </>
+          )}
         </div>
 
         <div className="export-summary">
           <span>Target: {target}</span>
-          <span>Quality: {quality}</span>
+          <span>
+            Quality: {quality}
+            {quality === "custom" ? " • " + customDpi + " DPI • JPEG " + Math.round(customJpegQuality * 100) + "%" : ""}
+          </span>
           <span>Destination: {destination}</span>
         </div>
 
