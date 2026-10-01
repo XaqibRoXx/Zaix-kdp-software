@@ -15,7 +15,7 @@ final class ProjectDelta
      */
     public static function apply(array $base, array $delta): array
     {
-        foreach (['name', 'mode', 'kdpSettings', 'bookStructure', 'masterPages', 'reusableStyles', 'updatedAt'] as $field) {
+        foreach (['name', 'mode', 'kdpSettings', 'bookStructure', 'masterPages', 'reusableStyles', 'reusableComponents', 'projectOverrides', 'updatedAt'] as $field) {
             if (array_key_exists($field, $delta['project'] ?? [])) {
                 $base[$field] = $delta['project'][$field];
             }
