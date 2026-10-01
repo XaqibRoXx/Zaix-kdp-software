@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use ZaxisKdp\AssetStorage;
 use ZaxisKdp\Auth;
+use ZaxisKdp\Config;
 use ZaxisKdp\Database;
 use ZaxisKdp\Http;
 use ZaxisKdp\Pairing;
@@ -89,6 +90,50 @@ try {
         Http::json([
             'ok' => true,
             'user' => $user,
+            'request_id' => $requestId,
+        ]);
+    }
+
+    if ($method === 'GET' && $path === '/api/v1/diagnostics') {
+        $storagePath = rtrim(
+            (string) Config::env('STORAGE_PATH', dirname(__DIR__) . '/storage'),
+            '/\\'
+        );
+
+        if (!is_dir($storagePath)) {
+            @mkdir($storagePath, 0750, true);
+        }
+
+        $dbOk = false;
+        try {
+            $db->query('SELECT 1');
+            $dbOk = true;
+        } catch (Throwable) {
+            $dbOk = false;
+        }
+
+        $freeBytes = @disk_free_space($storagePath);
+        $totalBytes = @disk_total_space($storagePath);
+
+        Http::json([
+            'ok' => true,
+            'diagnostics' => [
+                'php_version' => PHP_VERSION,
+                'database' => $dbOk ? 'connected' : 'error',
+                'storage_provider' => Config::env('STORAGE_PROVIDER', 'local-cpanel'),
+                'storage_path' => $storagePath,
+                'storage_exists' => is_dir($storagePath),
+                'storage_writable' => is_dir($storagePath) && is_writable($storagePath),
+                'storage_free_bytes' => $freeBytes !== false ? (int) $freeBytes : null,
+                'storage_total_bytes' => $totalBytes !== false ? (int) $totalBytes : null,
+                'share_base_url' => Config::env('SHARE_BASE_URL', ''),
+                'worker_url' => Config::env('WORKER_URL', ''),
+                'max_upload_mb' => (int) (Config::env('MAX_UPLOAD_MB', '100') ?? '100'),
+                'gd_available' => extension_loaded('gd'),
+                'pdo_mysql_available' => extension_loaded('pdo_mysql'),
+                'upload_max_filesize' => ini_get('upload_max_filesize') ?: null,
+                'post_max_size' => ini_get('post_max_size') ?: null,
+            ],
             'request_id' => $requestId,
         ]);
     }
