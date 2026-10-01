@@ -82,6 +82,7 @@ import {
   CloudApiError,
   ZaxisCloudApi,
   makeClientEventId,
+  type AdminSettings,
   type CloudAsset,
   type CloudProjectSummary,
   type CloudShare,
@@ -3558,6 +3559,7 @@ function AssetsScreen({
   const [shareExpiresAt, setShareExpiresAt] = useState("");
   const [shareAllowDownload, setShareAllowDownload] = useState(true);
   const [shareProofMode, setShareProofMode] = useState(false);
+  const [effectivePolicy, setEffectivePolicy] = useState<AdminSettings | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -3656,13 +3658,20 @@ function AssetsScreen({
     setStatus("Loading cloud library...");
 
     try {
-      const [assetResult, shareResult] = await Promise.all([
+      const [assetResult, shareResult, policyResult] = await Promise.all([
         api().listAssets(project.id),
-        api().listShares(project.id)
+        api().listShares(project.id),
+        api().effectiveSettings(project.id)
       ]);
 
       setAssets(assetResult.assets);
       setShares(shareResult.shares);
+      setEffectivePolicy(policyResult.settings);
+      setShareAllowDownload(policyResult.settings.default_share_download);
+      setShareProofMode(
+        policyResult.settings.feature_proof_comments &&
+        policyResult.settings.default_share_proof_mode
+      );
 
       const available = assetResult.assets.filter(
         (asset) =>
@@ -3762,6 +3771,11 @@ function AssetsScreen({
   }
 
   async function removeBackground(asset: CloudAsset) {
+    if (effectivePolicy && !effectivePolicy.feature_background_remove) {
+      setLinkedStatus("Background removal is disabled for this project.");
+      return;
+    }
+
     if (!asset.mime_type.startsWith("image/")) {
       setLinkedStatus("Background removal requires an image asset.");
       return;
@@ -3816,6 +3830,15 @@ function AssetsScreen({
   }
 
   async function runBatchBackgroundRemoval() {
+    if (
+      effectivePolicy &&
+      (!effectivePolicy.feature_background_remove ||
+        !effectivePolicy.feature_batch_processing)
+    ) {
+      setLinkedStatus("Batch background removal is disabled for this project.");
+      return;
+    }
+
     if (batchBackgroundIds.length === 0) {
       setLinkedStatus("Select one or more image assets for batch background removal.");
       return;
@@ -4020,6 +4043,11 @@ function AssetsScreen({
   }
 
   async function createShare() {
+    if (effectivePolicy && !effectivePolicy.feature_public_sharing) {
+      setShareStatus("Public sharing is disabled for this project.");
+      return;
+    }
+
     if (!selectedShareAssetId) {
       setShareStatus("Select a PDF or image asset first.");
       return;
@@ -4422,6 +4450,7 @@ function AssetsScreen({
             <input
               type="checkbox"
               checked={shareProofMode}
+              disabled={effectivePolicy?.feature_proof_comments === false}
               onChange={(event) => setShareProofMode(event.target.checked)}
             />
             Proof mode + comments
@@ -4431,7 +4460,10 @@ function AssetsScreen({
         <div className="hero-actions">
           <button
             className="primary"
-            disabled={!selectedShareAssetId}
+            disabled={
+              !selectedShareAssetId ||
+              effectivePolicy?.feature_public_sharing === false
+            }
             onClick={() => void createShare()}
           >
             Create Persistent Share Link
