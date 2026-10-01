@@ -267,6 +267,57 @@ try {
 
         $freeBytes = @disk_free_space($storagePath);
         $totalBytes = @disk_total_space($storagePath);
+        $storageUsedBytes = (int) $db->query(
+            'SELECT COALESCE(SUM(size_bytes), 0) FROM assets WHERE deleted_at IS NULL'
+        )->fetchColumn();
+        $userStorageStmt = $db->prepare(
+            'SELECT COALESCE(SUM(size_bytes), 0) AS used
+             FROM assets
+             WHERE owner_user_id = :owner AND deleted_at IS NULL'
+        );
+        $userStorageStmt->execute(['owner' => $user['id']]);
+        $userStorageUsed = (int) ($userStorageStmt->fetch()['used'] ?? 0);
+        $backupSummary = $db->query(
+            'SELECT COUNT(*) AS backup_count,
+                    MAX(CASE WHEN status = "completed" THEN created_at ELSE NULL END) AS last_backup_at
+             FROM backups'
+        )->fetch() ?: ['backup_count' => 0, 'last_backup_at' => null];
+
+        $workerUrl = trim((string) Config::env('WORKER_URL', ''));
+        $workerHealthy = null;
+        $workerError = null;
+
+        if ($workerUrl !== '' && extension_loaded('curl')) {
+            $curl = curl_init(rtrim($workerUrl, '/') . '/health');
+
+            if ($curl !== false) {
+                $headers = ['Accept: application/json'];
+                $workerToken = trim((string) Config::env('WORKER_TOKEN', ''));
+                if ($workerToken !== '') {
+                    $headers[] = 'Authorization: Bearer ' . $workerToken;
+                }
+
+                curl_setopt_array($curl, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_HTTPHEADER => $headers,
+                    CURLOPT_CONNECTTIMEOUT => 3,
+                    CURLOPT_TIMEOUT => 6,
+                    CURLOPT_FOLLOWLOCATION => false,
+                ]);
+
+                $body = curl_exec($curl);
+                $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+                $curlError = curl_error($curl);
+                curl_close($curl);
+
+                $workerHealthy = $body !== false && $status >= 200 && $status < 300;
+                if (!$workerHealthy) {
+                    $workerError = $curlError !== ''
+                        ? $curlError
+                        : 'Worker health returned HTTP ' . $status;
+                }
+            }
+        }
 
         Http::json([
             'ok' => true,
@@ -279,13 +330,24 @@ try {
                 'storage_writable' => is_dir($storagePath) && is_writable($storagePath),
                 'storage_free_bytes' => $freeBytes !== false ? (int) $freeBytes : null,
                 'storage_total_bytes' => $totalBytes !== false ? (int) $totalBytes : null,
+                'storage_used_bytes' => $storageUsedBytes,
+                'user_storage_used_bytes' => $userStorageUsed,
+                'user_storage_quota_bytes' => (int) ($user['storage_quota_bytes'] ?? 0),
                 'share_base_url' => Config::env('SHARE_BASE_URL', ''),
-                'worker_url' => Config::env('WORKER_URL', ''),
+                'worker_url' => $workerUrl,
+                'worker_healthy' => $workerHealthy,
+                'worker_error' => $workerError,
                 'max_upload_mb' => (int) (Config::env('MAX_UPLOAD_MB', '100') ?? '100'),
                 'gd_available' => extension_loaded('gd'),
                 'pdo_mysql_available' => extension_loaded('pdo_mysql'),
+                'curl_available' => extension_loaded('curl'),
+                'zip_available' => class_exists(ZipArchive::class),
                 'upload_max_filesize' => ini_get('upload_max_filesize') ?: null,
                 'post_max_size' => ini_get('post_max_size') ?: null,
+                'backup_count' => (int) ($backupSummary['backup_count'] ?? 0),
+                'last_backup_at' => $backupSummary['last_backup_at'] !== null
+                    ? (string) $backupSummary['last_backup_at']
+                    : null,
             ],
             'request_id' => $requestId,
         ]);
