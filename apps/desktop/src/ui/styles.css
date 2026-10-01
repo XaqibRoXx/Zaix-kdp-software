@@ -379,3 +379,8 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .notification-card.error{border-left:3px solid #ff8585}
 .notification-card.success{border-left:3px solid #00f6ac}
 .notification-card.read{opacity:.72}
+
+.admin-diagnostics-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:12px}
+.admin-diagnostic-error{color:#ff9292;border:1px solid #5c2828;background:#160a0a;border-radius:8px;padding:9px}
+@media(max-width:1100px){.admin-diagnostics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.admin-diagnostics-grid{grid-template-columns:1fr}}
