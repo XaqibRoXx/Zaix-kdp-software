@@ -255,6 +255,74 @@ final class AdminService
         return $defaults;
     }
 
+    /** @return array<string,mixed> */
+    public static function effectiveSettings(
+        PDO $db,
+        int $userId,
+        ?string $projectId = null
+    ): array {
+        $settings = self::getSettings($db);
+
+        if ($projectId === null || trim($projectId) === '') {
+            return $settings;
+        }
+
+        $project = $db->prepare(
+            'SELECT id FROM projects
+             WHERE id = :id AND owner_user_id = :owner AND deleted_at IS NULL
+             LIMIT 1'
+        );
+        $project->execute([
+            'id' => $projectId,
+            'owner' => $userId,
+        ]);
+
+        if (!$project->fetch()) {
+            return $settings;
+        }
+
+        $snapshot = $db->prepare(
+            'SELECT snapshot_json
+             FROM project_snapshots
+             WHERE project_id = :project_id
+             ORDER BY revision_number DESC
+             LIMIT 1'
+        );
+        $snapshot->execute(['project_id' => $projectId]);
+        $row = $snapshot->fetch();
+
+        if (!$row) {
+            return $settings;
+        }
+
+        $decoded = json_decode((string) $row['snapshot_json'], true);
+        if (!is_array($decoded)) {
+            return $settings;
+        }
+
+        $overrides = isset($decoded['projectOverrides']) && is_array($decoded['projectOverrides'])
+            ? $decoded['projectOverrides']
+            : [];
+
+        $map = [
+            'featureBackgroundRemove' => 'feature_background_remove',
+            'featurePublicSharing' => 'feature_public_sharing',
+            'featureProofComments' => 'feature_proof_comments',
+            'featureBatchProcessing' => 'feature_batch_processing',
+            'defaultShareDownload' => 'default_share_download',
+            'defaultShareProofMode' => 'default_share_proof_mode',
+            'namingExportPattern' => 'naming_export_pattern',
+        ];
+
+        foreach ($map as $projectKey => $serverKey) {
+            if (array_key_exists($projectKey, $overrides) && $overrides[$projectKey] !== null) {
+                $settings[$serverKey] = $overrides[$projectKey];
+            }
+        }
+
+        return $settings;
+    }
+
     /**
      * @param array<string,mixed> $actor
      * @param array<string,mixed> $input
