@@ -5,7 +5,7 @@ Last updated: 2026-10-01
 ## Overall
 - Phase 1: **BASELINE COMPLETE**
 - Phase 2: **100% COMPLETE**
-- Phase 3: **PENDING**
+- Phase 3: **IN PROGRESS**
 - Phase 4: **PENDING**
 
 Detailed Phase 2 exit checklist: `docs/PHASE2_EXIT.md`
@@ -148,7 +148,25 @@ The master plan marks these optional or “where supported”, so they are not P
 - Full ICC/CMYK conversion engine.
 - External heavy PDF worker (local desktop processing works without it).
 
-## Pending — Phase 3
+## Phase 3 — In Progress
+- [x] Persistent public share-link database model.
+- [x] One stable random public slug per share.
+- [x] No-login browser preview page.
+- [x] Password-protected public links with time-limited signed access token.
+- [x] Link expiry enforcement.
+- [x] Download enable/disable enforcement.
+- [x] Link revoke support.
+- [x] Replace File, Keep Same Link backend.
+- [x] Privacy-preserving view/download analytics using HMAC-hashed IP/user-agent values.
+- [x] Proof mode public comments.
+- [x] Desktop Share Manager in Asset Library.
+- [x] Create/copy/open/revoke share links.
+- [x] Toggle download and proof mode.
+- [x] Set/change/remove share password and expiry.
+- [x] View/download/comment counters in desktop UI.
+- [x] Select a replacement asset and keep the existing public URL.
+
+## Remaining — Phase 3
 - [ ] Advanced linked-asset/proxy lifecycle and duplicate-management UI.
 - [ ] High-quality background remover + refine brush/edge cleanup.
 - [ ] Public PDF share links.
