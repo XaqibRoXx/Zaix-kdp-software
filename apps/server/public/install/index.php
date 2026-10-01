@@ -215,6 +215,7 @@ try {
         'STORAGE_PROVIDER=local-cpanel',
         'SHARE_BASE_URL=' . $shareUrl,
         'WORKER_URL=',
+        'WORKER_TOKEN=',
         'MAX_UPLOAD_MB=100',
         '',
     ]);
