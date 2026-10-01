@@ -46,7 +46,9 @@ export interface CloudAsset {
   mime_type: string;
   size_bytes: number;
   sha256: string;
+  version: number;
   created_at: string;
+  updated_at: string;
   variants: Record<string, {
     mime_type: string;
     width_px: number | null;
@@ -335,6 +337,48 @@ export class ZaxisCloudApi {
       "/api/v1/assets/" + encodeURIComponent(assetId),
       { method: "DELETE" }
     );
+  }
+
+  async replaceAssetContent(assetId: string, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+
+    const url =
+      this.baseUrl.replace(/\/+$/, "") +
+      "/api/v1/assets/" +
+      encodeURIComponent(assetId) +
+      "/replace";
+
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "X-Zaxis-Client": "desktop/0.1.0",
+      "X-Zaxis-Client-Id": this.clientId
+    };
+
+    if (this.token) headers.Authorization = "Bearer " + this.token;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: form
+    });
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const message =
+        payload && typeof payload === "object" && "error" in payload
+          ? String((payload as { error?: unknown }).error ?? "")
+          : "";
+
+      throw new CloudApiError(
+        message || "Asset replacement failed with HTTP " + response.status,
+        response.status,
+        payload
+      );
+    }
+
+    return payload as { ok: boolean; asset: CloudAsset };
   }
 
   async fetchAssetBlob(assetId: string, variant: "original" | "proxy" = "proxy") {
