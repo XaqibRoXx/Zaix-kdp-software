@@ -3607,6 +3607,15 @@ function CloudScreen({
     created_at: string;
   }>>([]);
   const [revisionStatus, setRevisionStatus] = useState("");
+  const [revisionPreview, setRevisionPreview] = useState<{
+    revision: number;
+    name: string;
+    artboards: number;
+    objects: number;
+    currentArtboards: number;
+    currentObjects: number;
+    changedArtboards: number;
+  } | null>(null);
   const [syncStatus, setSyncStatus] = useState("");
   const [credentialStatus, setCredentialStatus] = useState("");
   const [connectionCode, setConnectionCode] = useState("");
@@ -3810,6 +3819,36 @@ function CloudScreen({
       );
     } catch (error) {
       setRevisionStatus(error instanceof Error ? error.message : "Could not load cloud revisions.");
+    }
+  }
+
+  async function previewCloudRevision(revisionNumber: number) {
+    if (!settings.cloudApiUrl.trim() || !token.trim()) return;
+
+    setRevisionStatus("Loading revision preview...");
+
+    try {
+      const oldRevision = await api().getRevision(project.id, revisionNumber);
+      const snapshot = oldRevision.snapshot;
+      const currentById = new Map(project.artboards.map((item) => [item.id, JSON.stringify(item)]));
+      const changedArtboards = snapshot.artboards.filter(
+        (item) => currentById.get(item.id) !== JSON.stringify(item)
+      ).length + project.artboards.filter(
+        (item) => !snapshot.artboards.some((oldItem) => oldItem.id === item.id)
+      ).length;
+
+      setRevisionPreview({
+        revision: revisionNumber,
+        name: snapshot.name,
+        artboards: snapshot.artboards.length,
+        objects: snapshot.artboards.reduce((total, artboard) => total + artboard.objects.length, 0),
+        currentArtboards: project.artboards.length,
+        currentObjects: project.artboards.reduce((total, artboard) => total + artboard.objects.length, 0),
+        changedArtboards
+      });
+      setRevisionStatus("Revision preview loaded.");
+    } catch (error) {
+      setRevisionStatus(error instanceof Error ? error.message : "Could not preview cloud revision.");
     }
   }
 
@@ -4092,6 +4131,15 @@ function CloudScreen({
         </div>
 
         {revisionStatus && <p className="muted">{revisionStatus}</p>}
+        {revisionPreview && (
+          <div className="revision-preview">
+            <strong>Revision {revisionPreview.revision} Preview</strong>
+            <span>Name: {revisionPreview.name}</span>
+            <span>Artboards: {revisionPreview.artboards} vs current {revisionPreview.currentArtboards}</span>
+            <span>Objects: {revisionPreview.objects} vs current {revisionPreview.currentObjects}</span>
+            <span>Changed/added/removed artboards: {revisionPreview.changedArtboards}</span>
+          </div>
+        )}
 
         <div className="revision-cloud-list">
           {cloudRevisions.length === 0 ? (
@@ -4106,12 +4154,20 @@ function CloudScreen({
                 <small>{new Date(revision.created_at).toLocaleString()}</small>
                 <small>{revision.snapshot_hash.slice(0, 12)}…</small>
               </div>
-              <button
-                className="secondary"
-                onClick={() => void restoreCloudRevision(Number(revision.revision_number))}
-              >
-                Restore as New
-              </button>
+              <div className="hero-actions">
+                <button
+                  className="secondary"
+                  onClick={() => void previewCloudRevision(Number(revision.revision_number))}
+                >
+                  Preview
+                </button>
+                <button
+                  className="secondary"
+                  onClick={() => void restoreCloudRevision(Number(revision.revision_number))}
+                >
+                  Restore as New
+                </button>
+              </div>
             </div>
           ))}
         </div>
