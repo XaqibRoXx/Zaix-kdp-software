@@ -14,10 +14,12 @@
     "qa:large-book": "tsx scripts/stress-large-book.ts",
     "qa:sync-delta": "tsx scripts/stress-sync-delta.ts",
     "qa:kdp-preflight": "tsx scripts/qa-kdp-preflight.ts",
-    "qa:pdf-structural": "tsx scripts/qa-pdf-structural.ts"
+    "qa:pdf-structural": "tsx scripts/qa-pdf-structural.ts",
+    "qa:offline-sync": "tsx scripts/qa-offline-sync.ts"
   },
   "devDependencies": {
-    "tsx": "4.20.6"
+    "tsx": "4.20.6",
+    "fake-indexeddb": "6.2.5"
   },
   "overrides": {
     "baseline-browser-mapping": "2.11.26"
