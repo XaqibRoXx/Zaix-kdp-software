@@ -240,6 +240,7 @@ final class AdminService
             'backup_interval_hours' => 24,
             'backup_retention_count' => 14,
             'backup_include_assets' => false,
+            'backup_secondary_provider' => 'none',
             'backup_secondary_path' => '',
             'recycle_retention_days' => 30,
             'worker_url_override' => '',
