@@ -281,6 +281,51 @@ export class ZaxisCloudApi {
     return this.request<{ ok: boolean; diagnostics: ServerDiagnostics }>("/api/v1/diagnostics");
   }
 
+  async exportJobs() {
+    return this.request<{ ok: boolean; jobs: AdminExportJob[] }>(
+      "/api/v1/export-jobs"
+    );
+  }
+
+  async createExportJob(input: {
+    projectId?: string | null;
+    jobType: string;
+    payload?: Record<string, unknown>;
+  }) {
+    return this.request<{ ok: boolean; job: AdminExportJob }>(
+      "/api/v1/export-jobs",
+      {
+        method: "POST",
+        body: {
+          project_id: input.projectId ?? null,
+          job_type: input.jobType,
+          payload: input.payload ?? {}
+        }
+      }
+    );
+  }
+
+  async updateExportJob(
+    jobId: string,
+    input: {
+      status: AdminExportJob["status"];
+      result?: Record<string, unknown> | null;
+      errorMessage?: string | null;
+    }
+  ) {
+    return this.request<{ ok: boolean; job: AdminExportJob }>(
+      "/api/v1/export-jobs/" + encodeURIComponent(jobId),
+      {
+        method: "PATCH",
+        body: {
+          status: input.status,
+          result: input.result ?? null,
+          error_message: input.errorMessage ?? null
+        }
+      }
+    );
+  }
+
   async adminOverview() {
     return this.request<{ ok: boolean; overview: AdminOverview }>("/api/v1/admin/overview");
   }
