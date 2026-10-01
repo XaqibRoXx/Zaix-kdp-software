@@ -185,6 +185,15 @@ export function buildProjectDelta(
   if (JSON.stringify(base.kdpSettings ?? null) !== JSON.stringify(current.kdpSettings ?? null)) {
     project.kdpSettings = current.kdpSettings;
   }
+  if (JSON.stringify(base.bookStructure ?? null) !== JSON.stringify(current.bookStructure ?? null)) {
+    project.bookStructure = current.bookStructure;
+  }
+  if (JSON.stringify(base.masterPages ?? []) !== JSON.stringify(current.masterPages ?? [])) {
+    project.masterPages = current.masterPages;
+  }
+  if (JSON.stringify(base.reusableStyles ?? []) !== JSON.stringify(current.reusableStyles ?? [])) {
+    project.reusableStyles = current.reusableStyles;
+  }
   if (base.updatedAt !== current.updatedAt) project.updatedAt = current.updatedAt;
 
   const baseById = new Map(base.artboards.map((artboard) => [artboard.id, artboard]));
