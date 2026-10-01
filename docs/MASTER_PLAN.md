@@ -57,6 +57,11 @@ A usable Windows editor build that can create/save/reopen multi-artboard project
 
 ## Phase 2 — Cloud + KDP + PDF Production
 
+**Status: 100% COMPLETE — 2026-10-01**
+
+All Phase 2 exit criteria are implemented and the final Desktop, Windows Tauri bundle, and PHP server gates have passed. See `docs/PHASE2_EXIT.md` for the auditable checklist.
+
+
 ### Cloud Connection
 - Server/Cloud Setup Wizard.
 - API URL, connection code/token, storage, database, share domain and worker settings.
