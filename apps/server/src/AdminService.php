@@ -486,6 +486,84 @@ final class AdminService
         throw new RuntimeException('Export job could not be created.');
     }
 
+    /**
+     * @param array<string,mixed>|null $result
+     */
+    public static function updateExportJob(
+        PDO $db,
+        int $userId,
+        string $jobId,
+        string $status,
+        ?array $result = null,
+        ?string $errorMessage = null,
+        bool $admin = false
+    ): ?array {
+        if (!in_array($status, ['queued', 'running', 'completed', 'failed', 'cancelled'], true)) {
+            throw new RuntimeException('Invalid export job status.');
+        }
+
+        $sql =
+            'UPDATE export_jobs
+             SET status = :status,
+                 result_json = :result_json,
+                 error_message = :error_message,
+                 updated_at = NOW()
+             WHERE id = :id';
+        $params = [
+            'status' => $status,
+            'result_json' => $result !== null
+                ? json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+                : null,
+            'error_message' => $errorMessage !== null
+                ? mb_substr($errorMessage, 0, 4000)
+                : null,
+            'id' => $jobId,
+        ];
+
+        if (!$admin) {
+            $sql .= ' AND user_id = :user_id';
+            $params['user_id'] = $userId;
+        }
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+
+        $lookup = $db->prepare(
+            'SELECT id, user_id, project_id, job_type, status, payload_json, result_json, error_message, created_at, updated_at
+             FROM export_jobs
+             WHERE id = :id' . ($admin ? '' : ' AND user_id = :user_id') . '
+             LIMIT 1'
+        );
+        $lookupParams = ['id' => $jobId];
+        if (!$admin) $lookupParams['user_id'] = $userId;
+        $lookup->execute($lookupParams);
+        $row = $lookup->fetch();
+
+        if (!$row) return null;
+
+        self::log(
+            $db,
+            $userId,
+            'export.' . $status,
+            'export_job',
+            $jobId,
+            $result ?? ($errorMessage !== null ? ['error' => $errorMessage] : null)
+        );
+
+        return [
+            'id' => (string) $row['id'],
+            'user_id' => (int) $row['user_id'],
+            'project_id' => $row['project_id'] !== null ? (string) $row['project_id'] : null,
+            'job_type' => (string) $row['job_type'],
+            'status' => (string) $row['status'],
+            'payload' => $row['payload_json'] ? json_decode((string) $row['payload_json'], true) : null,
+            'result' => $row['result_json'] ? json_decode((string) $row['result_json'], true) : null,
+            'error_message' => $row['error_message'] !== null ? (string) $row['error_message'] : null,
+            'created_at' => (string) $row['created_at'],
+            'updated_at' => (string) $row['updated_at'],
+        ];
+    }
+
     /** @param array<string,mixed> $actor */
     public static function repair(PDO $db, array $actor, string $action): array
     {
