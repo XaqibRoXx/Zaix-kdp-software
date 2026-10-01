@@ -47,6 +47,8 @@ export interface CloudAsset {
   size_bytes: number;
   sha256: string;
   version: number;
+  source_asset_id: string | null;
+  process_kind: string | null;
   created_at: string;
   updated_at: string;
   variants: Record<string, {
