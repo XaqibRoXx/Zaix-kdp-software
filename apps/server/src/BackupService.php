@@ -11,6 +11,24 @@ use ZipArchive;
 
 final class BackupService
 {
+    /** @var list<string> */
+    private const DATABASE_TABLES = [
+        'users',
+        'projects',
+        'project_locks',
+        'project_snapshots',
+        'sync_events',
+        'assets',
+        'asset_variants',
+        'share_links',
+        'share_events',
+        'share_comments',
+        'server_settings',
+        'activity_logs',
+        'notifications',
+        'export_jobs',
+    ];
+
     /** @return array<string,mixed> */
     public static function create(PDO $db, ?int $createdBy = null): array
     {
@@ -26,7 +44,7 @@ final class BackupService
         }
 
         $stamp = gmdate('Ymd-His');
-        $fileName = 'zaxis-kdp-backup-' . $stamp . '.zip';
+        $fileName = 'zaxis-kdp-backup-' . $stamp . '-' . bin2hex(random_bytes(3)) . '.zip';
         $path = $backupRoot . DIRECTORY_SEPARATOR . $fileName;
         $secondaryPath = null;
 
@@ -40,22 +58,7 @@ final class BackupService
                 throw new RuntimeException('Could not open backup archive.');
             }
 
-            $tables = [
-                'users',
-                'projects',
-                'project_locks',
-                'project_snapshots',
-                'sync_events',
-                'assets',
-                'asset_variants',
-                'share_links',
-                'share_events',
-                'share_comments',
-                'server_settings',
-                'activity_logs',
-                'notifications',
-                'export_jobs',
-            ];
+            $tables = self::DATABASE_TABLES;
 
             $database = [];
             foreach ($tables as $table) {
@@ -196,6 +199,272 @@ final class BackupService
             ],
             $stmt->fetchAll()
         );
+    }
+
+    /**
+     * Restore a completed backup by database ID.
+     *
+     * A fresh safety backup is created before destructive database work.
+     * Authentication tokens and pairing codes are intentionally invalidated
+     * after restore so credentials cannot survive a database rollback.
+     *
+     * @return array<string,mixed>
+     */
+    public static function restore(PDO $db, int $backupId, ?int $restoredBy = null): array
+    {
+        $stmt = $db->prepare(
+            'SELECT id, file_name, storage_path, secondary_path, status
+             FROM backups
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $stmt->execute(['id' => $backupId]);
+        $backup = $stmt->fetch();
+
+        if (!$backup || (string) $backup['status'] !== 'completed') {
+            throw new RuntimeException('Completed backup was not found.');
+        }
+
+        $path = null;
+        foreach ([$backup['storage_path'] ?? null, $backup['secondary_path'] ?? null] as $candidate) {
+            if (is_string($candidate) && $candidate !== '' && is_file($candidate)) {
+                $path = $candidate;
+                break;
+            }
+        }
+
+        if ($path === null) {
+            throw new RuntimeException('Backup archive is missing from primary and secondary storage.');
+        }
+
+        [$manifest, $database] = self::readArchive($path);
+
+        // Always make a rollback point from the live state first.
+        $safetyBackup = self::create($db, $restoredBy);
+
+        $storageRoot = rtrim(
+            (string) Config::env('STORAGE_PATH', dirname(__DIR__) . '/storage'),
+            '/\\'
+        );
+
+        $db->exec('SET FOREIGN_KEY_CHECKS=0');
+        $db->beginTransaction();
+
+        try {
+            // Backup history survives a restore, but creator IDs may not.
+            $db->exec('UPDATE backups SET created_by = NULL WHERE created_by IS NOT NULL');
+
+            // Credentials are intentionally excluded from archives.
+            $db->exec('DELETE FROM api_tokens');
+            $db->exec('DELETE FROM pairing_codes');
+
+            foreach (array_reverse(self::DATABASE_TABLES) as $table) {
+                $db->exec('DELETE FROM ' . $table);
+            }
+
+            foreach (self::DATABASE_TABLES as $table) {
+                $rows = $database[$table] ?? null;
+                if (!is_array($rows)) {
+                    throw new RuntimeException('Backup database payload is missing table: ' . $table);
+                }
+
+                foreach ($rows as $row) {
+                    if (!is_array($row) || $row === []) {
+                        continue;
+                    }
+
+                    self::insertRow($db, $table, $row);
+                }
+            }
+
+            // Edit locks are ephemeral and must not be resurrected.
+            $db->exec('DELETE FROM project_locks');
+
+            $db->commit();
+        } catch (Throwable $error) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $error;
+        } finally {
+            $db->exec('SET FOREIGN_KEY_CHECKS=1');
+        }
+
+        if ((bool) ($manifest['include_assets'] ?? false)) {
+            self::restoreAssetFiles($path, $storageRoot);
+        }
+
+        AdminService::log(
+            $db,
+            null,
+            'backup.restored',
+            'backup',
+            (string) $backup['file_name'],
+            [
+                'backup_id' => $backupId,
+                'safety_backup' => $safetyBackup['file_name'],
+                'reauth_required' => true,
+            ]
+        );
+
+        return [
+            'backup_id' => $backupId,
+            'file_name' => (string) $backup['file_name'],
+            'safety_backup' => $safetyBackup,
+            'restored_tables' => self::DATABASE_TABLES,
+            'assets_restored' => (bool) ($manifest['include_assets'] ?? false),
+            'reauth_required' => true,
+        ];
+    }
+
+    /**
+     * @return array{0: array<string,mixed>, 1: array<string,mixed>}
+     */
+    private static function readArchive(string $path): array
+    {
+        if (!class_exists(ZipArchive::class)) {
+            throw new RuntimeException('PHP ZipArchive extension is required for restore.');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new RuntimeException('Could not open backup archive.');
+        }
+
+        try {
+            $manifestJson = $zip->getFromName('manifest.json');
+            $databaseJson = $zip->getFromName('database.json');
+
+            if (!is_string($manifestJson) || !is_string($databaseJson)) {
+                throw new RuntimeException('Backup archive is missing manifest.json or database.json.');
+            }
+
+            $manifest = json_decode($manifestJson, true);
+            $database = json_decode($databaseJson, true);
+
+            if (!is_array($manifest) || !is_array($database)) {
+                throw new RuntimeException('Backup archive JSON is invalid.');
+            }
+
+            if (
+                ($manifest['product'] ?? null) !== 'Zaxis KDP' ||
+                (int) ($manifest['format_version'] ?? 0) !== 1
+            ) {
+                throw new RuntimeException('Unsupported backup archive format.');
+            }
+
+            $manifestTables = $manifest['tables'] ?? null;
+            if (!is_array($manifestTables)) {
+                throw new RuntimeException('Backup manifest table list is invalid.');
+            }
+
+            foreach (self::DATABASE_TABLES as $table) {
+                if (
+                    !in_array($table, $manifestTables, true) ||
+                    !array_key_exists($table, $database) ||
+                    !is_array($database[$table])
+                ) {
+                    throw new RuntimeException('Backup is incomplete; missing table: ' . $table);
+                }
+            }
+
+            return [$manifest, $database];
+        } finally {
+            $zip->close();
+        }
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function insertRow(PDO $db, string $table, array $row): void
+    {
+        if (!in_array($table, self::DATABASE_TABLES, true)) {
+            throw new RuntimeException('Restore attempted an unexpected table.');
+        }
+
+        $columns = array_keys($row);
+        foreach ($columns as $column) {
+            if (!is_string($column) || preg_match('/^[A-Za-z0-9_]+$/', $column) !== 1) {
+                throw new RuntimeException('Backup contains an invalid column name.');
+            }
+        }
+
+        $placeholders = array_map(
+            static fn (int $index): string => ':v' . $index,
+            array_keys($columns)
+        );
+
+        $stmt = $db->prepare(
+            'INSERT INTO ' . $table . ' (' . implode(', ', $columns) . ')
+             VALUES (' . implode(', ', $placeholders) . ')'
+        );
+
+        $params = [];
+        foreach ($columns as $index => $column) {
+            $params['v' . $index] = $row[$column];
+        }
+
+        $stmt->execute($params);
+    }
+
+    private static function restoreAssetFiles(string $archivePath, string $storageRoot): void
+    {
+        if (!is_dir($storageRoot) && !mkdir($storageRoot, 0750, true) && !is_dir($storageRoot)) {
+            throw new RuntimeException('Could not create storage directory for asset restore.');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($archivePath) !== true) {
+            throw new RuntimeException('Could not reopen backup archive for asset restore.');
+        }
+
+        try {
+            for ($index = 0; $index < $zip->numFiles; $index++) {
+                $name = $zip->getNameIndex($index);
+                if (!is_string($name) || !str_starts_with($name, 'storage/')) {
+                    continue;
+                }
+
+                $relative = str_replace('\\', '/', substr($name, strlen('storage/')));
+                if (
+                    $relative === '' ||
+                    str_ends_with($relative, '/') ||
+                    str_starts_with($relative, '/') ||
+                    preg_match('#(^|/)\.\.(/|$)#', $relative) === 1 ||
+                    str_starts_with($relative, 'backups/')
+                ) {
+                    continue;
+                }
+
+                $destination = $storageRoot . DIRECTORY_SEPARATOR .
+                    str_replace('/', DIRECTORY_SEPARATOR, $relative);
+                $directory = dirname($destination);
+
+                if (!is_dir($directory) && !mkdir($directory, 0750, true) && !is_dir($directory)) {
+                    throw new RuntimeException('Could not create restored asset directory.');
+                }
+
+                $source = $zip->getStream($name);
+                if ($source === false) {
+                    throw new RuntimeException('Could not read restored asset from backup.');
+                }
+
+                $target = fopen($destination, 'wb');
+                if ($target === false) {
+                    fclose($source);
+                    throw new RuntimeException('Could not write restored asset.');
+                }
+
+                $copied = stream_copy_to_stream($source, $target);
+                fclose($source);
+                fclose($target);
+
+                if ($copied === false) {
+                    throw new RuntimeException('Restored asset copy failed.');
+                }
+            }
+        } finally {
+            $zip->close();
+        }
     }
 
     public static function runScheduled(PDO $db): ?array

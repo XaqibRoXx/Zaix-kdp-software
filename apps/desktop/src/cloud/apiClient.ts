@@ -486,6 +486,29 @@ export class ZaxisCloudApi {
     });
   }
 
+  async restoreAdminBackup(id: number) {
+    return this.request<{
+      ok: boolean;
+      result: {
+        backup_id: number;
+        file_name: string;
+        safety_backup: {
+          file_name: string;
+          path: string;
+          secondary_path: string | null;
+          size_bytes: number;
+          created_at: string;
+        };
+        restored_tables: string[];
+        assets_restored: boolean;
+        reauth_required: boolean;
+      };
+    }>(
+      "/api/v1/admin/backups/" + encodeURIComponent(String(id)) + "/restore",
+      { method: "POST" }
+    );
+  }
+
   async adminRepair(action: "purge-expired-locks" | "purge-expired-pairing-codes" | "ensure-storage" | "purge-old-recycle") {
     return this.request<{ ok: boolean; result: Record<string, unknown> }>(
       "/api/v1/admin/repair",
