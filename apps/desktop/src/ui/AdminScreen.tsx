@@ -54,6 +54,11 @@ export function AdminScreen({
   const [notifyTitle, setNotifyTitle] = useState("");
   const [notifyBody, setNotifyBody] = useState("");
   const [notifyLevel, setNotifyLevel] = useState<AdminNotification["level"]>("info");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<AdminUser["role"]>("editor");
+  const [inviteQuotaGb, setInviteQuotaGb] = useState(5);
+  const [inviteCode, setInviteCode] = useState("");
 
   const api = useMemo(
     () => new ZaxisCloudApi(appSettings.cloudApiUrl.trim(), token.trim() || undefined),
@@ -129,6 +134,35 @@ export function AdminScreen({
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save Admin settings.");
       setBusy(false);
+    }
+  }
+
+  async function createUserInvite() {
+    if (!inviteName.trim() || !inviteEmail.trim()) {
+      setStatus("User name and email are required.");
+      return;
+    }
+
+    setStatus("Creating user and connection code...");
+
+    try {
+      const result = await api.createAdminUser({
+        name: inviteName.trim(),
+        email: inviteEmail.trim(),
+        role: inviteRole,
+        storageQuotaBytes: Math.max(0, inviteQuotaGb) * 1073741824
+      });
+      setInviteCode(
+        result.connection_code +
+          " • expires " +
+          new Date(result.expires_at).toLocaleString()
+      );
+      setInviteName("");
+      setInviteEmail("");
+      setStatus("User created. Share the one-time connection code securely.");
+      await refreshAll();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not create user.");
     }
   }
 
@@ -262,6 +296,31 @@ export function AdminScreen({
             <h3>Roles / Permissions / Storage</h3>
           </div>
           <span className="pill">{users.length} users</span>
+        </div>
+
+        <div className="admin-invite">
+          <div className="settings-grid">
+            <label>Name
+              <input value={inviteName} onChange={(event) => setInviteName(event.target.value)} />
+            </label>
+            <label>Email
+              <input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} />
+            </label>
+            <label>Role
+              <select value={inviteRole} onChange={(event) => setInviteRole(event.target.value as AdminUser["role"])}>
+                <option value="admin">Admin</option>
+                <option value="editor">Editor</option>
+                <option value="reviewer">Reviewer</option>
+              </select>
+            </label>
+            <label>Quota GB
+              <input type="number" min="0" step="0.5" value={inviteQuotaGb} onChange={(event) => setInviteQuotaGb(Number(event.target.value))} />
+            </label>
+          </div>
+          <div className="hero-actions">
+            <button className="primary" onClick={() => void createUserInvite()}>Create User & Connection Code</button>
+          </div>
+          {inviteCode && <p className="connection-code-output">{inviteCode}</p>}
         </div>
 
         <div className="admin-table">
