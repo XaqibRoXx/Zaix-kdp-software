@@ -35,6 +35,9 @@ jobs:
       - name: Large-book stress smoke
         run: npm run qa:large-book
 
+      - name: Sparse sync delta regression
+        run: npm run qa:sync-delta
+
   server-worker-check:
     runs-on: ubuntu-latest
     steps:
