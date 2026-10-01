@@ -680,7 +680,7 @@ try {
         $projectId = isset($_GET['project_id']) ? trim((string) $_GET['project_id']) : '';
 
         $sql =
-            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, created_at, updated_at
+            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, source_asset_id, process_kind, created_at, updated_at
              FROM assets
              WHERE owner_user_id = :owner AND deleted_at IS NULL';
         $params = ['owner' => $user['id']];
@@ -832,6 +832,33 @@ try {
                     'size' => filesize($tmp) ?: 0,
                 ]
             );
+
+            $db->prepare(
+                'UPDATE assets
+                 SET source_asset_id = :source_asset_id,
+                     process_kind = :process_kind
+                 WHERE id = :id AND owner_user_id = :owner'
+            )->execute([
+                'source_asset_id' => $assetId,
+                'process_kind' => 'background-remove:' . $mode,
+                'id' => $processed['id'],
+                'owner' => $user['id'],
+            ]);
+
+            $processedStmt = $db->prepare(
+                'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, source_asset_id, process_kind, created_at, updated_at
+                 FROM assets
+                 WHERE id = :id AND owner_user_id = :owner
+                 LIMIT 1'
+            );
+            $processedStmt->execute([
+                'id' => $processed['id'],
+                'owner' => $user['id'],
+            ]);
+            $processedRow = $processedStmt->fetch();
+            if ($processedRow) {
+                $processed = AssetStorage::decorateAsset($db, $processedRow);
+            }
         } catch (RuntimeException $error) {
             Http::json([
                 'ok' => false,
