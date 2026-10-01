@@ -1,4 +1,5 @@
 import { PDFDocument, degrees } from "pdf-lib";
+import JSZip from "jszip";
 
 export interface PdfStructureInfo {
   name: string;
@@ -13,6 +14,21 @@ export interface PdfCompareResult {
   samePageCount: boolean;
   samePageSizes: boolean;
   sizeDeltaBytes: number;
+}
+
+export interface PdfSplitBundleResult {
+  bytes: Uint8Array;
+  outputCount: number;
+  fileNames: string[];
+}
+
+export interface PdfOptimizeResult {
+  bytes: Uint8Array;
+  originalSizeBytes: number;
+  optimizedSizeBytes: number;
+  savedBytes: number;
+  savedPercent: number;
+  changed: boolean;
 }
 
 export async function mergePdfFiles(files: File[]): Promise<Uint8Array> {
@@ -122,6 +138,96 @@ export async function comparePdfStructure(left: File, right: File): Promise<PdfC
     samePageCount: leftInfo.pageCount === rightInfo.pageCount,
     samePageSizes,
     sizeDeltaBytes: rightInfo.sizeBytes - leftInfo.sizeBytes
+  };
+}
+
+export async function splitPdfToZip(
+  file: File,
+  groups: string
+): Promise<PdfSplitBundleResult> {
+  const source = await PDFDocument.load(await file.arrayBuffer(), {
+    updateMetadata: false
+  });
+
+  const totalPages = source.getPageCount();
+  const normalizedGroups = groups
+    .split(";")
+    .map((group) => group.trim())
+    .filter(Boolean);
+
+  const requestedGroups =
+    normalizedGroups.length > 0
+      ? normalizedGroups
+      : Array.from({ length: totalPages }, (_, index) => String(index + 1));
+
+  const zip = new JSZip();
+  const base = file.name.replace(/\.pdf$/i, "") || "split";
+  const fileNames: string[] = [];
+
+  for (let index = 0; index < requestedGroups.length; index += 1) {
+    const group = requestedGroups[index];
+    const indices = parsePdfPageRange(group, totalPages);
+
+    if (indices.length === 0) {
+      throw new Error("Split group '" + group + "' is empty or invalid.");
+    }
+
+    const output = await PDFDocument.create();
+    const pages = await output.copyPages(source, indices);
+    pages.forEach((page) => output.addPage(page));
+
+    const bytes = await output.save({
+      useObjectStreams: true,
+      addDefaultPage: false
+    });
+
+    const safeGroup = group.replace(/[^0-9,-]+/g, "-").replace(/^-+|-+$/g, "") || String(index + 1);
+    const fileName = base + "-part-" + String(index + 1).padStart(2, "0") + "-" + safeGroup + ".pdf";
+    zip.file(fileName, bytes);
+    fileNames.push(fileName);
+  }
+
+  const archive = await zip.generateAsync({
+    type: "uint8array",
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 }
+  });
+
+  return {
+    bytes: archive,
+    outputCount: fileNames.length,
+    fileNames
+  };
+}
+
+export async function optimizePdfLossless(file: File): Promise<PdfOptimizeResult> {
+  const originalBytes = new Uint8Array(await file.arrayBuffer());
+  const document = await PDFDocument.load(originalBytes, {
+    updateMetadata: false,
+    ignoreEncryption: false
+  });
+
+  const optimized = await document.save({
+    useObjectStreams: true,
+    addDefaultPage: false,
+    updateFieldAppearances: false,
+    objectsPerTick: 50
+  });
+
+  const optimizedSize = optimized.byteLength;
+  const originalSize = originalBytes.byteLength;
+  const changed = optimizedSize < originalSize;
+  const chosen = changed ? optimized : originalBytes;
+  const savedBytes = Math.max(0, originalSize - chosen.byteLength);
+  const savedPercent = originalSize > 0 ? (savedBytes / originalSize) * 100 : 0;
+
+  return {
+    bytes: chosen,
+    originalSizeBytes: originalSize,
+    optimizedSizeBytes: chosen.byteLength,
+    savedBytes,
+    savedPercent: Math.round(savedPercent * 100) / 100,
+    changed
   };
 }
 
