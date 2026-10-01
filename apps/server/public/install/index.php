@@ -166,9 +166,9 @@ try {
     }
 
     $stmt = $db->prepare(
-        'INSERT INTO users (email, name)
-         VALUES (:email, :name)
-         ON DUPLICATE KEY UPDATE name = VALUES(name), updated_at = NOW()'
+        'INSERT INTO users (email, name, role)
+         VALUES (:email, :name, "owner")
+         ON DUPLICATE KEY UPDATE name = VALUES(name), role = "owner", updated_at = NOW()'
     );
     $stmt->execute(['email' => $ownerEmail, 'name' => $ownerName]);
 
