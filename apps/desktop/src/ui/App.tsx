@@ -93,13 +93,21 @@ import {
 import { ensurePdfExtension, saveBinaryToComputer, savePdfToComputer } from "../export/savePdf";
 import {
   comparePdfStructure,
+  cropPdfPages,
   extractPdfPages,
   mergePdfFiles,
   optimizePdfLossless,
+  removePdfPages,
+  reorderPdfPages,
   rotatePdfPages,
   splitPdfToZip,
   type PdfCompareResult
 } from "../export/pdfTools";
+import {
+  comparePdfVisual,
+  recompressPdfLossy,
+  type VisualPdfCompareResult
+} from "../export/pdfRaster";
 import {
   deleteProjectFromLibrary,
   listProjectSummaries,
@@ -2761,9 +2769,17 @@ function PdfToolsScreen() {
   const [splitGroups, setSplitGroups] = useState("");
   const [pageStatus, setPageStatus] = useState("");
   const [optimizeStatus, setOptimizeStatus] = useState("");
+  const [reorderOrder, setReorderOrder] = useState("");
+  const [cropTop, setCropTop] = useState(0);
+  const [cropRight, setCropRight] = useState(0);
+  const [cropBottom, setCropBottom] = useState(0);
+  const [cropLeft, setCropLeft] = useState(0);
+  const [lossyDpi, setLossyDpi] = useState(150);
+  const [lossyQuality, setLossyQuality] = useState(0.78);
   const [leftCompare, setLeftCompare] = useState<File | null>(null);
   const [rightCompare, setRightCompare] = useState<File | null>(null);
   const [compareResult, setCompareResult] = useState<PdfCompareResult | null>(null);
+  const [visualCompareResult, setVisualCompareResult] = useState<VisualPdfCompareResult | null>(null);
   const [compareStatus, setCompareStatus] = useState("");
   const mergeInputRef = useRef<HTMLInputElement | null>(null);
   const sourceInputRef = useRef<HTMLInputElement | null>(null);
@@ -2898,6 +2914,88 @@ function PdfToolsScreen() {
     }
   }
 
+  async function removeAndSave() {
+    if (!sourceFile) return setPageStatus("Select a PDF first.");
+
+    try {
+      setPageStatus("Removing selected pages...");
+      const bytes = await removePdfPages(sourceFile, range);
+      const base = sourceFile.name.replace(/\.pdf$/i, "");
+      const path = await savePdfToComputer(bytes, base + "-removed-pages.pdf");
+      setPageStatus(path ? "Pages removed and PDF saved." : "Save cancelled.");
+    } catch (error) {
+      setPageStatus(error instanceof Error ? error.message : "Remove pages failed.");
+    }
+  }
+
+  async function reorderAndSave() {
+    if (!sourceFile) return setPageStatus("Select a PDF first.");
+
+    try {
+      setPageStatus("Reordering PDF...");
+      const bytes = await reorderPdfPages(sourceFile, reorderOrder);
+      const base = sourceFile.name.replace(/\.pdf$/i, "");
+      const path = await savePdfToComputer(bytes, base + "-reordered.pdf");
+      setPageStatus(path ? "Reordered PDF saved." : "Save cancelled.");
+    } catch (error) {
+      setPageStatus(error instanceof Error ? error.message : "PDF reorder failed.");
+    }
+  }
+
+  async function cropAndSave() {
+    if (!sourceFile) return setPageStatus("Select a PDF first.");
+
+    try {
+      setPageStatus("Cropping selected pages...");
+      const bytes = await cropPdfPages(sourceFile, range, {
+        top: cropTop,
+        right: cropRight,
+        bottom: cropBottom,
+        left: cropLeft
+      });
+      const base = sourceFile.name.replace(/\.pdf$/i, "");
+      const path = await savePdfToComputer(bytes, base + "-cropped.pdf");
+      setPageStatus(path ? "Cropped PDF saved." : "Save cancelled.");
+    } catch (error) {
+      setPageStatus(error instanceof Error ? error.message : "PDF crop failed.");
+    }
+  }
+
+  async function lossyRecompressAndSave() {
+    if (!sourceFile) return setOptimizeStatus("Select a PDF first.");
+
+    setOptimizeStatus("Rasterizing and recompressing PDF...");
+
+    try {
+      const result = await recompressPdfLossy(sourceFile, {
+        dpi: lossyDpi,
+        jpegQuality: lossyQuality
+      });
+
+      const base = sourceFile.name.replace(/\.pdf$/i, "");
+      const path = await savePdfToComputer(result.bytes, base + "-compressed.pdf");
+
+      if (!path) {
+        setOptimizeStatus("Compression save cancelled.");
+        return;
+      }
+
+      setOptimizeStatus(
+        "Lossy recompress: " +
+        (result.originalSizeBytes / (1024 * 1024)).toFixed(2) +
+        " MB → " +
+        (result.outputSizeBytes / (1024 * 1024)).toFixed(2) +
+        " MB • " +
+        (result.outputSizeBytes < result.originalSizeBytes
+          ? "saved " + result.savedPercent.toFixed(2) + "%"
+          : "output is larger; use lower DPI/quality") +
+        ". Text/vector content is rasterized in this mode."
+      );
+    } catch (error) {
+      setOptimizeStatus(error instanceof Error ? error.message : "Lossy recompression failed.");
+    }
+  }
+
   async function compareFiles() {
     if (!leftCompare || !rightCompare) {
       setCompareStatus("Select both PDFs first.");
@@ -2907,9 +3005,19 @@ function PdfToolsScreen() {
     setCompareStatus("Comparing PDF structure...");
 
     try {
-      const result = await comparePdfStructure(leftCompare, rightCompare);
-      setCompareResult(result);
-      setCompareStatus("Structural comparison complete.");
+      const [structure, visual] = await Promise.all([
+        comparePdfStructure(leftCompare, rightCompare),
+        comparePdfVisual(leftCompare, rightCompare)
+      ]);
+      setCompareResult(structure);
+      setVisualCompareResult(visual);
+      setCompareStatus(
+        "Comparison complete • " +
+        visual.differentPages +
+        " visually different page" +
+        (visual.differentPages === 1 ? "" : "s") +
+        "."
+      );
     } catch (error) {
       setCompareStatus(error instanceof Error ? error.message : "PDF comparison failed.");
     }
@@ -2993,14 +3101,41 @@ function PdfToolsScreen() {
               placeholder="1-10;11-20;21-30 (blank = every page)"
             />
           </label>
+          <label>Reorder (all pages)
+            <input
+              value={reorderOrder}
+              onChange={(event) => setReorderOrder(event.target.value)}
+              placeholder="3,1,2,4,5"
+            />
+          </label>
+          <label>Crop margins (pt)
+            <div className="crop-grid">
+              <input type="number" min="0" value={cropTop} onChange={(event) => setCropTop(Number(event.target.value))} placeholder="Top" />
+              <input type="number" min="0" value={cropRight} onChange={(event) => setCropRight(Number(event.target.value))} placeholder="Right" />
+              <input type="number" min="0" value={cropBottom} onChange={(event) => setCropBottom(Number(event.target.value))} placeholder="Bottom" />
+              <input type="number" min="0" value={cropLeft} onChange={(event) => setCropLeft(Number(event.target.value))} placeholder="Left" />
+            </div>
+          </label>
         </div>
         <div className="hero-actions">
           <button className="primary" disabled={!sourceFile} onClick={() => void extractAndSave()}>Extract & Save</button>
           <button className="secondary" disabled={!sourceFile} onClick={() => void splitAndSave()}>Split to ZIP</button>
+          <button className="secondary" disabled={!sourceFile} onClick={() => void removeAndSave()}>Remove Range</button>
+          <button className="secondary" disabled={!sourceFile || !reorderOrder.trim()} onClick={() => void reorderAndSave()}>Reorder</button>
+          <button className="secondary" disabled={!sourceFile} onClick={() => void cropAndSave()}>Crop Range</button>
           <button className="secondary" disabled={!sourceFile} onClick={() => void rotateAndSave(90)}>Rotate 90°</button>
           <button className="secondary" disabled={!sourceFile} onClick={() => void rotateAndSave(180)}>Rotate 180°</button>
           <button className="secondary" disabled={!sourceFile} onClick={() => void rotateAndSave(270)}>Rotate 270°</button>
           <button className="secondary" disabled={!sourceFile} onClick={() => void optimizeAndSave()}>Lossless Optimize</button>
+          <button className="secondary" disabled={!sourceFile} onClick={() => void lossyRecompressAndSave()}>Lossy Recompress</button>
+        </div>
+        <div className="settings-grid compression-settings">
+          <label>Lossy DPI
+            <input type="number" min="72" max="300" value={lossyDpi} onChange={(event) => setLossyDpi(Number(event.target.value))} />
+          </label>
+          <label>JPEG Quality
+            <input type="number" min="0.35" max="0.98" step="0.01" value={lossyQuality} onChange={(event) => setLossyQuality(Number(event.target.value))} />
+          </label>
         </div>
         {pageStatus && <p className="muted">{pageStatus}</p>}
         {optimizeStatus && <p className="muted">{optimizeStatus}</p>}
@@ -3019,6 +3154,7 @@ function PdfToolsScreen() {
             onChange={(event) => {
               setLeftCompare(event.target.files?.[0] ?? null);
               setCompareResult(null);
+                setVisualCompareResult(null);
               event.currentTarget.value = "";
             }}
           />
@@ -3030,6 +3166,7 @@ function PdfToolsScreen() {
             onChange={(event) => {
               setRightCompare(event.target.files?.[0] ?? null);
               setCompareResult(null);
+                setVisualCompareResult(null);
               event.currentTarget.value = "";
             }}
           />
@@ -3046,6 +3183,24 @@ function PdfToolsScreen() {
             <div><small>Page Sizes</small><strong>{compareResult.samePageSizes ? "Same" : "Changed"}</strong></div>
             <div><small>Old Size</small><strong>{(compareResult.left.sizeBytes / (1024 * 1024)).toFixed(2)} MB</strong></div>
             <div><small>New Size</small><strong>{(compareResult.right.sizeBytes / (1024 * 1024)).toFixed(2)} MB</strong></div>
+          </div>
+        )}
+
+        {visualCompareResult && (
+          <div className="visual-compare">
+            <div className="pdf-compare-grid">
+              <div><small>Visual Pages Different</small><strong>{visualCompareResult.differentPages}</strong></div>
+              <div><small>Mean Pixel Difference</small><strong>{visualCompareResult.meanDifferencePercent}%</strong></div>
+              <div><small>Max Page Difference</small><strong>{visualCompareResult.maxDifferencePercent}%</strong></div>
+            </div>
+            <div className="visual-page-diffs">
+              {visualCompareResult.pageDiffs.filter((item) => item.different).slice(0, 30).map((item) => (
+                <span key={item.page}>
+                  Page {item.page}: {item.differencePercent}% avg • {item.changedPixelPercent}% pixels changed
+                </span>
+              ))}
+              {visualCompareResult.differentPages === 0 && <span>No visual pixel differences detected.</span>}
+            </div>
           </div>
         )}
 
