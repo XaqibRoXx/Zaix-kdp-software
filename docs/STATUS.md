@@ -149,6 +149,17 @@ The master plan marks these optional or “where supported”, so they are not P
 - External heavy PDF worker (local desktop processing works without it).
 
 ## Phase 3 — In Progress
+- [x] Cloud assets now have stable version numbers and updated timestamps.
+- [x] Existing cloud asset binary can be replaced while keeping the same asset ID.
+- [x] Image proxies are regenerated after cloud asset replacement.
+- [x] Project image objects can persist linked cloud asset ID/version/SHA metadata.
+- [x] Link Selected Image workflow from Asset Library.
+- [x] Missing linked asset detection.
+- [x] Update Available detection when cloud asset version/SHA changes.
+- [x] Refresh All Linked Updates across the project.
+- [x] Batch Relink references from one cloud asset to another.
+- [x] Linked reference counts and current/outdated/missing status UI.
+- [x] Existing SHA-256 upload dedupe remains active to prevent duplicate cloud copies.
 - [x] Persistent public share-link database model.
 - [x] One stable random public slug per share.
 - [x] No-login browser preview page.
@@ -169,12 +180,8 @@ The master plan marks these optional or “where supported”, so they are not P
 - [x] Export result reports the new public URL immediately.
 
 ## Remaining — Phase 3
-- [ ] Advanced linked-asset/proxy lifecycle and duplicate-management UI.
+- [x] Advanced linked-asset/proxy lifecycle, update/missing detection, stable asset replacement and batch relink UI.
 - [ ] High-quality background remover + refine brush/edge cleanup.
-- [ ] Public PDF share links.
-- [ ] Password/private/expiry/revoke/download controls.
-- [ ] Replace File, Keep Same Link.
-- [ ] Share analytics.
 - [ ] Admin/storage/backups/quota management and deeper diagnostics.
 
 ## Pending — Phase 4
