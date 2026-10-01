@@ -2,6 +2,11 @@ ALTER TABLE users
   ADD COLUMN role ENUM('owner','admin','editor','reviewer') NOT NULL DEFAULT 'editor' AFTER password_hash,
   ADD COLUMN storage_quota_bytes BIGINT UNSIGNED NOT NULL DEFAULT 5368709120 AFTER role;
 
+UPDATE users
+SET role = 'owner'
+WHERE id = (SELECT first_id FROM (SELECT MIN(id) AS first_id FROM users) AS first_user)
+  AND NOT EXISTS (SELECT 1 FROM (SELECT role FROM users) AS existing_roles WHERE role = 'owner');
+
 CREATE TABLE IF NOT EXISTS server_settings (
   setting_key VARCHAR(120) PRIMARY KEY,
   setting_value LONGTEXT NOT NULL,
