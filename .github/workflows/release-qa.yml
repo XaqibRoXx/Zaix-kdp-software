@@ -73,6 +73,12 @@ jobs:
       - name: Compile image worker
         run: python -m compileall -q apps/worker
 
+      - name: Install lightweight worker QA dependencies
+        run: python -m pip install "fastapi==0.142.2" "python-multipart>=0.0.20,<1" "Pillow>=11,<13"
+
+      - name: Image worker processing contract regression
+        run: python scripts/qa-worker-contract.py
+
       - name: Package cPanel server
         run: |
           mkdir -p release
