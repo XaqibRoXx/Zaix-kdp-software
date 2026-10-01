@@ -55,6 +55,24 @@ export interface CloudAsset {
   }>;
 }
 
+export interface ServerDiagnostics {
+  php_version: string;
+  database: string;
+  storage_provider: string;
+  storage_path: string;
+  storage_exists: boolean;
+  storage_writable: boolean;
+  storage_free_bytes: number | null;
+  storage_total_bytes: number | null;
+  share_base_url: string;
+  worker_url: string;
+  max_upload_mb: number;
+  gd_available: boolean;
+  pdo_mysql_available: boolean;
+  upload_max_filesize: string | null;
+  post_max_size: string | null;
+}
+
 export interface ProjectLockInfo {
   project_id: string;
   user_id: number | string;
@@ -112,6 +130,10 @@ export class ZaxisCloudApi {
 
   async me() {
     return this.request<{ ok: boolean; user: { id: number; email: string; name: string } }>("/api/v1/me");
+  }
+
+  async diagnostics() {
+    return this.request<{ ok: boolean; diagnostics: ServerDiagnostics }>("/api/v1/diagnostics");
   }
 
   async listProjects() {
