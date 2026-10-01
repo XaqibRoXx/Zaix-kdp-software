@@ -60,7 +60,7 @@ final class AssetStorage
         }
 
         $existingStmt = $db->prepare(
-            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, created_at, updated_at
+            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, source_asset_id, process_kind, created_at, updated_at
              FROM assets
              WHERE owner_user_id = :owner AND sha256 = :sha AND deleted_at IS NULL
              LIMIT 1'
@@ -114,7 +114,7 @@ final class AssetStorage
         self::createImageProxy($db, $assetId, $absolutePath, $mime, $storageRoot, $folder);
 
         $stmt = $db->prepare(
-            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, created_at, updated_at
+            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, source_asset_id, process_kind, created_at, updated_at
              FROM assets WHERE id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $assetId]);
@@ -136,7 +136,7 @@ final class AssetStorage
     public static function replaceUpload(PDO $db, int $userId, string $assetId, array $file): array
     {
         $currentStmt = $db->prepare(
-            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, created_at, updated_at
+            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, source_asset_id, process_kind, created_at, updated_at
              FROM assets
              WHERE id = :id AND owner_user_id = :owner AND deleted_at IS NULL
              LIMIT 1'
@@ -252,7 +252,7 @@ final class AssetStorage
         }
 
         $reloaded = $db->prepare(
-            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, created_at, updated_at
+            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, source_asset_id, process_kind, created_at, updated_at
              FROM assets WHERE id = :id AND owner_user_id = :owner LIMIT 1'
         );
         $reloaded->execute(['id' => $assetId, 'owner' => $userId]);
@@ -294,6 +294,12 @@ final class AssetStorage
             'size_bytes' => (int) $asset['size_bytes'],
             'sha256' => (string) $asset['sha256'],
             'version' => isset($asset['version']) ? (int) $asset['version'] : 1,
+            'source_asset_id' => isset($asset['source_asset_id']) && $asset['source_asset_id'] !== null
+                ? (string) $asset['source_asset_id']
+                : null,
+            'process_kind' => isset($asset['process_kind']) && $asset['process_kind'] !== null
+                ? (string) $asset['process_kind']
+                : null,
             'created_at' => (string) $asset['created_at'],
             'updated_at' => isset($asset['updated_at']) ? (string) $asset['updated_at'] : (string) $asset['created_at'],
             'variants' => $variants,
