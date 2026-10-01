@@ -148,6 +148,7 @@ export interface AdminSettings {
   backup_interval_hours: number;
   backup_retention_count: number;
   backup_include_assets: boolean;
+  backup_secondary_provider: "none" | "local-path";
   backup_secondary_path: string;
   recycle_retention_days: number;
   worker_url_override: string;
