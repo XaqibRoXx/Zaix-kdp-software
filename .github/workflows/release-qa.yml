@@ -1,0 +1,147 @@
+name: Phase 4 Release QA
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [phase4-release-qa]
+
+concurrency:
+  group: phase4-release-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: Build desktop frontend
+        run: npm run build:desktop
+
+  server-worker-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          coverage: none
+
+      - name: Validate PHP syntax
+        run: find apps/server -type f -name "*.php" -print0 | xargs -0 -n1 php -l
+
+      - name: Validate composer manifest
+        run: php -r 'json_decode(file_get_contents("apps/server/composer.json"), true, 512, JSON_THROW_ON_ERROR);'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile image worker
+        run: python -m compileall -q apps/worker
+
+      - name: Package cPanel server
+        run: |
+          mkdir -p release
+          cd apps/server
+          zip -r ../../release/zaxis-kdp-server.zip . -x ".env" "storage/*" "*.log"
+
+      - name: Package optional image worker
+        run: |
+          cd apps/worker
+          zip -r ../../release/zaxis-kdp-worker.zip . -x "__pycache__/*" "*.pyc" ".venv/*"
+
+      - name: Generate package checksums
+        run: |
+          cd release
+          sha256sum zaxis-kdp-server.zip zaxis-kdp-worker.zip > SHA256SUMS.txt
+
+      - name: Upload server release packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: zaxis-kdp-server-worker
+          path: |
+            release/zaxis-kdp-server.zip
+            release/zaxis-kdp-worker.zip
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+
+  windows-release-candidate:
+    needs: [desktop-check, server-worker-check]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build installable Windows bundles
+        run: npm --workspace @zaxis-kdp/desktop run desktop:build
+
+      - name: Stage installer bundles
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release/installed | Out-Null
+          Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/msi" -Filter *.msi -ErrorAction SilentlyContinue | Copy-Item -Destination release/installed
+          Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis" -Filter *.exe -ErrorAction SilentlyContinue | Copy-Item -Destination release/installed
+          if (-not (Get-ChildItem release/installed -File -ErrorAction SilentlyContinue)) {
+            throw "No Windows installer bundle was produced."
+          }
+
+      - name: Build portable Windows executable
+        run: npm --workspace @zaxis-kdp/desktop run tauri -- build --no-bundle --config src-tauri/tauri.portable.conf.json
+
+      - name: Stage portable package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release/portable/app-data | Out-Null
+          Copy-Item "apps/desktop/src-tauri/target/release/zaxis-kdp.exe" "release/portable/Zaxis-KDP-Portable.exe"
+          Set-Content -Path "release/portable/PORTABLE.txt" -Value "Keep this folder together. Tauri-managed app data is stored in ./app-data for this portable flavor."
+
+      - name: Generate Windows SHA-256 manifest
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem release -Recurse -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            $relative = $file.FullName.Substring((Resolve-Path release).Path.Length + 1).Replace("\\", "/")
+            "$hash  $relative"
+          }
+          $lines | Set-Content release/SHA256SUMS.txt
+
+      - name: Upload Windows release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: zaxis-kdp-windows-release-candidate
+          path: |
+            release/installed/**
+            release/portable/**
+            release/SHA256SUMS.txt
+          if-no-files-found: error
