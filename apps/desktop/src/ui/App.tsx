@@ -104,6 +104,7 @@ import {
 import { ensurePdfExtension, saveBinaryToComputer, savePdfToComputer } from "../export/savePdf";
 import { AdminScreen } from "./AdminScreen";
 import { ImageRefineModal } from "./ImageRefineModal";
+import { NotificationsScreen } from "./NotificationsScreen";
 import {
   comparePdfStructure,
   cropPdfPages,
@@ -131,7 +132,7 @@ import {
   type ProjectSummary
 } from "../state/projectLibrary";
 
-type Screen = "dashboard" | "editor" | "assets" | "pdfTools" | "cloud" | "admin" | "settings";
+type Screen = "dashboard" | "editor" | "assets" | "pdfTools" | "cloud" | "notifications" | "admin" | "settings";
 
 interface NativeCacheStatus {
   path: string;
@@ -163,6 +164,7 @@ const navigation: Array<{ id: Screen; label: string }> = [
   { id: "assets", label: "Assets" },
   { id: "pdfTools", label: "PDF Tools" },
   { id: "cloud", label: "Cloud & Server" },
+  { id: "notifications", label: "Notifications" },
   { id: "admin", label: "Admin" },
   { id: "settings", label: "Settings" }
 ];
@@ -813,6 +815,12 @@ export function App() {
             onReplaceProject={replaceProjectFromCloud}
           />
         )}
+        {screen === "notifications" && (
+          <NotificationsScreen
+            appSettings={appSettings}
+            token={cloudToken}
+          />
+        )}
         {screen === "admin" && (
           <AdminScreen
             appSettings={appSettings}
@@ -880,6 +888,7 @@ function titleFor(screen: Screen) {
   if (screen === "assets") return "Asset Library";
   if (screen === "pdfTools") return "PDF Tools";
   if (screen === "cloud") return "Cloud & Server";
+  if (screen === "notifications") return "Notifications";
   if (screen === "admin") return "Admin";
   if (screen === "settings") return "Settings";
   return "Zaxis KDP";
