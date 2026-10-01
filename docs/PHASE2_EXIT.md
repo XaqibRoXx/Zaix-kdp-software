@@ -98,8 +98,8 @@ Phase 2 objective: complete the Cloud + KDP + PDF production workflow so a proje
 - [x] PDF crop.
 - [x] Structural compare.
 - [x] Rendered visual pixel-diff compare.
-- [x] PDF.js scripting/eval disabled for local processing.
-- [x] PDF.js upgraded to a patched current release.
+- [x] PDF.js upgraded to patched release 6.3.289 for local rendering/compare/recompression.
+- [x] PDF processing uses the document/render API only; the PDF.js viewer scripting layer is not instantiated.
 
 ## Optional / Non-blocking Extensions
 The master plan explicitly lists these as optional or “where supported”; they are not Phase 2 exit blockers:
