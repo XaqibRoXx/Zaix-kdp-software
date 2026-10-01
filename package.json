@@ -16,5 +16,8 @@
   },
   "devDependencies": {
     "tsx": "4.20.6"
+  },
+  "overrides": {
+    "baseline-browser-mapping": "2.11.26"
   }
 }
