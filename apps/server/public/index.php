@@ -988,20 +988,9 @@ try {
     }
 
     if ($method === 'POST' && $path === '/api/v1/assets/background-remove-batch') {
-        $features = AdminService::getSettings($db);
-
-        if (!(bool) ($features['feature_background_remove'] ?? true) ||
-            !(bool) ($features['feature_batch_processing'] ?? true)
-        ) {
-            Http::json([
-                'ok' => false,
-                'error' => 'Batch background removal is disabled by Admin.',
-                'request_id' => $requestId,
-            ], 403);
-        }
-
+        $globalSettings = AdminService::getSettings($db);
         $body = Http::body();
-        $workerUrlOverride = trim((string) ($features['worker_url_override'] ?? ''));
+        $workerUrlOverride = trim((string) ($globalSettings['worker_url_override'] ?? ''));
         $assetIds = isset($body['asset_ids']) && is_array($body['asset_ids'])
             ? array_values(array_unique(array_filter(array_map('strval', $body['asset_ids']))))
             : [];
@@ -1031,6 +1020,23 @@ try {
 
             if (!$assetRow || !str_starts_with((string) $assetRow['mime_type'], 'image/')) {
                 $failures[] = ['asset_id' => $assetId, 'error' => 'Image asset not found.'];
+                continue;
+            }
+
+            $assetFeatures = AdminService::effectiveSettings(
+                $db,
+                (int) $user['id'],
+                $assetRow['project_id'] !== null ? (string) $assetRow['project_id'] : null
+            );
+
+            if (
+                !(bool) ($assetFeatures['feature_background_remove'] ?? true) ||
+                !(bool) ($assetFeatures['feature_batch_processing'] ?? true)
+            ) {
+                $failures[] = [
+                    'asset_id' => $assetId,
+                    'error' => 'Background removal/batch is disabled for this project.',
+                ];
                 continue;
             }
 
@@ -1128,18 +1134,8 @@ try {
         $method === 'POST' &&
         preg_match('#^/api/v1/assets/([^/]+)/background-remove$#', $path, $matches)
     ) {
-        $features = AdminService::getSettings($db);
-        if (!(bool) ($features['feature_background_remove'] ?? true)) {
-            Http::json([
-                'ok' => false,
-                'error' => 'Background removal is disabled by Admin.',
-                'request_id' => $requestId,
-            ], 403);
-        }
-
         $assetId = rawurldecode($matches[1]);
         $body = Http::body();
-        $workerUrlOverride = trim((string) ($features['worker_url_override'] ?? ''));
         $mode = trim((string) ($body['mode'] ?? 'quality'));
         $model = trim((string) ($body['model'] ?? 'birefnet-general'));
 
@@ -1168,6 +1164,20 @@ try {
             ], 422);
         }
 
+        $features = AdminService::effectiveSettings(
+            $db,
+            (int) $user['id'],
+            $assetRow['project_id'] !== null ? (string) $assetRow['project_id'] : null
+        );
+        if (!(bool) ($features['feature_background_remove'] ?? true)) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Background removal is disabled for this project.',
+                'request_id' => $requestId,
+            ], 403);
+        }
+        $workerUrlOverride = trim((string) ($features['worker_url_override'] ?? ''));
+
         $content = AssetStorage::resolveContent(
             $db,
             (int) $user['id'],
@@ -1189,7 +1199,8 @@ try {
             $tmp = ImageWorker::removeBackground(
                 $content['path'],
                 $mode,
-                $model
+                $model,
+                $workerUrlOverride
             );
 
             $baseName = preg_replace(
