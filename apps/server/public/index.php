@@ -10,6 +10,8 @@ use ZaxisKdp\Http;
 use ZaxisKdp\Pairing;
 use ZaxisKdp\ProjectDelta;
 use ZaxisKdp\ProjectLock;
+use ZaxisKdp\PublicSharePage;
+use ZaxisKdp\ShareService;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -74,6 +76,116 @@ try {
             'user' => $paired['user'],
             'request_id' => $requestId,
         ]);
+    }
+
+    if (preg_match('#^/s/([^/]+)/file$#', $path, $matches) && $method === 'GET') {
+        $slug = rawurldecode($matches[1]);
+        $share = ShareService::publicShare($db, $slug);
+
+        if (!$share || !$share['active']) {
+            http_response_code(404);
+            exit('Share not found.');
+        }
+
+        $access = isset($_GET['access']) ? (string) $_GET['access'] : null;
+        if ($share['password_protected'] && !ShareService::verifyAccessToken($slug, $access)) {
+            http_response_code(403);
+            exit('Access denied.');
+        }
+
+        $download = isset($_GET['download']) && $_GET['download'] === '1';
+        if ($download && !$share['allow_download']) {
+            http_response_code(403);
+            exit('Download disabled.');
+        }
+
+        $content = ShareService::content($share);
+        if (!$content) {
+            http_response_code(404);
+            exit('File not found.');
+        }
+
+        if ($download) {
+            ShareService::recordEvent($db, $share, 'download');
+        }
+
+        header('Content-Type: ' . $content['mime_type']);
+        header('Content-Length: ' . (string) filesize($content['path']));
+        header('Cache-Control: private, no-store');
+        header('X-Content-Type-Options: nosniff');
+        $safeName = preg_replace('/[^A-Za-z0-9._-]/', '_', $content['original_name']) ?: 'file';
+        header(
+            'Content-Disposition: ' .
+            ($download ? 'attachment' : 'inline') .
+            '; filename="' . $safeName . '"'
+        );
+        readfile($content['path']);
+        exit;
+    }
+
+    if (preg_match('#^/s/([^/]+)/comments$#', $path, $matches) && $method === 'POST') {
+        $slug = rawurldecode($matches[1]);
+        $share = ShareService::publicShare($db, $slug);
+
+        if (!$share || !$share['active']) {
+            http_response_code(404);
+            exit('Share not found.');
+        }
+
+        $access = isset($_POST['access']) ? (string) $_POST['access'] : null;
+        if ($share['password_protected'] && !ShareService::verifyAccessToken($slug, $access)) {
+            http_response_code(403);
+            exit('Access denied.');
+        }
+
+        try {
+            ShareService::addComment(
+                $db,
+                $share,
+                (string) ($_POST['author_name'] ?? ''),
+                (string) ($_POST['body'] ?? '')
+            );
+        } catch (RuntimeException $error) {
+            http_response_code(422);
+            exit($error->getMessage());
+        }
+
+        $location = '/s/' . rawurlencode($slug);
+        if ($access) {
+            $location .= '?access=' . rawurlencode($access);
+        }
+        header('Location: ' . $location, true, 303);
+        exit;
+    }
+
+    if (preg_match('#^/s/([^/]+)$#', $path, $matches) && in_array($method, ['GET', 'POST'], true)) {
+        $slug = rawurldecode($matches[1]);
+        $share = ShareService::publicShare($db, $slug);
+
+        if (!$share) {
+            http_response_code(404);
+            exit('Share not found.');
+        }
+
+        $access = isset($_GET['access']) ? (string) $_GET['access'] : null;
+
+        if ($method === 'POST' && $share['password_protected']) {
+            $password = (string) ($_POST['password'] ?? '');
+
+            if (ShareService::verifyPassword($share, $password)) {
+                $access = ShareService::makeAccessToken($share);
+                header(
+                    'Location: /s/' . rawurlencode($slug) . '?access=' . rawurlencode($access),
+                    true,
+                    303
+                );
+                exit;
+            }
+
+            PublicSharePage::render($db, $share, null, 'Incorrect password.');
+        }
+
+        PublicSharePage::render($db, $share, $access);
     }
 
     $user = Auth::userFromRequest($db);
@@ -149,6 +261,132 @@ try {
             'expires_at' => $pairing['expires_at'],
             'request_id' => $requestId,
         ], 201);
+    }
+
+    if ($method === 'GET' && $path === '/api/v1/shares') {
+        $projectId = isset($_GET['project_id']) ? trim((string) $_GET['project_id']) : null;
+
+        Http::json([
+            'ok' => true,
+            'shares' => ShareService::listOwned($db, (int) $user['id'], $projectId),
+            'request_id' => $requestId,
+        ]);
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/shares') {
+        $body = Http::body();
+
+        try {
+            $share = ShareService::create(
+                $db,
+                (int) $user['id'],
+                trim((string) ($body['asset_id'] ?? '')),
+                isset($body['project_id']) ? trim((string) $body['project_id']) : null,
+                (string) ($body['title'] ?? ''),
+                isset($body['password']) ? (string) $body['password'] : null,
+                isset($body['expires_at']) && $body['expires_at'] !== null
+                    ? (string) $body['expires_at']
+                    : null,
+                !array_key_exists('allow_download', $body) || (bool) $body['allow_download'],
+                (bool) ($body['proof_mode'] ?? false)
+            );
+        } catch (RuntimeException $error) {
+            Http::json([
+                'ok' => false,
+                'error' => $error->getMessage(),
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        Http::json([
+            'ok' => true,
+            'share' => $share,
+            'request_id' => $requestId,
+        ], 201);
+    }
+
+    if (
+        preg_match('#^/api/v1/shares/([^/]+)$#', $path, $matches) &&
+        in_array($method, ['PATCH', 'DELETE'], true)
+    ) {
+        $shareId = rawurldecode($matches[1]);
+
+        if ($method === 'DELETE') {
+            Http::json([
+                'ok' => true,
+                'revoked' => ShareService::revoke($db, (int) $user['id'], $shareId),
+                'request_id' => $requestId,
+            ]);
+        }
+
+        $body = Http::body();
+
+        try {
+            $share = ShareService::updateOwned(
+                $db,
+                (int) $user['id'],
+                $shareId,
+                $body
+            );
+        } catch (RuntimeException $error) {
+            Http::json([
+                'ok' => false,
+                'error' => $error->getMessage(),
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        if (!$share) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Share link not found.',
+                'request_id' => $requestId,
+            ], 404);
+        }
+
+        Http::json([
+            'ok' => true,
+            'share' => $share,
+            'request_id' => $requestId,
+        ]);
+    }
+
+    if (
+        $method === 'POST' &&
+        preg_match('#^/api/v1/shares/([^/]+)/replace$#', $path, $matches)
+    ) {
+        $body = Http::body();
+        $shareId = rawurldecode($matches[1]);
+        $assetId = trim((string) ($body['asset_id'] ?? ''));
+
+        try {
+            $share = ShareService::replaceAsset(
+                $db,
+                (int) $user['id'],
+                $shareId,
+                $assetId
+            );
+        } catch (RuntimeException $error) {
+            Http::json([
+                'ok' => false,
+                'error' => $error->getMessage(),
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        if (!$share) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Share link not found.',
+                'request_id' => $requestId,
+            ], 404);
+        }
+
+        Http::json([
+            'ok' => true,
+            'share' => $share,
+            'request_id' => $requestId,
+        ]);
     }
 
     if ($method === 'GET' && $path === '/api/v1/assets') {
