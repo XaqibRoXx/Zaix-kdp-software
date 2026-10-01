@@ -26,6 +26,8 @@ final class AssetStorage
             throw new RuntimeException('File exceeds the configured upload size limit.');
         }
 
+        self::assertQuota($db, $userId, $size);
+
         $tmp = (string) ($file['tmp_name'] ?? '');
         if ($tmp === '' || !is_file($tmp)) {
             throw new RuntimeException('Temporary upload file is missing.');
@@ -155,6 +157,9 @@ final class AssetStorage
         if ($size <= 0 || $size > $maxMb * 1024 * 1024) {
             throw new RuntimeException('File exceeds the configured upload size limit.');
         }
+
+        $currentSize = (int) ($current['size_bytes'] ?? 0);
+        self::assertQuota($db, $userId, max(0, $size - $currentSize));
 
         $tmp = (string) ($file['tmp_name'] ?? '');
         if ($tmp === '' || !is_file($tmp)) {
@@ -342,6 +347,41 @@ final class AssetStorage
             'mime_type' => $mime,
             'original_name' => (string) $asset['original_name'],
         ];
+    }
+
+    private static function assertQuota(PDO $db, int $userId, int $additionalBytes): void
+    {
+        if ($additionalBytes <= 0) {
+            return;
+        }
+
+        $userStmt = $db->prepare(
+            'SELECT storage_quota_bytes FROM users WHERE id = :id LIMIT 1'
+        );
+        $userStmt->execute(['id' => $userId]);
+        $quota = (int) ($userStmt->fetch()['storage_quota_bytes'] ?? 0);
+
+        if ($quota <= 0) {
+            return;
+        }
+
+        $usageStmt = $db->prepare(
+            'SELECT COALESCE(SUM(size_bytes), 0) AS used
+             FROM assets
+             WHERE owner_user_id = :owner AND deleted_at IS NULL'
+        );
+        $usageStmt->execute(['owner' => $userId]);
+        $used = (int) ($usageStmt->fetch()['used'] ?? 0);
+
+        if ($used + $additionalBytes > $quota) {
+            throw new RuntimeException(
+                'Storage quota exceeded. Used ' .
+                round($used / 1048576, 2) .
+                ' MB of ' .
+                round($quota / 1048576, 2) .
+                ' MB.'
+            );
+        }
     }
 
     private static function createImageProxy(
