@@ -593,6 +593,25 @@ export class ZaxisCloudApi {
     );
   }
 
+  async removeAssetBackgroundBatch(
+    assetIds: string[],
+    mode: "fast" | "quality" | "hair" = "quality",
+    model = "birefnet-general"
+  ) {
+    return this.request<{
+      ok: boolean;
+      assets: CloudAsset[];
+      failures: Array<{ asset_id: string; error: string }>;
+    }>("/api/v1/assets/background-remove-batch", {
+      method: "POST",
+      body: {
+        asset_ids: assetIds,
+        mode,
+        model
+      }
+    });
+  }
+
   async removeAssetBackground(
     assetId: string,
     mode: "fast" | "quality" | "hair" = "quality",
