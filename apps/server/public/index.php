@@ -728,6 +728,77 @@ try {
         ]);
     }
 
+    if ($method === 'GET' && $path === '/api/v1/export-jobs') {
+        Http::json([
+            'ok' => true,
+            'jobs' => AdminService::exportJobs($db, (int) $user['id']),
+            'request_id' => $requestId,
+        ]);
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/export-jobs') {
+        $body = Http::body();
+        $job = AdminService::createExportJob(
+            $db,
+            (int) $user['id'],
+            isset($body['project_id']) && $body['project_id'] !== null
+                ? (string) $body['project_id']
+                : null,
+            (string) ($body['job_type'] ?? 'pdf-export'),
+            isset($body['payload']) && is_array($body['payload'])
+                ? $body['payload']
+                : []
+        );
+
+        Http::json([
+            'ok' => true,
+            'job' => $job,
+            'request_id' => $requestId,
+        ], 201);
+    }
+
+    if (
+        $method === 'PATCH' &&
+        preg_match('#^/api/v1/export-jobs/([^/]+)$#', $path, $matches)
+    ) {
+        $body = Http::body();
+
+        try {
+            $job = AdminService::updateExportJob(
+                $db,
+                (int) $user['id'],
+                rawurldecode($matches[1]),
+                (string) ($body['status'] ?? ''),
+                isset($body['result']) && is_array($body['result'])
+                    ? $body['result']
+                    : null,
+                isset($body['error_message']) && $body['error_message'] !== null
+                    ? (string) $body['error_message']
+                    : null
+            );
+        } catch (RuntimeException $error) {
+            Http::json([
+                'ok' => false,
+                'error' => $error->getMessage(),
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        if (!$job) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Export job not found.',
+                'request_id' => $requestId,
+            ], 404);
+        }
+
+        Http::json([
+            'ok' => true,
+            'job' => $job,
+            'request_id' => $requestId,
+        ]);
+    }
+
     if ($method === 'GET' && $path === '/api/v1/assets') {
         $projectId = isset($_GET['project_id']) ? trim((string) $_GET['project_id']) : '';
 
