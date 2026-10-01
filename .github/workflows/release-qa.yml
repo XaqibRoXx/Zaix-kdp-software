@@ -38,6 +38,9 @@ jobs:
       - name: Sparse sync delta regression
         run: npm run qa:sync-delta
 
+      - name: KDP preflight regression matrix
+        run: npm run qa:kdp-preflight
+
   server-worker-check:
     runs-on: ubuntu-latest
     steps:
