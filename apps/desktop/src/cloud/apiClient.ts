@@ -33,7 +33,7 @@ export interface SnapshotPushResponse {
 
 export interface ProjectDeltaPayload {
   version: 1;
-  project: Partial<Pick<ZaxisProject, "name" | "mode" | "kdpSettings" | "updatedAt">>;
+  project: Partial<Pick<ZaxisProject, "name" | "mode" | "kdpSettings" | "bookStructure" | "masterPages" | "reusableStyles" | "updatedAt">>;
   changed_artboards: ZaxisProject["artboards"];
   removed_artboard_ids: string[];
   artboard_order: string[];
