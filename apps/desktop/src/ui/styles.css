@@ -362,3 +362,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 
 .batch-asset-toggle{display:inline-flex!important;grid-template-columns:auto auto!important;align-items:center;gap:5px;border:1px solid #2b3731;border-radius:7px;padding:6px 8px;color:#8b9791!important;font-size:10px!important;cursor:pointer}
 .batch-asset-toggle input{width:auto!important;margin:0}
+
+.component-library{display:grid;gap:6px;margin-top:8px}
+.component-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px}
+.component-insert{text-align:left;justify-content:flex-start}
