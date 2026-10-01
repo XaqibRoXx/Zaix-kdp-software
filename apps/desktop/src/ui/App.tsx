@@ -3395,6 +3395,8 @@ function AssetsScreen({
   const [selectedShareAssetId, setSelectedShareAssetId] = useState("");
   const [batchFromAssetId, setBatchFromAssetId] = useState("");
   const [replacingAssetId, setReplacingAssetId] = useState("");
+  const [backgroundMode, setBackgroundMode] = useState<"fast" | "quality" | "hair">("quality");
+  const [processingAssetId, setProcessingAssetId] = useState("");
   const [shareTitle, setShareTitle] = useState("");
   const [sharePassword, setSharePassword] = useState("");
   const [shareExpiresAt, setShareExpiresAt] = useState("");
@@ -3601,6 +3603,45 @@ function AssetsScreen({
   function chooseReplacementFile(assetId: string) {
     setReplacingAssetId(assetId);
     replaceInputRef.current?.click();
+  }
+
+  async function removeBackground(asset: CloudAsset) {
+    if (!asset.mime_type.startsWith("image/")) {
+      setLinkedStatus("Background removal requires an image asset.");
+      return;
+    }
+
+    setProcessingAssetId(asset.id);
+    setLinkedStatus(
+      "Removing background • " +
+        (backgroundMode === "hair"
+          ? "Hair/Fur refinement"
+          : backgroundMode === "quality"
+            ? "Quality"
+            : "Fast") +
+        "..."
+    );
+
+    try {
+      const result = await api().removeAssetBackground(
+        asset.id,
+        backgroundMode,
+        "birefnet-general"
+      );
+
+      setSelectedShareAssetId(result.asset.id);
+      setLinkedStatus(
+        "Transparent PNG created as a new cloud asset. Original retained • " +
+          result.asset.original_name
+      );
+      await refreshLibrary();
+    } catch (error) {
+      setLinkedStatus(
+        error instanceof Error ? error.message : "Background removal failed."
+      );
+    } finally {
+      setProcessingAssetId("");
+    }
   }
 
   async function removeAsset(assetId: string) {
@@ -3997,6 +4038,19 @@ function AssetsScreen({
         </div>
 
         <div className="settings-grid linked-batch-grid">
+          <label>Background Removal
+            <select
+              value={backgroundMode}
+              onChange={(event) => setBackgroundMode(
+                event.target.value as "fast" | "quality" | "hair"
+              )}
+            >
+              <option value="fast">Fast</option>
+              <option value="quality">Quality + Edge Cleanup</option>
+              <option value="hair">Hair / Fur / Soft Edge</option>
+            </select>
+          </label>
+
           <label>Batch Relink Source
             <select
               value={batchFromAssetId}
@@ -4289,13 +4343,24 @@ function AssetsScreen({
                 </div>
                 <div className="hero-actions">
                   {asset.mime_type.startsWith("image/") && (
-                    <button
-                      className="secondary"
-                      disabled={!selectedImage}
-                      onClick={() => void linkSelectedImage(asset)}
-                    >
-                      Link to Selected Image
-                    </button>
+                    <>
+                      <button
+                        className="secondary"
+                        disabled={!selectedImage}
+                        onClick={() => void linkSelectedImage(asset)}
+                      >
+                        Link to Selected Image
+                      </button>
+                      <button
+                        className="secondary"
+                        disabled={processingAssetId !== ""}
+                        onClick={() => void removeBackground(asset)}
+                      >
+                        {processingAssetId === asset.id
+                          ? "Removing BG..."
+                          : "Remove Background"}
+                      </button>
+                    </>
                   )}
                   <button
                     className="secondary"
