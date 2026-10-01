@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use ZaxisKdp\AdminService;
 use ZaxisKdp\AssetStorage;
+use ZaxisKdp\BackupService;
 use ZaxisKdp\Auth;
 use ZaxisKdp\Config;
 use ZaxisKdp\Database;
@@ -386,6 +388,290 @@ try {
         Http::json([
             'ok' => true,
             'share' => $share,
+            'request_id' => $requestId,
+        ]);
+    }
+
+    if (str_starts_with($path, '/api/v1/admin/')) {
+        if (!in_array((string) ($user['role'] ?? ''), ['owner', 'admin'], true)) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Administrator access is required.',
+                'request_id' => $requestId,
+            ], 403);
+        }
+
+        if ($method === 'GET' && $path === '/api/v1/admin/overview') {
+            Http::json([
+                'ok' => true,
+                'overview' => AdminService::overview($db),
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if ($method === 'GET' && $path === '/api/v1/admin/users') {
+            Http::json([
+                'ok' => true,
+                'users' => AdminService::users($db),
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if ($method === 'PATCH' && preg_match('#^/api/v1/admin/users/(\d+)$#', $path, $matches)) {
+            try {
+                $updated = AdminService::updateUser(
+                    $db,
+                    $user,
+                    (int) $matches[1],
+                    Http::body()
+                );
+            } catch (RuntimeException $error) {
+                Http::json([
+                    'ok' => false,
+                    'error' => $error->getMessage(),
+                    'request_id' => $requestId,
+                ], 422);
+            }
+
+            if (!$updated) {
+                Http::json([
+                    'ok' => false,
+                    'error' => 'User not found.',
+                    'request_id' => $requestId,
+                ], 404);
+            }
+
+            Http::json([
+                'ok' => true,
+                'user' => $updated,
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if ($method === 'GET' && $path === '/api/v1/admin/settings') {
+            Http::json([
+                'ok' => true,
+                'settings' => AdminService::getSettings($db),
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if ($method === 'PATCH' && $path === '/api/v1/admin/settings') {
+            try {
+                $settings = AdminService::updateSettings($db, $user, Http::body());
+            } catch (RuntimeException $error) {
+                Http::json([
+                    'ok' => false,
+                    'error' => $error->getMessage(),
+                    'request_id' => $requestId,
+                ], 422);
+            }
+
+            Http::json([
+                'ok' => true,
+                'settings' => $settings,
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if ($method === 'GET' && $path === '/api/v1/admin/activity') {
+            Http::json([
+                'ok' => true,
+                'activity' => AdminService::activity($db),
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if ($method === 'GET' && $path === '/api/v1/admin/recycle-bin') {
+            Http::json([
+                'ok' => true,
+                'recycle_bin' => AdminService::recycleBin($db),
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if (
+            $method === 'POST' &&
+            preg_match('#^/api/v1/admin/recycle-bin/(project|asset)/([^/]+)/restore$#', $path, $matches)
+        ) {
+            try {
+                $restored = AdminService::restoreRecycle(
+                    $db,
+                    $user,
+                    $matches[1],
+                    rawurldecode($matches[2])
+                );
+            } catch (RuntimeException $error) {
+                Http::json([
+                    'ok' => false,
+                    'error' => $error->getMessage(),
+                    'request_id' => $requestId,
+                ], 422);
+            }
+
+            Http::json([
+                'ok' => true,
+                'restored' => $restored,
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if (
+            $method === 'DELETE' &&
+            preg_match('#^/api/v1/admin/recycle-bin/(project|asset)/([^/]+)$#', $path, $matches)
+        ) {
+            try {
+                $purged = AdminService::purgeRecycle(
+                    $db,
+                    $user,
+                    $matches[1],
+                    rawurldecode($matches[2])
+                );
+            } catch (RuntimeException $error) {
+                Http::json([
+                    'ok' => false,
+                    'error' => $error->getMessage(),
+                    'request_id' => $requestId,
+                ], 422);
+            }
+
+            Http::json([
+                'ok' => true,
+                'purged' => $purged,
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if ($method === 'GET' && $path === '/api/v1/admin/notifications') {
+            Http::json([
+                'ok' => true,
+                'notifications' => AdminService::notifications($db),
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if ($method === 'POST' && $path === '/api/v1/admin/notifications') {
+            $body = Http::body();
+            AdminService::notify(
+                $db,
+                isset($body['user_id']) && $body['user_id'] !== null
+                    ? (int) $body['user_id']
+                    : null,
+                (string) ($body['level'] ?? 'info'),
+                (string) ($body['title'] ?? 'Notification'),
+                (string) ($body['body'] ?? '')
+            );
+            AdminService::log(
+                $db,
+                (int) $user['id'],
+                'notification.created',
+                'notification',
+                null,
+                ['target_user_id' => $body['user_id'] ?? null]
+            );
+
+            Http::json([
+                'ok' => true,
+                'request_id' => $requestId,
+            ], 201);
+        }
+
+        if ($method === 'GET' && $path === '/api/v1/admin/export-jobs') {
+            Http::json([
+                'ok' => true,
+                'jobs' => AdminService::exportJobs($db),
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if ($method === 'POST' && $path === '/api/v1/admin/export-jobs') {
+            $body = Http::body();
+            $job = AdminService::createExportJob(
+                $db,
+                isset($body['user_id']) ? (int) $body['user_id'] : (int) $user['id'],
+                isset($body['project_id']) && $body['project_id'] !== null
+                    ? (string) $body['project_id']
+                    : null,
+                (string) ($body['job_type'] ?? 'export'),
+                isset($body['payload']) && is_array($body['payload'])
+                    ? $body['payload']
+                    : []
+            );
+
+            Http::json([
+                'ok' => true,
+                'job' => $job,
+                'request_id' => $requestId,
+            ], 201);
+        }
+
+        if ($method === 'GET' && $path === '/api/v1/admin/backups') {
+            Http::json([
+                'ok' => true,
+                'backups' => BackupService::list($db),
+                'request_id' => $requestId,
+            ]);
+        }
+
+        if ($method === 'POST' && $path === '/api/v1/admin/backups') {
+            try {
+                $backup = BackupService::create($db, (int) $user['id']);
+            } catch (RuntimeException $error) {
+                Http::json([
+                    'ok' => false,
+                    'error' => $error->getMessage(),
+                    'request_id' => $requestId,
+                ], 422);
+            }
+
+            Http::json([
+                'ok' => true,
+                'backup' => $backup,
+                'request_id' => $requestId,
+            ], 201);
+        }
+
+        if ($method === 'POST' && $path === '/api/v1/admin/repair') {
+            $body = Http::body();
+
+            try {
+                $result = AdminService::repair(
+                    $db,
+                    $user,
+                    (string) ($body['action'] ?? '')
+                );
+            } catch (RuntimeException $error) {
+                Http::json([
+                    'ok' => false,
+                    'error' => $error->getMessage(),
+                    'request_id' => $requestId,
+                ], 422);
+            }
+
+            Http::json([
+                'ok' => true,
+                'result' => $result,
+                'request_id' => $requestId,
+            ]);
+        }
+    }
+
+    if ($method === 'GET' && $path === '/api/v1/notifications') {
+        Http::json([
+            'ok' => true,
+            'notifications' => AdminService::notifications($db, (int) $user['id']),
+            'request_id' => $requestId,
+        ]);
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/v1/notifications/(\d+)/read$#', $path, $matches)) {
+        Http::json([
+            'ok' => true,
+            'read' => AdminService::markNotificationRead(
+                $db,
+                (int) $user['id'],
+                (int) $matches[1]
+            ),
             'request_id' => $requestId,
         ]);
     }
