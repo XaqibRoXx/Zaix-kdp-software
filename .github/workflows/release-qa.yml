@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [phase4-release-qa, phase4-hardening-next]
+    branches: [phase4-release-qa, phase4-hardening-next, phase4-recovery-next]
 
 concurrency:
   group: phase4-release-qa-${{ github.ref }}
@@ -64,6 +64,9 @@ jobs:
 
       - name: Validate composer manifest
         run: php -r 'json_decode(file_get_contents("apps/server/composer.json"), true, 512, JSON_THROW_ON_ERROR);'
+
+      - name: Generate deployable Composer autoload
+        run: composer dump-autoload --working-dir=apps/server --no-dev --optimize
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -138,11 +141,26 @@ jobs:
           extensions: pdo_mysql, zip, mbstring
           coverage: none
 
+      - name: Generate server autoload
+        run: composer dump-autoload --working-dir=apps/server --no-dev --optimize
+
       - name: Load test schema
         run: mysql -h127.0.0.1 -uroot -proot zaxis_kdp_test < apps/server/database/schema.sql
 
       - name: Run backup restore integrity test
         run: php scripts/qa-backup-restore.php
+
+      - name: Simulate total database and asset-storage loss
+        run: |
+          rm -rf "$STORAGE_PATH/assets" "$STORAGE_PATH/backups"
+          mysql -h127.0.0.1 -uroot -proot -e "DROP DATABASE zaxis_kdp_test; CREATE DATABASE zaxis_kdp_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h127.0.0.1 -uroot -proot zaxis_kdp_test < apps/server/database/schema.sql
+
+      - name: Restore external archive into clean installation
+        run: php apps/server/bin/restore-backup.php "$RUNNER_TEMP/zaxis-kdp-clean-recovery.zip" --yes
+
+      - name: Verify clean disaster recovery
+        run: php scripts/qa-clean-recovery-verify.php
 
   windows-release-candidate:
     needs: [desktop-check, server-worker-check, backup-restore-integration]
