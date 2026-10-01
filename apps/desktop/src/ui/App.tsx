@@ -4841,12 +4841,34 @@ function SettingsScreen({
             }
           />
           <TriStateSetting
+            label="Batch Processing"
+            value={project.projectOverrides?.featureBatchProcessing}
+            onChange={(value) =>
+              onProjectChange(
+                updateProjectOverrides(project, {
+                  featureBatchProcessing: value
+                })
+              )
+            }
+          />
+          <TriStateSetting
             label="Share Download Default"
             value={project.projectOverrides?.defaultShareDownload}
             onChange={(value) =>
               onProjectChange(
                 updateProjectOverrides(project, {
                   defaultShareDownload: value
+                })
+              )
+            }
+          />
+          <TriStateSetting
+            label="Share Proof Default"
+            value={project.projectOverrides?.defaultShareProofMode}
+            onChange={(value) =>
+              onProjectChange(
+                updateProjectOverrides(project, {
+                  defaultShareProofMode: value
                 })
               )
             }
