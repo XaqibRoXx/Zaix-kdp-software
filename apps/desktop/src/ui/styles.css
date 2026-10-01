@@ -366,3 +366,16 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .component-library{display:grid;gap:6px;margin-top:8px}
 .component-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px}
 .component-insert{text-align:left;justify-content:flex-start}
+
+.notifications-screen{display:grid;gap:14px}
+.notification-list{display:grid;gap:8px}
+.notification-card{display:grid;gap:6px;width:100%;text-align:left;border:1px solid #253029;background:#0a0e0c;color:#edf5f1;border-radius:10px;padding:12px;cursor:pointer}
+.notification-card>div{display:flex;justify-content:space-between;gap:12px}
+.notification-card strong,.notification-card small{display:block}
+.notification-card small,.notification-card p,.notification-card span{color:#819088;font-size:11px}
+.notification-card p{margin:0;white-space:pre-wrap}
+.notification-card.unread{border-color:#00f6ac}
+.notification-card.warning{border-left:3px solid #ffc565}
+.notification-card.error{border-left:3px solid #ff8585}
+.notification-card.success{border-left:3px solid #00f6ac}
+.notification-card.read{opacity:.72}
