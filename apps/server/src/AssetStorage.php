@@ -40,6 +40,7 @@ final class AssetStorage
             'image/webp' => 'webp',
             'image/gif' => 'gif',
             'application/pdf' => 'pdf',
+            'application/zip' => 'zip',
             'font/ttf' => 'ttf',
             'font/otf' => 'otf',
             'font/woff' => 'woff',
