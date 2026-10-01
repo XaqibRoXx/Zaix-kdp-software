@@ -312,3 +312,29 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .warning-pill{border-color:#65501e!important;color:#ffc565!important}
 .danger-pill{border-color:#5c2828!important;color:#ff9494!important}
 @media(max-width:850px){.linked-asset-summary{align-items:flex-start;flex-direction:column}.linked-reference-row{grid-template-columns:1fr}}
+
+.admin-screen{display:grid;gap:14px}
+.admin-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.admin-metric{border:1px solid #202b25;background:#090d0b;border-radius:10px;padding:12px}
+.admin-metric small,.admin-metric strong{display:block}
+.admin-metric small{color:#7f8b85;font-size:10px}
+.admin-metric strong{font-size:18px;margin-top:4px}
+.admin-table,.admin-list{display:grid;gap:7px;margin-top:12px}
+.admin-user-row{display:grid;grid-template-columns:minmax(180px,1.4fr) 140px 120px minmax(180px,1fr);gap:10px;align-items:center;border:1px solid #202a25;background:#0a0e0c;border-radius:9px;padding:10px}
+.admin-user-row strong,.admin-user-row small{display:block}
+.admin-user-row small{color:#77847d;margin-top:3px}
+.admin-user-row label{display:grid;gap:4px;color:#89968f;font-size:10px}
+.admin-user-row select,.admin-user-row input{width:100%;background:#101512;color:#eef5f1;border:1px solid #2a3731;border-radius:7px;padding:7px}
+.quota-meter{position:relative;height:28px;border:1px solid #233029;background:#080c0a;border-radius:7px;overflow:hidden}
+.quota-meter>span{position:absolute;inset:0 auto 0 0;background:#0b513b}
+.quota-meter small{position:relative;z-index:2;padding:6px 8px;color:#dfe8e4}
+.admin-list-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:10px;align-items:center;border:1px solid #202a25;background:#0a0e0c;border-radius:8px;padding:9px}
+.admin-list-row strong,.admin-list-row small{display:block}
+.admin-list-row small{color:#77847d;margin-top:3px}
+.admin-list-row.failed{border-color:#572828}
+.admin-list-row.completed{border-color:#1d513e}
+.activity-list{max-height:420px;overflow:auto}
+.admin-wide{grid-column:1/-1}
+.admin-screen textarea{width:100%;min-height:90px;background:#101512;color:#eef5f1;border:1px solid #2a3731;border-radius:7px;padding:9px;resize:vertical}
+@media(max-width:1050px){.admin-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-user-row{grid-template-columns:1fr 1fr}.quota-meter{grid-column:1/-1}}
+@media(max-width:700px){.admin-metrics{grid-template-columns:1fr}.admin-user-row,.admin-list-row{grid-template-columns:1fr}}
