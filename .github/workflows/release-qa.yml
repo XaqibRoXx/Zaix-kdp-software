@@ -38,6 +38,9 @@ jobs:
       - name: Sparse sync delta regression
         run: npm run qa:sync-delta
 
+      - name: Offline queue and reconnect integration
+        run: npm run qa:offline-sync
+
       - name: KDP preflight regression matrix
         run: npm run qa:kdp-preflight
 
