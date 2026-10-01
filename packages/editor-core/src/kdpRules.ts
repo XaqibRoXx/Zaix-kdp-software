@@ -4,7 +4,7 @@ export type KdpPaperType = "white" | "cream" | "groundwood" | "color";
 export type KdpInkType = "black" | "standard-color" | "premium-color";
 
 export interface KdpSettings {
-  format: "paperback";
+  format: "paperback" | "hardcover";
   trimWidthIn: number;
   trimHeightIn: number;
   bleed: boolean;
@@ -68,6 +68,15 @@ export const KDP_RULES = {
     minHeightIn: 6,
     maxHeightIn: 11.69
   },
+  hardcoverTrimSizes: [
+    [5.5, 8.5],
+    [6, 9],
+    [6.14, 9.21],
+    [7, 10],
+    [8.25, 11]
+  ] as const,
+  hardcoverMinPages: 75,
+  hardcoverMaxPages: 550,
   spineMultiplierIn: {
     white: 0.002252,
     cream: 0.0025,
@@ -122,6 +131,10 @@ export function requiredOutsideMarginIn(bleed: boolean): number {
 }
 
 export function pageCountLimits(settings: KdpSettings): { min: number; max: number } {
+  if (settings.format === "hardcover") {
+    return { min: KDP_RULES.hardcoverMinPages, max: KDP_RULES.hardcoverMaxPages };
+  }
+
   if (settings.inkType === "standard-color") {
     return { min: 72, max: 600 };
   }
@@ -252,7 +265,37 @@ export function analyzeKdpProject(project: KdpPreflightProjectLike): KdpPrefligh
   const outsideMargin = requiredOutsideMarginIn(settings.bleed);
   const cover = calculatePaperbackCoverSize(pageCount, settings);
 
-  if (
+  if (settings.format === "hardcover") {
+    const supported = KDP_RULES.hardcoverTrimSizes.some(
+      ([width, height]) =>
+        Math.abs(width - settings.trimWidthIn) < 0.01 &&
+        Math.abs(height - settings.trimHeightIn) < 0.01
+    );
+
+    if (!supported) {
+      issues.push({
+        severity: "error",
+        code: "hardcover-trim",
+        message: "Hardcover trim must use one of the current KDP hardcover trim presets."
+      });
+    }
+
+    if (settings.inkType === "standard-color") {
+      issues.push({
+        severity: "error",
+        code: "hardcover-standard-color",
+        message: "Standard Color is not available for current KDP hardcover printing."
+      });
+    }
+
+    if (settings.paperType === "groundwood") {
+      issues.push({
+        severity: "error",
+        code: "hardcover-groundwood",
+        message: "Groundwood paper is not available for current KDP hardcover printing."
+      });
+    }
+  } else if (
     settings.trimWidthIn < KDP_RULES.paperbackCustomTrim.minWidthIn ||
     settings.trimWidthIn > KDP_RULES.paperbackCustomTrim.maxWidthIn ||
     settings.trimHeightIn < KDP_RULES.paperbackCustomTrim.minHeightIn ||
@@ -340,7 +383,15 @@ export function analyzeKdpProject(project: KdpPreflightProjectLike): KdpPrefligh
   const coverArtboard = project.artboards.find((artboard) => artboard.role === "cover");
   const coverLayout = calculatePaperbackCoverLayout(pageCount, settings);
 
-  if (!coverArtboard) {
+  if (settings.format === "hardcover") {
+    if (!coverArtboard?.templateOverlay?.src) {
+      issues.push({
+        severity: "warning",
+        code: "hardcover-template",
+        message: "Import the official KDP hardcover cover template overlay before final cover export."
+      });
+    }
+  } else if (!coverArtboard) {
     issues.push({
       severity: "warning",
       code: "cover-missing",
@@ -425,10 +476,10 @@ export function analyzeKdpProject(project: KdpPreflightProjectLike): KdpPrefligh
     pageCount,
     requiredInsideMarginIn: insideMargin,
     requiredOutsideMarginIn: outsideMargin,
-    spineWidthIn: cover.spineWidthIn,
-    coverWidthIn: cover.widthIn,
-    coverHeightIn: cover.heightIn,
-    spineTextAllowed: pageCount >= KDP_RULES.spineTextMinimumPages,
+    spineWidthIn: settings.format === "paperback" ? cover.spineWidthIn : 0,
+    coverWidthIn: settings.format === "paperback" ? cover.widthIn : 0,
+    coverHeightIn: settings.format === "paperback" ? cover.heightIn : 0,
+    spineTextAllowed: settings.format === "paperback" && pageCount >= KDP_RULES.spineTextMinimumPages,
     issues
   };
 }
