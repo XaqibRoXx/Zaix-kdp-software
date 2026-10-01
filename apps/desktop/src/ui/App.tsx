@@ -192,6 +192,7 @@ export function App() {
   const [appSettings, setAppSettings] = useState<AppSettings>(() => loadAppSettings());
   const [revisions, setRevisions] = useState<ProjectRevision[]>(() => listRevisions(project.id));
   const [cloudToken, setCloudToken] = useState("");
+  const [serverDefaults, setServerDefaults] = useState<AdminSettings | null>(null);
   const [cloudSaveState, setCloudSaveState] = useState<CloudSaveState>(
     appSettings.cloudApiUrl.trim() ? "queued" : "disabled"
   );
@@ -235,6 +236,21 @@ export function App() {
         // Browser preview or a machine without the Windows bridge keeps session-only token state.
       });
   }, []);
+
+  useEffect(() => {
+    const apiUrl = appSettings.cloudApiUrl.trim();
+    const token = cloudToken.trim();
+
+    if (!apiUrl || !token) {
+      setServerDefaults(null);
+      return;
+    }
+
+    new ZaxisCloudApi(apiUrl, token)
+      .effectiveSettings()
+      .then((result) => setServerDefaults(result.settings))
+      .catch(() => setServerDefaults(null));
+  }, [appSettings.cloudApiUrl, cloudToken]);
 
   useEffect(() => {
     setSaveState("saving");
@@ -579,13 +595,20 @@ export function App() {
   }
 
   function createNewProject(preset?: ProjectPreset) {
-    const chosen = preset ?? projectPresets.find((item) => item.id === "kdp-7x10");
+    const defaultMode = serverDefaults?.default_project_mode ?? "kdp";
+    const chosen =
+      preset ??
+      projectPresets.find((item) =>
+        item.id === (defaultMode === "graphic-design" ? "a4" : "kdp-7x10")
+      );
+    const baseName = preset?.label ?? "Untitled Design";
+    const namingPattern = serverDefaults?.naming_project_pattern ?? "{name}";
     const next = createBlankProject({
-      name: preset ? preset.label : "Untitled Design",
+      name: formatExportNamingPattern(namingPattern, baseName),
       width: chosen?.width ?? 7,
       height: chosen?.height ?? 10,
       unit: chosen?.unit ?? "in",
-      mode: chosen?.mode ?? "kdp"
+      mode: chosen?.mode ?? defaultMode
     });
     saveProject(next);
     setProjectSummaries(listProjectSummaries());
