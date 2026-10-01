@@ -84,12 +84,14 @@ import {
   type PdfExportTarget,
   type PdfQualityPreset
 } from "../export/pdfExporter";
-import { ensurePdfExtension, savePdfToComputer } from "../export/savePdf";
+import { ensurePdfExtension, saveBinaryToComputer, savePdfToComputer } from "../export/savePdf";
 import {
   comparePdfStructure,
   extractPdfPages,
   mergePdfFiles,
+  optimizePdfLossless,
   rotatePdfPages,
+  splitPdfToZip,
   type PdfCompareResult
 } from "../export/pdfTools";
 import {
@@ -2552,7 +2554,9 @@ function PdfToolsScreen() {
   const [mergeStatus, setMergeStatus] = useState("");
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [range, setRange] = useState("1");
+  const [splitGroups, setSplitGroups] = useState("");
   const [pageStatus, setPageStatus] = useState("");
+  const [optimizeStatus, setOptimizeStatus] = useState("");
   const [leftCompare, setLeftCompare] = useState<File | null>(null);
   const [rightCompare, setRightCompare] = useState<File | null>(null);
   const [compareResult, setCompareResult] = useState<PdfCompareResult | null>(null);
@@ -2616,6 +2620,77 @@ function PdfToolsScreen() {
       setPageStatus(path ? "Rotated PDF saved." : "Rotate save cancelled.");
     } catch (error) {
       setPageStatus(error instanceof Error ? error.message : "PDF rotation failed.");
+    }
+  }
+
+  async function splitAndSave() {
+    if (!sourceFile) {
+      setPageStatus("Select a PDF first.");
+      return;
+    }
+
+    setPageStatus("Splitting PDF...");
+
+    try {
+      const result = await splitPdfToZip(sourceFile, splitGroups);
+      const base = sourceFile.name.replace(/\.pdf$/i, "");
+      const path = await saveBinaryToComputer(
+        result.bytes,
+        base + "-split.zip",
+        {
+          title: "Save Split PDF Bundle",
+          mimeType: "application/zip",
+          filterName: "ZIP Archive",
+          extensions: ["zip"]
+        }
+      );
+      setPageStatus(
+        path
+          ? "Split complete: " + result.outputCount + " PDF file" + (result.outputCount === 1 ? "" : "s") + " saved in ZIP."
+          : "Split save cancelled."
+      );
+    } catch (error) {
+      setPageStatus(error instanceof Error ? error.message : "PDF split failed.");
+    }
+  }
+
+  async function optimizeAndSave() {
+    if (!sourceFile) {
+      setOptimizeStatus("Select a PDF first.");
+      return;
+    }
+
+    setOptimizeStatus("Optimizing PDF without image downsampling...");
+
+    try {
+      const result = await optimizePdfLossless(sourceFile);
+
+      if (!result.changed) {
+        setOptimizeStatus(
+          "No smaller lossless result found. Original is already as small or smaller, so Zaxis will not pretend it compressed."
+        );
+        return;
+      }
+
+      const base = sourceFile.name.replace(/\.pdf$/i, "");
+      const path = await savePdfToComputer(result.bytes, base + "-optimized.pdf");
+
+      if (!path) {
+        setOptimizeStatus("Optimize save cancelled.");
+        return;
+      }
+
+      setOptimizeStatus(
+        "Optimized: " +
+        (result.originalSizeBytes / (1024 * 1024)).toFixed(2) +
+        " MB → " +
+        (result.optimizedSizeBytes / (1024 * 1024)).toFixed(2) +
+        " MB • saved " +
+        result.savedPercent.toFixed(2) +
+        "%."
+      );
+    } catch (error) {
+      setOptimizeStatus(error instanceof Error ? error.message : "PDF optimization failed.");
     }
   }
 
@@ -2707,14 +2782,24 @@ function PdfToolsScreen() {
           <label>Page Range
             <input value={range} onChange={(event) => setRange(event.target.value)} placeholder="1-5,8,11-14" />
           </label>
+          <label>Split Groups
+            <input
+              value={splitGroups}
+              onChange={(event) => setSplitGroups(event.target.value)}
+              placeholder="1-10;11-20;21-30 (blank = every page)"
+            />
+          </label>
         </div>
         <div className="hero-actions">
           <button className="primary" disabled={!sourceFile} onClick={() => void extractAndSave()}>Extract & Save</button>
+          <button className="secondary" disabled={!sourceFile} onClick={() => void splitAndSave()}>Split to ZIP</button>
           <button className="secondary" disabled={!sourceFile} onClick={() => void rotateAndSave(90)}>Rotate 90°</button>
           <button className="secondary" disabled={!sourceFile} onClick={() => void rotateAndSave(180)}>Rotate 180°</button>
           <button className="secondary" disabled={!sourceFile} onClick={() => void rotateAndSave(270)}>Rotate 270°</button>
+          <button className="secondary" disabled={!sourceFile} onClick={() => void optimizeAndSave()}>Lossless Optimize</button>
         </div>
         {pageStatus && <p className="muted">{pageStatus}</p>}
+        {optimizeStatus && <p className="muted">{optimizeStatus}</p>}
       </div>
 
       <div className="panel">
