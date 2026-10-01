@@ -895,6 +895,21 @@ function titleFor(screen: Screen) {
   return "Zaxis KDP";
 }
 
+function formatExportNamingPattern(pattern: string, projectName: string) {
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10);
+  const time = now.toTimeString().slice(0, 5).replace(":", "-");
+  const resolved = (pattern.trim() || "{project}-{date}")
+    .replaceAll("{project}", projectName)
+    .replaceAll("{name}", projectName)
+    .replaceAll("{date}", date)
+    .replaceAll("{time}", time)
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return resolved || "zaxis-kdp-export";
+}
+
 function PdfExportDialog({
   project,
   settings,
@@ -923,6 +938,35 @@ function PdfExportDialog({
   const [status, setStatus] = useState("");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [effectivePolicy, setEffectivePolicy] = useState<AdminSettings | null>(null);
+
+  useEffect(() => {
+    const localPattern = project.projectOverrides?.namingExportPattern;
+    if (localPattern) {
+      setFileName(formatExportNamingPattern(localPattern, project.name));
+    }
+
+    if (!settings.cloudApiUrl.trim() || !token.trim()) {
+      setAutoShareCloudPdf(project.projectOverrides?.featurePublicSharing !== false);
+      return;
+    }
+
+    new ZaxisCloudApi(settings.cloudApiUrl.trim(), token.trim())
+      .effectiveSettings(project.id)
+      .then((result) => {
+        setEffectivePolicy(result.settings);
+        setAutoShareCloudPdf(result.settings.feature_public_sharing);
+        setFileName(
+          formatExportNamingPattern(
+            result.settings.naming_export_pattern,
+            project.name
+          )
+        );
+      })
+      .catch(() => {
+        setEffectivePolicy(null);
+      });
+  }, [project.id, settings.cloudApiUrl, token]);
 
   async function runExport() {
     setBusy(true);
@@ -1059,8 +1103,14 @@ function PdfExportDialog({
             assetId: uploaded.asset.id,
             projectId: project.id,
             title: project.name + " PDF",
-            allowDownload: true,
-            proofMode: false
+            allowDownload:
+              effectivePolicy?.default_share_download ??
+              project.projectOverrides?.defaultShareDownload,
+            proofMode:
+              effectivePolicy?.feature_proof_comments === false
+                ? false
+                : effectivePolicy?.default_share_proof_mode ??
+                  project.projectOverrides?.defaultShareProofMode
           });
 
           const shareBase = (settings.shareDomain.trim() || settings.cloudApiUrl.trim())
@@ -1185,6 +1235,7 @@ function PdfExportDialog({
               <input
                 type="checkbox"
                 checked={autoShareCloudPdf}
+                disabled={effectivePolicy?.feature_public_sharing === false}
                 onChange={(event) => setAutoShareCloudPdf(event.target.checked)}
               />
               Create persistent public share link after cloud PDF export
