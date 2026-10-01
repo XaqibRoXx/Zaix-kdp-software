@@ -100,6 +100,72 @@ final class AdminService
     /**
      * @param array<string,mixed> $actor
      * @param array<string,mixed> $input
+     * @return array<string,mixed>
+     */
+    public static function createUser(PDO $db, array $actor, array $input): array
+    {
+        self::requireAdmin($actor);
+
+        $email = strtolower(trim((string) ($input['email'] ?? '')));
+        $name = trim((string) ($input['name'] ?? ''));
+        $role = (string) ($input['role'] ?? 'editor');
+        $quotaBytes = isset($input['storage_quota_bytes'])
+            ? max(0, (int) $input['storage_quota_bytes'])
+            : 5368709120;
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new RuntimeException('A valid email address is required.');
+        }
+
+        if ($name === '') {
+            throw new RuntimeException('User name is required.');
+        }
+
+        if (!in_array($role, ['owner', 'admin', 'editor', 'reviewer'], true)) {
+            throw new RuntimeException('Invalid user role.');
+        }
+
+        $exists = $db->prepare('SELECT id FROM users WHERE email = :email LIMIT 1');
+        $exists->execute(['email' => $email]);
+        if ($exists->fetch()) {
+            throw new RuntimeException('A user with this email already exists.');
+        }
+
+        $db->prepare(
+            'INSERT INTO users (email, name, role, storage_quota_bytes)
+             VALUES (:email, :name, :role, :quota)'
+        )->execute([
+            'email' => $email,
+            'name' => mb_substr($name, 0, 190),
+            'role' => $role,
+            'quota' => $quotaBytes,
+        ]);
+
+        $userId = (int) $db->lastInsertId();
+        $pairing = Pairing::createCode($db, $userId, 'Initial Windows Desktop', 60);
+
+        self::log($db, (int) $actor['id'], 'user.created', 'user', (string) $userId, [
+            'email' => $email,
+            'role' => $role,
+            'storage_quota_bytes' => $quotaBytes,
+        ]);
+
+        foreach (self::users($db) as $user) {
+            if ((int) $user['id'] === $userId) {
+                return [
+                    'user' => $user,
+                    'connection_code' => $pairing['code'],
+                    'expires_at' => $pairing['expires_at'],
+                ];
+            }
+        }
+
+        throw new RuntimeException('Created user could not be reloaded.');
+    }
+
+    /**
+     * @param array<string,mixed> $actor
+     * @param array<string,mixed> $input
      * @return array<string,mixed>|null
      */
     public static function updateUser(PDO $db, array $actor, int $userId, array $input): ?array
