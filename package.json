@@ -13,7 +13,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "qa:large-book": "tsx scripts/stress-large-book.ts",
     "qa:sync-delta": "tsx scripts/stress-sync-delta.ts",
-    "qa:kdp-preflight": "tsx scripts/qa-kdp-preflight.ts"
+    "qa:kdp-preflight": "tsx scripts/qa-kdp-preflight.ts",
+    "qa:pdf-structural": "tsx scripts/qa-pdf-structural.ts"
   },
   "devDependencies": {
     "tsx": "4.20.6"
