@@ -756,10 +756,155 @@ try {
         ], 201);
     }
 
+    if ($method === 'POST' && $path === '/api/v1/assets/background-remove-batch') {
+        $features = AdminService::getSettings($db);
+
+        if (!(bool) ($features['feature_background_remove'] ?? true) ||
+            !(bool) ($features['feature_batch_processing'] ?? true)
+        ) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Batch background removal is disabled by Admin.',
+                'request_id' => $requestId,
+            ], 403);
+        }
+
+        $body = Http::body();
+        $assetIds = isset($body['asset_ids']) && is_array($body['asset_ids'])
+            ? array_values(array_unique(array_filter(array_map('strval', $body['asset_ids']))))
+            : [];
+        $mode = trim((string) ($body['mode'] ?? 'quality'));
+        $model = trim((string) ($body['model'] ?? 'birefnet-general'));
+
+        if (count($assetIds) < 1 || count($assetIds) > 50) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Select between 1 and 50 image assets.',
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        $results = [];
+        $failures = [];
+
+        foreach ($assetIds as $assetId) {
+            $assetStmt = $db->prepare(
+                'SELECT id, project_id, original_name, mime_type
+                 FROM assets
+                 WHERE id = :id AND owner_user_id = :owner AND deleted_at IS NULL
+                 LIMIT 1'
+            );
+            $assetStmt->execute(['id' => $assetId, 'owner' => $user['id']]);
+            $assetRow = $assetStmt->fetch();
+
+            if (!$assetRow || !str_starts_with((string) $assetRow['mime_type'], 'image/')) {
+                $failures[] = ['asset_id' => $assetId, 'error' => 'Image asset not found.'];
+                continue;
+            }
+
+            $content = AssetStorage::resolveContent(
+                $db,
+                (int) $user['id'],
+                $assetId,
+                'original'
+            );
+
+            if (!$content) {
+                $failures[] = ['asset_id' => $assetId, 'error' => 'Original content missing.'];
+                continue;
+            }
+
+            $tmp = null;
+
+            try {
+                $tmp = ImageWorker::removeBackground($content['path'], $mode, $model);
+                $baseName = preg_replace('/\.[^.]+$/', '', (string) $assetRow['original_name']) ?: 'image';
+
+                $processed = AssetStorage::storeUpload(
+                    $db,
+                    (int) $user['id'],
+                    $assetRow['project_id'] !== null ? (string) $assetRow['project_id'] : null,
+                    [
+                        'name' => $baseName . '-transparent.png',
+                        'type' => 'image/png',
+                        'tmp_name' => $tmp,
+                        'error' => UPLOAD_ERR_OK,
+                        'size' => filesize($tmp) ?: 0,
+                    ]
+                );
+
+                $db->prepare(
+                    'UPDATE assets
+                     SET source_asset_id = :source_asset_id,
+                         process_kind = :process_kind
+                     WHERE id = :id AND owner_user_id = :owner'
+                )->execute([
+                    'source_asset_id' => $assetId,
+                    'process_kind' => 'background-remove:' . $mode,
+                    'id' => $processed['id'],
+                    'owner' => $user['id'],
+                ]);
+
+                $processedStmt = $db->prepare(
+                    'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, source_asset_id, process_kind, created_at, updated_at
+                     FROM assets
+                     WHERE id = :id AND owner_user_id = :owner
+                     LIMIT 1'
+                );
+                $processedStmt->execute([
+                    'id' => $processed['id'],
+                    'owner' => $user['id'],
+                ]);
+                $row = $processedStmt->fetch();
+                $results[] = $row ? AssetStorage::decorateAsset($db, $row) : $processed;
+            } catch (Throwable $error) {
+                $failures[] = [
+                    'asset_id' => $assetId,
+                    'error' => $error->getMessage(),
+                ];
+            } finally {
+                if (is_string($tmp) && is_file($tmp)) {
+                    @unlink($tmp);
+                }
+            }
+        }
+
+        AdminService::log(
+            $db,
+            (int) $user['id'],
+            'background.batch',
+            'assets',
+            null,
+            [
+                'requested' => count($assetIds),
+                'completed' => count($results),
+                'failed' => count($failures),
+                'mode' => $mode,
+                'model' => $model,
+            ]
+        );
+
+        Http::json([
+            'ok' => count($results) > 0,
+            'assets' => $results,
+            'failures' => $failures,
+            'request_id' => $requestId,
+        ], count($results) > 0 ? 201 : 422);
+    }
+
     if (
         $method === 'POST' &&
         preg_match('#^/api/v1/assets/([^/]+)/background-remove$#', $path, $matches)
     ) {
+        $features = AdminService::getSettings($db);
+        if (!(bool) ($features['feature_background_remove'] ?? true)) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Background removal is disabled by Admin.',
+                'request_id' => $requestId,
+            ], 403);
+        }
+
         $assetId = rawurldecode($matches[1]);
         $body = Http::body();
         $mode = trim((string) ($body['mode'] ?? 'quality'));
