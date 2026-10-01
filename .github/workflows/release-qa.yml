@@ -41,6 +41,9 @@ jobs:
       - name: KDP preflight regression matrix
         run: npm run qa:kdp-preflight
 
+      - name: PDF structural and lossless regression
+        run: npm run qa:pdf-structural
+
   server-worker-check:
     runs-on: ubuntu-latest
     steps:
