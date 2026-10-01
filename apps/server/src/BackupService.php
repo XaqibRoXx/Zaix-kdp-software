@@ -103,11 +103,12 @@ final class BackupService
                 throw new RuntimeException('Backup archive was not created.');
             }
 
+            $secondaryProvider = (string) ($settings['backup_secondary_provider'] ?? 'none');
             $secondaryRoot = trim(
                 (string) ($settings['backup_secondary_path'] ?? '')
             );
 
-            if ($secondaryRoot !== '') {
+            if ($secondaryProvider === 'local-path' && $secondaryRoot !== '') {
                 $secondaryRoot = rtrim($secondaryRoot, '/\\');
                 if (!is_dir($secondaryRoot) &&
                     !mkdir($secondaryRoot, 0750, true) &&
