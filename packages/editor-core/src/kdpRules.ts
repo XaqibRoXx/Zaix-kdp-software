@@ -239,6 +239,7 @@ interface PreflightArtboardLike {
   width: number;
   height: number;
   unit: Unit;
+  templateOverlay?: { src?: string };
   objects: PreflightObjectLike[];
 }
 
