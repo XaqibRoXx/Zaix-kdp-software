@@ -393,7 +393,7 @@ try {
         $projectId = isset($_GET['project_id']) ? trim((string) $_GET['project_id']) : '';
 
         $sql =
-            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, created_at
+            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, created_at, updated_at
              FROM assets
              WHERE owner_user_id = :owner AND deleted_at IS NULL';
         $params = ['owner' => $user['id']];
@@ -467,6 +467,39 @@ try {
             'asset' => $asset,
             'request_id' => $requestId,
         ], 201);
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/v1/assets/([^/]+)/replace$#', $path, $matches)) {
+        $assetId = rawurldecode($matches[1]);
+
+        if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Multipart file field "file" is required.',
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        try {
+            $asset = AssetStorage::replaceUpload(
+                $db,
+                (int) $user['id'],
+                $assetId,
+                $_FILES['file']
+            );
+        } catch (RuntimeException $error) {
+            Http::json([
+                'ok' => false,
+                'error' => $error->getMessage(),
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        Http::json([
+            'ok' => true,
+            'asset' => $asset,
+            'request_id' => $requestId,
+        ]);
     }
 
     if ($method === 'GET' && preg_match('#^/api/v1/assets/([^/]+)/content$#', $path, $matches)) {
