@@ -90,8 +90,48 @@ jobs:
             release/SHA256SUMS.txt
           if-no-files-found: error
 
+
+  backup-restore-integration:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: zaxis_kdp_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: zaxis_kdp_test
+      DB_USER: root
+      DB_PASS: root
+      STORAGE_PATH: ${{ github.workspace }}/tmp-storage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: pdo_mysql, zip, mbstring
+          coverage: none
+
+      - name: Load test schema
+        run: mysql -h127.0.0.1 -uroot -proot zaxis_kdp_test < apps/server/database/schema.sql
+
+      - name: Run backup restore integrity test
+        run: php scripts/qa-backup-restore.php
+
   windows-release-candidate:
-    needs: [desktop-check, server-worker-check]
+    needs: [desktop-check, server-worker-check, backup-restore-integration]
     runs-on: windows-latest
     steps:
       - name: Checkout
