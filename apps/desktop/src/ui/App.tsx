@@ -26,6 +26,7 @@ import {
   createBlankProject,
   createMasterPageFromArtboard,
   createOrUpdateKdpCoverArtboard,
+  deleteReusableComponent,
   createOrUpdateTocArtboard,
   deleteArtboard,
   deleteObject,
@@ -33,6 +34,7 @@ import {
   distributeObjects,
   duplicateArtboard,
   fitObjectInsideArtboard,
+  insertReusableComponent,
   linkImageObjectToCloudAsset,
   moveArtboard,
   moveObjectLayer,
@@ -40,6 +42,8 @@ import {
   resizeAllArtboardsWithContent,
   resizeArtboard,
   replaceLinkedAssetReferences,
+  saveArtboardAsTemplate,
+  saveReusableComponent,
   saveReusableStyle,
   setArtboardTemplateOverlay,
   setObjectLocked,
@@ -48,6 +52,7 @@ import {
   updateKdpSettings,
   updateObject,
   updatePageNumberSettings,
+  updateProjectOverrides,
   updateTocTitle,
   type DesignObject,
   type KdpInkType,
@@ -825,6 +830,8 @@ export function App() {
               clearLocalRecoveryCache();
               setProjectSummaries([]);
             }}
+            project={project}
+            onProjectChange={commit}
           />
         )}
       </main>
@@ -1658,6 +1665,24 @@ function EditorShell({
                     Apply {style.kind}: {style.name}
                   </button>
                 ))}
+              <button
+                className="secondary full"
+                onClick={() => {
+                  const name = window.prompt("Component name", selectedObject.name + " Component");
+                  if (name?.trim()) {
+                    onCommit(
+                      saveReusableComponent(
+                        project,
+                        artboard.id,
+                        [selectedObject.id],
+                        name
+                      )
+                    );
+                  }
+                }}
+              >
+                Save Selected as Component
+              </button>
             </div>
             {selectedObject.type === "path" && (
               <div className="path-point-tools">
@@ -1756,6 +1781,58 @@ function EditorShell({
                 Apply Master: {master.name}
               </button>
             ))}
+            <hr />
+            <div className="component-library">
+              <div className="panel-title">Components & Templates</div>
+              <button
+                className="secondary full"
+                disabled={artboard.objects.length === 0}
+                onClick={() => {
+                  const name = window.prompt(
+                    "Template name",
+                    artboard.name + " Template"
+                  );
+                  if (name?.trim()) {
+                    onCommit(saveArtboardAsTemplate(project, artboard.id, name));
+                  }
+                }}
+              >
+                Save Artboard as Template
+              </button>
+
+              {(project.reusableComponents ?? []).map((component) => (
+                <div className="component-row" key={component.id}>
+                  <button
+                    className="secondary component-insert"
+                    onClick={() =>
+                      onCommit(
+                        insertReusableComponent(
+                          project,
+                          artboard.id,
+                          component.id
+                        )
+                      )
+                    }
+                  >
+                    Insert {component.name}
+                  </button>
+                  <button
+                    className="secondary danger"
+                    title="Delete reusable component"
+                    onClick={() =>
+                      onCommit(
+                        deleteReusableComponent(project, component.id)
+                      )
+                    }
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {(project.reusableComponents ?? []).length === 0 && (
+                <small className="muted">No reusable components saved yet.</small>
+              )}
+            </div>
           </>
         )}
       </aside>
@@ -4523,11 +4600,15 @@ function AssetsScreen({
 function SettingsScreen({
   settings,
   onChange,
-  onClearCache
+  onClearCache,
+  project,
+  onProjectChange
 }: {
   settings: AppSettings;
   onChange: (settings: AppSettings) => void;
   onClearCache: () => void;
+  project: ZaxisProject;
+  onProjectChange: (project: ZaxisProject) => void;
 }) {
   const [nativeCache, setNativeCache] = useState<NativeCacheStatus | null>(null);
   const [cacheMessage, setCacheMessage] = useState("");
@@ -4618,9 +4699,107 @@ function SettingsScreen({
         </div>
         <button className="secondary danger" onClick={onClearCache}>Clear Local Recovery Cache</button>
       </div>
+
+      <div className="panel">
+        <span className="eyebrow">PROJECT OVERRIDES</span>
+        <h2>{project.name}</h2>
+        <p className="muted">
+          “Inherit” follows the server Admin default. Use an override only when this project needs different behavior.
+        </p>
+
+        <div className="settings-grid">
+          <TriStateSetting
+            label="Background Remover"
+            value={project.projectOverrides?.featureBackgroundRemove}
+            onChange={(value) =>
+              onProjectChange(
+                updateProjectOverrides(project, {
+                  featureBackgroundRemove: value
+                })
+              )
+            }
+          />
+          <TriStateSetting
+            label="Public Sharing"
+            value={project.projectOverrides?.featurePublicSharing}
+            onChange={(value) =>
+              onProjectChange(
+                updateProjectOverrides(project, {
+                  featurePublicSharing: value
+                })
+              )
+            }
+          />
+          <TriStateSetting
+            label="Proof Comments"
+            value={project.projectOverrides?.featureProofComments}
+            onChange={(value) =>
+              onProjectChange(
+                updateProjectOverrides(project, {
+                  featureProofComments: value
+                })
+              )
+            }
+          />
+          <TriStateSetting
+            label="Share Download Default"
+            value={project.projectOverrides?.defaultShareDownload}
+            onChange={(value) =>
+              onProjectChange(
+                updateProjectOverrides(project, {
+                  defaultShareDownload: value
+                })
+              )
+            }
+          />
+
+          <label>Export Naming Override
+            <input
+              value={project.projectOverrides?.namingExportPattern ?? ""}
+              placeholder="Inherit server default"
+              onChange={(event) =>
+                onProjectChange(
+                  updateProjectOverrides(project, {
+                    namingExportPattern: event.target.value || undefined
+                  })
+                )
+              }
+            />
+          </label>
+        </div>
+      </div>
     </section>
   );
 }
+function TriStateSetting({
+  label,
+  value,
+  onChange
+}: {
+  label: string;
+  value: boolean | undefined;
+  onChange: (value: boolean | undefined) => void;
+}) {
+  return (
+    <label>{label}
+      <select
+        value={value === undefined ? "inherit" : value ? "on" : "off"}
+        onChange={(event) =>
+          onChange(
+            event.target.value === "inherit"
+              ? undefined
+              : event.target.value === "on"
+          )
+        }
+      >
+        <option value="inherit">Inherit Admin Default</option>
+        <option value="on">Force On</option>
+        <option value="off">Force Off</option>
+      </select>
+    </label>
+  );
+}
+
 
 function CloudScreen({
   settings,
