@@ -893,20 +893,15 @@ export function updateProjectOverrides(
 }
 
 function cloneReusableObject(object: DesignObject): DesignObject {
-  const cloned = structuredClone(object) as DesignObject;
-  const base = {
-    ...cloned,
-    id: id("object"),
-    name: cloned.name + " Instance",
-    x: Math.min(100 - cloned.width, cloned.x + 2),
-    y: Math.min(100 - cloned.height, cloned.y + 2),
-    locked: false
-  };
-
-  if (cloned.type === "path") {
+  if (object.type === "path") {
+    const cloned = structuredClone(object);
     return {
-      ...base,
-      type: "path",
+      ...cloned,
+      id: id("object"),
+      name: cloned.name + " Instance",
+      x: Math.min(100 - cloned.width, cloned.x + 2),
+      y: Math.min(100 - cloned.height, cloned.y + 2),
+      locked: false,
       points: cloned.points.map((point) => ({
         ...point,
         id: id("point")
@@ -914,10 +909,15 @@ function cloneReusableObject(object: DesignObject): DesignObject {
     };
   }
 
-  if (cloned.type === "image") {
+  if (object.type === "image") {
+    const cloned = structuredClone(object);
     return {
-      ...base,
-      type: "image",
+      ...cloned,
+      id: id("object"),
+      name: cloned.name + " Instance",
+      x: Math.min(100 - cloned.width, cloned.x + 2),
+      y: Math.min(100 - cloned.height, cloned.y + 2),
+      locked: false,
       maskPoints: cloned.maskPoints.map((point) => ({
         ...point,
         id: id("mask")
@@ -925,7 +925,27 @@ function cloneReusableObject(object: DesignObject): DesignObject {
     };
   }
 
-  return base as DesignObject;
+  if (object.type === "text") {
+    const cloned = structuredClone(object);
+    return {
+      ...cloned,
+      id: id("object"),
+      name: cloned.name + " Instance",
+      x: Math.min(100 - cloned.width, cloned.x + 2),
+      y: Math.min(100 - cloned.height, cloned.y + 2),
+      locked: false
+    };
+  }
+
+  const cloned = structuredClone(object);
+  return {
+    ...cloned,
+    id: id("object"),
+    name: cloned.name + " Instance",
+    x: Math.min(100 - cloned.width, cloned.x + 2),
+    y: Math.min(100 - cloned.height, cloned.y + 2),
+    locked: false
+  };
 }
 
 export function saveReusableStyle(
