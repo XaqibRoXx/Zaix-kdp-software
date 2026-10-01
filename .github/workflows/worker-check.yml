@@ -1,0 +1,37 @@
+name: Worker Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/worker/**"
+      - ".github/workflows/worker-check.yml"
+  workflow_dispatch:
+
+jobs:
+  worker-syntax:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile worker source
+        run: python -m py_compile apps/worker/main.py
+
+      - name: Validate requirements file
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          req = Path("apps/worker/requirements.txt").read_text(encoding="utf-8")
+          required = ["fastapi", "uvicorn", "python-multipart", "Pillow", "rembg"]
+          missing = [item for item in required if item.lower() not in req.lower()]
+          if missing:
+              raise SystemExit("Missing required worker dependencies: " + ", ".join(missing))
+          print("Worker requirements manifest OK")
+          PY
