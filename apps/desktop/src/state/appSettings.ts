@@ -6,6 +6,8 @@ export interface AppSettings {
   snapDefault: boolean;
   cloudApiUrl: string;
   shareDomain: string;
+  storageProvider: "local-cpanel" | "s3" | "r2" | "b2" | "nas";
+  workerUrl: string;
 }
 
 const SETTINGS_KEY = "zaxis-kdp:settings";
@@ -17,7 +19,9 @@ export const defaultSettings: AppSettings = {
   gridDefault: true,
   snapDefault: true,
   cloudApiUrl: "",
-  shareDomain: ""
+  shareDomain: "",
+  storageProvider: "local-cpanel",
+  workerUrl: ""
 };
 
 export function loadAppSettings(): AppSettings {
