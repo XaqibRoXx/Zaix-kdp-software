@@ -1499,24 +1499,51 @@ function EditorShell({
               systemFonts={systemFonts}
             />
             <div className="production-tools">
-              <button
-                className="secondary full"
-                onClick={() => {
-                  const name = window.prompt("Style name", selectedObject.type === "text" ? "Text Style" : "Object Style");
-                  if (name?.trim()) onCommit(saveReusableStyle(project, selectedObject, name));
-                }}
-              >
-                Save Current Style
-              </button>
+              {selectedObject.type === "text" ? (
+                <>
+                  <button
+                    className="secondary full"
+                    onClick={() => {
+                      const name = window.prompt("Character style name", "Character Style");
+                      if (name?.trim()) onCommit(saveReusableStyle(project, selectedObject, name, "character"));
+                    }}
+                  >
+                    Save Character Style
+                  </button>
+                  <button
+                    className="secondary full"
+                    onClick={() => {
+                      const name = window.prompt("Paragraph style name", "Paragraph Style");
+                      if (name?.trim()) onCommit(saveReusableStyle(project, selectedObject, name, "paragraph"));
+                    }}
+                  >
+                    Save Paragraph Style
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="secondary full"
+                  onClick={() => {
+                    const name = window.prompt("Object style name", "Object Style");
+                    if (name?.trim()) onCommit(saveReusableStyle(project, selectedObject, name, "object"));
+                  }}
+                >
+                  Save Object Style
+                </button>
+              )}
               {(project.reusableStyles ?? [])
-                .filter((style) => style.kind === (selectedObject.type === "text" ? "text" : "object"))
+                .filter((style) =>
+                  selectedObject.type === "text"
+                    ? style.kind === "character" || style.kind === "paragraph"
+                    : style.kind === "object"
+                )
                 .map((style) => (
                   <button
                     className="secondary full"
                     key={style.id}
                     onClick={() => onCommit(applyReusableStyle(project, artboard.id, selectedObject.id, style.id))}
                   >
-                    Apply: {style.name}
+                    Apply {style.kind}: {style.name}
                   </button>
                 ))}
             </div>
