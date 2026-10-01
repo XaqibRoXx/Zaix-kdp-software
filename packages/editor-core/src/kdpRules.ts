@@ -31,6 +31,24 @@ export interface KdpPreflightResult {
   issues: KdpPreflightIssue[];
 }
 
+export interface KdpPaperbackCoverLayout {
+  totalWidthIn: number;
+  totalHeightIn: number;
+  bleedIn: number;
+  backCover: { xIn: number; widthIn: number };
+  spine: { xIn: number; widthIn: number };
+  frontCover: { xIn: number; widthIn: number };
+  outerSafeMarginIn: number;
+  spineSafeInsetIn: number;
+  barcodeReservation: {
+    xIn: number;
+    yIn: number;
+    widthIn: number;
+    heightIn: number;
+    clearanceIn: number;
+  };
+}
+
 export const KDP_RULESET_VERSION = "2026-09-30";
 
 export const KDP_RULES = {
@@ -39,6 +57,11 @@ export const KDP_RULES = {
   bleedIn: 0.125,
   minimumFontPt: 7,
   spineTextMinimumPages: 80,
+  coverOuterSafeMarginIn: 0.25,
+  spineTextSafeInsetIn: 0.0625,
+  barcodeSuggestedWidthIn: 2,
+  barcodeSuggestedHeightIn: 1.2,
+  barcodeClearanceIn: 0.25,
   paperbackCustomTrim: {
     minWidthIn: 4,
     maxWidthIn: 8.5,
@@ -137,6 +160,50 @@ export function calculatePaperbackCoverSize(
     widthIn: round4(settings.trimWidthIn * 2 + spineWidthIn + totalBleed),
     heightIn: round4(settings.trimHeightIn + totalBleed),
     spineWidthIn
+  };
+}
+
+export function calculatePaperbackCoverLayout(
+  pageCount: number,
+  settings: KdpSettings
+): KdpPaperbackCoverLayout {
+  const size = calculatePaperbackCoverSize(pageCount, settings);
+  const bleed = KDP_RULES.bleedIn;
+  const backX = bleed;
+  const spineX = backX + settings.trimWidthIn;
+  const frontX = spineX + size.spineWidthIn;
+  const barcodeWidth = KDP_RULES.barcodeSuggestedWidthIn;
+  const barcodeHeight = KDP_RULES.barcodeSuggestedHeightIn;
+  const clearance = KDP_RULES.barcodeClearanceIn;
+
+  return {
+    totalWidthIn: size.widthIn,
+    totalHeightIn: size.heightIn,
+    bleedIn: bleed,
+    backCover: {
+      xIn: backX,
+      widthIn: settings.trimWidthIn
+    },
+    spine: {
+      xIn: spineX,
+      widthIn: size.spineWidthIn
+    },
+    frontCover: {
+      xIn: frontX,
+      widthIn: settings.trimWidthIn
+    },
+    outerSafeMarginIn: KDP_RULES.coverOuterSafeMarginIn,
+    spineSafeInsetIn: KDP_RULES.spineTextSafeInsetIn,
+    barcodeReservation: {
+      xIn: Math.max(
+        backX + clearance,
+        spineX - clearance - barcodeWidth
+      ),
+      yIn: bleed + clearance,
+      widthIn: barcodeWidth,
+      heightIn: barcodeHeight,
+      clearanceIn: clearance
+    }
   };
 }
 
