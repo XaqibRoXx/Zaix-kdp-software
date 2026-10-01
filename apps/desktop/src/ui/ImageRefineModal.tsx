@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   ZaxisCloudApi,
   type CloudAsset
@@ -148,7 +148,7 @@ export function ImageRefineModal({
     }
   }
 
-  function pointerPosition(event: React.PointerEvent<HTMLCanvasElement>) {
+  function pointerPosition(event: ReactPointerEvent<HTMLCanvasElement>) {
     const canvas = foregroundRef.current;
     if (!canvas) return null;
 
@@ -231,7 +231,7 @@ export function ImageRefineModal({
     ctx.restore();
   }
 
-  function onPointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
+  function onPointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
     if (loading) return;
     drawingRef.current = true;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -239,13 +239,13 @@ export function ImageRefineModal({
     if (point) applyBrush(point.x, point.y);
   }
 
-  function onPointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
+  function onPointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
     if (!drawingRef.current) return;
     const point = pointerPosition(event);
     if (point) applyBrush(point.x, point.y);
   }
 
-  function onPointerUp(event: React.PointerEvent<HTMLCanvasElement>) {
+  function onPointerUp(event: ReactPointerEvent<HTMLCanvasElement>) {
     drawingRef.current = false;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
