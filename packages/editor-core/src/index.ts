@@ -68,6 +68,9 @@ export interface ImageObject extends DesignObjectBase {
   borderRadius: number;
   maskType: "none" | "ellipse" | "polygon";
   maskPoints: PathPoint[];
+  linkedAssetId?: string;
+  linkedAssetVersion?: number;
+  linkedAssetSha256?: string;
 }
 
 export interface PathHandle {
@@ -193,6 +196,9 @@ export interface UpdateObjectInput {
   borderRadius?: number;
   maskType?: "none" | "ellipse" | "polygon";
   maskPoints?: PathPoint[];
+  linkedAssetId?: string;
+  linkedAssetVersion?: number;
+  linkedAssetSha256?: string;
   points?: PathPoint[];
   closed?: boolean;
 }
@@ -1039,6 +1045,64 @@ export function addImageObject(
   };
 }
 
+export function linkImageObjectToCloudAsset(
+  project: ZaxisProject,
+  artboardId: string,
+  objectId: string,
+  input: {
+    src: string;
+    assetId: string;
+    assetVersion: number;
+    sha256: string;
+    alt?: string;
+  }
+): ZaxisProject {
+  return updateObject(project, artboardId, objectId, {
+    src: input.src,
+    alt: input.alt,
+    linkedAssetId: input.assetId,
+    linkedAssetVersion: input.assetVersion,
+    linkedAssetSha256: input.sha256
+  });
+}
+
+export function replaceLinkedAssetReferences(
+  project: ZaxisProject,
+  fromAssetId: string,
+  input: {
+    src: string;
+    assetId: string;
+    assetVersion: number;
+    sha256: string;
+    alt?: string;
+  }
+): ZaxisProject {
+  return touch(
+    project,
+    project.artboards.map((artboard) => ({
+      ...artboard,
+      objects: artboard.objects.map((object) => {
+        if (
+          object.type !== "image" ||
+          object.locked ||
+          object.linkedAssetId !== fromAssetId
+        ) {
+          return object;
+        }
+
+        return {
+          ...object,
+          src: input.src,
+          alt: input.alt ?? object.alt,
+          linkedAssetId: input.assetId,
+          linkedAssetVersion: input.assetVersion,
+          linkedAssetSha256: input.sha256
+        };
+      })
+    }))
+  );
+}
+
 export function addPathObject(
   project: ZaxisProject,
   artboardId: string
@@ -1179,6 +1243,9 @@ export function updateObject(
           scale: Math.max(0.1, Math.min(5, input.scale ?? object.scale)),
           borderRadius: Math.max(0, input.borderRadius ?? object.borderRadius),
           maskType: input.maskType ?? object.maskType,
+          linkedAssetId: input.linkedAssetId ?? object.linkedAssetId,
+          linkedAssetVersion: input.linkedAssetVersion ?? object.linkedAssetVersion,
+          linkedAssetSha256: input.linkedAssetSha256 ?? object.linkedAssetSha256,
           maskPoints: (input.maskPoints ?? object.maskPoints).map((point) => ({
             ...point,
             x: Math.max(0, Math.min(100, point.x)),
