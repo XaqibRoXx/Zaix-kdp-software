@@ -67,12 +67,17 @@ final class AdminService
                u.storage_quota_bytes,
                u.created_at,
                u.updated_at,
-               COALESCE(SUM(CASE WHEN a.deleted_at IS NULL THEN a.size_bytes ELSE 0 END), 0) AS storage_used_bytes,
-               COUNT(DISTINCT CASE WHEN p.deleted_at IS NULL THEN p.id END) AS project_count
+               COALESCE((
+                 SELECT SUM(a.size_bytes)
+                 FROM assets a
+                 WHERE a.owner_user_id = u.id AND a.deleted_at IS NULL
+               ), 0) AS storage_used_bytes,
+               (
+                 SELECT COUNT(*)
+                 FROM projects p
+                 WHERE p.owner_user_id = u.id AND p.deleted_at IS NULL
+               ) AS project_count
              FROM users u
-             LEFT JOIN assets a ON a.owner_user_id = u.id
-             LEFT JOIN projects p ON p.owner_user_id = u.id
-             GROUP BY u.id, u.email, u.name, u.role, u.storage_quota_bytes, u.created_at, u.updated_at
              ORDER BY u.created_at ASC'
         );
 
