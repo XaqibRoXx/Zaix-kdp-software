@@ -5,6 +5,8 @@ import {
   SnapshotHistory,
   addBookChapter,
   alignObject,
+  applyMasterPage,
+  applyReusableStyle,
   analyzeKdpProject,
   calculatePaperbackCoverLayout,
   calculatePaperbackCoverSize,
@@ -21,6 +23,7 @@ import {
   addShapeObject,
   addTextObject,
   createBlankProject,
+  createMasterPageFromArtboard,
   createOrUpdateKdpCoverArtboard,
   createOrUpdateTocArtboard,
   deleteArtboard,
@@ -32,7 +35,10 @@ import {
   moveArtboard,
   moveObjectLayer,
   resizeAllArtboards,
+  resizeAllArtboardsWithContent,
   resizeArtboard,
+  saveReusableStyle,
+  setArtboardTemplateOverlay,
   setObjectLocked,
   setObjectVisible,
   updateBookChapter,
@@ -1202,7 +1208,7 @@ function EditorShell({
   }
 
   function bulkResize() {
-    onCommit(resizeAllArtboards(project, {
+    onCommit(resizeAllArtboardsWithContent(project, {
       width: artboard.width,
       height: artboard.height,
       unit: artboard.unit
@@ -1343,6 +1349,14 @@ function EditorShell({
             }}
             onClick={(event) => event.stopPropagation()}
           >
+            {artboard.templateOverlay?.visible && (
+              <img
+                className="template-overlay"
+                src={artboard.templateOverlay.src}
+                alt={artboard.templateOverlay.name}
+                style={{ opacity: artboard.templateOverlay.opacity }}
+              />
+            )}
             {project.mode !== "kdp" && <div className="safe-area" />}
             {artboard.role === "cover" && project.kdpSettings && (
               <KdpCoverGuides project={project} />
@@ -1444,6 +1458,28 @@ function EditorShell({
               onChange={(input) => onCommit(updateObject(project, artboard.id, selectedObject.id, input))}
               systemFonts={systemFonts}
             />
+            <div className="production-tools">
+              <button
+                className="secondary full"
+                onClick={() => {
+                  const name = window.prompt("Style name", selectedObject.type === "text" ? "Text Style" : "Object Style");
+                  if (name?.trim()) onCommit(saveReusableStyle(project, selectedObject, name));
+                }}
+              >
+                Save Current Style
+              </button>
+              {(project.reusableStyles ?? [])
+                .filter((style) => style.kind === (selectedObject.type === "text" ? "text" : "object"))
+                .map((style) => (
+                  <button
+                    className="secondary full"
+                    key={style.id}
+                    onClick={() => onCommit(applyReusableStyle(project, artboard.id, selectedObject.id, style.id))}
+                  >
+                    Apply: {style.name}
+                  </button>
+                ))}
+            </div>
             {selectedObject.type === "path" && (
               <div className="path-point-tools">
                 <button className="secondary full" onClick={() => onCommit(addPathPoint(project, artboard.id, selectedObject.id))}>+ Add Anchor Point</button>
@@ -1522,7 +1558,25 @@ function EditorShell({
             <Property label="Document Mode" value={project.mode === "kdp" ? "KDP / Print" : "Graphic Design"} />
             <Property label="Artboard" value={String(artboard.width) + " × " + String(artboard.height) + " " + artboard.unit} />
             <Property label="Objects" value={String(artboard.objects.length)} />
-            <button className="secondary full" onClick={bulkResize}>Bulk Resize</button>
+            <button className="secondary full" onClick={bulkResize}>Scale Whole Book to This Size</button>
+            <button
+              className="secondary full"
+              onClick={() => {
+                const name = window.prompt("Master page name", "Master " + ((project.masterPages?.length ?? 0) + 1));
+                if (name?.trim()) onCommit(createMasterPageFromArtboard(project, artboard.id, name));
+              }}
+            >
+              Save Current Page as Master
+            </button>
+            {(project.masterPages ?? []).map((master) => (
+              <button
+                className="secondary full"
+                key={master.id}
+                onClick={() => onCommit(applyMasterPage(project, artboard.id, master.id))}
+              >
+                Apply Master: {master.name}
+              </button>
+            ))}
           </>
         )}
       </aside>
