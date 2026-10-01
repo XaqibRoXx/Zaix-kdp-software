@@ -2036,19 +2036,20 @@ function KdpBookPanel({
   onOpenPage: (page: number) => void;
   onOpenArtboard: (artboardId: string) => void;
 }) {
-  const settings = project.kdpSettings;
+  const maybeSettings = project.kdpSettings;
   const structure = normalizeBookStructure(project.bookStructure);
   const result = useMemo(() => analyzeKdpProject(project), [project]);
 
-  if (!settings) return null;
+  if (!maybeSettings) return null;
+  const kdpSettings = maybeSettings;
 
   function update(input: Parameters<typeof updateKdpSettings>[1]) {
     onCommit(updateKdpSettings(project, input));
   }
 
   const applyPageSize = () => {
-    const width = settings.trimWidthIn + (settings.bleed ? KDP_RULES.bleedIn : 0);
-    const height = settings.trimHeightIn + (settings.bleed ? KDP_RULES.bleedIn * 2 : 0);
+    const width = kdpSettings.trimWidthIn + (kdpSettings.bleed ? KDP_RULES.bleedIn : 0);
+    const height = kdpSettings.trimHeightIn + (kdpSettings.bleed ? KDP_RULES.bleedIn * 2 : 0);
     onCommit(resizeAllArtboards(project, { width, height, unit: "in" }));
   };
 
@@ -2100,7 +2101,7 @@ function KdpBookPanel({
             min="4"
             max="8.5"
             step="0.001"
-            value={settings.trimWidthIn}
+            value={kdpSettings.trimWidthIn}
             onChange={(event) => update({ trimWidthIn: Number(event.target.value) })}
           />
         </label>
@@ -2110,7 +2111,7 @@ function KdpBookPanel({
             min="6"
             max="11.69"
             step="0.001"
-            value={settings.trimHeightIn}
+            value={kdpSettings.trimHeightIn}
             onChange={(event) => update({ trimHeightIn: Number(event.target.value) })}
           />
         </label>
@@ -2119,7 +2120,7 @@ function KdpBookPanel({
       <label className="toggle-setting kdp-toggle">
         <input
           type="checkbox"
-          checked={settings.bleed}
+          checked={kdpSettings.bleed}
           onChange={(event) => update({ bleed: event.target.checked })}
         />
         Full bleed interior
@@ -2127,7 +2128,7 @@ function KdpBookPanel({
 
       <label className="inspector-field">Paper
         <select
-          value={settings.paperType}
+          value={kdpSettings.paperType}
           onChange={(event) => update({ paperType: event.target.value as KdpPaperType })}
         >
           <option value="white">White</option>
@@ -2139,7 +2140,7 @@ function KdpBookPanel({
 
       <label className="inspector-field">Ink
         <select
-          value={settings.inkType}
+          value={kdpSettings.inkType}
           onChange={(event) => update({ inkType: event.target.value as KdpInkType })}
         >
           <option value="black">Black</option>
