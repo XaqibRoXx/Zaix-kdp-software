@@ -124,6 +124,9 @@ A complete KDP workflow from design to validated PDF, with reliable cloud autosa
 
 ## Phase 3 — Image AI + Assets + Sharing + Admin
 
+**Status: IN PROGRESS — started 2026-10-01**
+
+
 ### Asset Library
 - Cloud asset library.
 - Original asset preservation.
