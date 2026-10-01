@@ -122,6 +122,13 @@ $backupId = (int) $backupIdStmt->fetchColumn();
 assertQa($backupId > 0, 'Backup row was not recorded.');
 assertQa(is_file((string) $backup['path']), 'Backup archive was not created.');
 
+$recoveryRoot = (string) (getenv('RUNNER_TEMP') ?: sys_get_temp_dir());
+$externalRecoveryPath = rtrim($recoveryRoot, '/\\') . DIRECTORY_SEPARATOR . 'zaxis-kdp-clean-recovery.zip';
+if (!copy((string) $backup['path'], $externalRecoveryPath)) {
+    throw new RuntimeException('Could not stage external clean-recovery archive.');
+}
+assertQa(is_file($externalRecoveryPath), 'External clean-recovery archive was not staged.');
+
 $db->exec(
     "UPDATE projects
      SET name = 'Mutated After Backup', current_revision = 99
@@ -218,4 +225,5 @@ echo json_encode([
     'locks_after_restore' => 0,
     'asset_sha256' => hash_file('sha256', $assetPath),
     'asset_variant_restored' => is_file($variantPath),
+    'external_recovery_archive' => $externalRecoveryPath,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
