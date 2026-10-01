@@ -99,6 +99,114 @@ export interface ServerDiagnostics {
   post_max_size: string | null;
 }
 
+export interface AdminOverview {
+  users: number;
+  projects: number;
+  assets: number;
+  asset_bytes: number;
+  recycle_items: number;
+  active_shares: number;
+  queued_exports: number;
+  unread_notifications: number;
+  backups: number;
+}
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  name: string;
+  role: "owner" | "admin" | "editor" | "reviewer";
+  storage_quota_bytes: number;
+  storage_used_bytes: number;
+  project_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminSettings {
+  feature_background_remove: boolean;
+  feature_public_sharing: boolean;
+  feature_proof_comments: boolean;
+  feature_batch_processing: boolean;
+  default_share_download: boolean;
+  default_share_proof_mode: boolean;
+  default_project_mode: "kdp" | "graphic-design";
+  naming_project_pattern: string;
+  naming_export_pattern: string;
+  backup_enabled: boolean;
+  backup_interval_hours: number;
+  backup_retention_count: number;
+  backup_include_assets: boolean;
+  backup_secondary_path: string;
+  recycle_retention_days: number;
+}
+
+export interface AdminActivity {
+  id: number;
+  action: string;
+  subject_type: string | null;
+  subject_id: string | null;
+  details: unknown;
+  user_id: number | null;
+  user_name: string | null;
+  user_email: string | null;
+  created_at: string;
+}
+
+export interface AdminNotification {
+  id: number;
+  user_id: number | null;
+  level: "info" | "warning" | "error" | "success";
+  title: string;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface AdminBackup {
+  id: number;
+  file_name: string;
+  storage_path: string;
+  secondary_path: string | null;
+  size_bytes: number;
+  status: "completed" | "failed";
+  error_message: string | null;
+  created_by: number | null;
+  created_at: string;
+}
+
+export interface AdminExportJob {
+  id: string;
+  user_id: number;
+  project_id: string | null;
+  job_type: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  payload: unknown;
+  result: unknown;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminRecycleBin {
+  projects: Array<{
+    id: string;
+    owner_user_id: number | string;
+    name: string;
+    mode: string;
+    deleted_at: string;
+  }>;
+  assets: Array<{
+    id: string;
+    owner_user_id: number | string;
+    project_id: string | null;
+    original_name: string;
+    mime_type: string;
+    size_bytes: number | string;
+    deleted_at: string;
+  }>;
+}
+
 export interface ProjectLockInfo {
   project_id: string;
   user_id: number | string;
@@ -155,11 +263,155 @@ export class ZaxisCloudApi {
   }
 
   async me() {
-    return this.request<{ ok: boolean; user: { id: number; email: string; name: string } }>("/api/v1/me");
+    return this.request<{
+      ok: boolean;
+      user: {
+        id: number;
+        email: string;
+        name: string;
+        role: "owner" | "admin" | "editor" | "reviewer";
+        storage_quota_bytes: number;
+      };
+    }>("/api/v1/me");
   }
 
   async diagnostics() {
     return this.request<{ ok: boolean; diagnostics: ServerDiagnostics }>("/api/v1/diagnostics");
+  }
+
+  async adminOverview() {
+    return this.request<{ ok: boolean; overview: AdminOverview }>("/api/v1/admin/overview");
+  }
+
+  async adminUsers() {
+    return this.request<{ ok: boolean; users: AdminUser[] }>("/api/v1/admin/users");
+  }
+
+  async updateAdminUser(
+    userId: number,
+    input: Partial<Pick<AdminUser, "role" | "storage_quota_bytes">>
+  ) {
+    return this.request<{ ok: boolean; user: AdminUser }>(
+      "/api/v1/admin/users/" + encodeURIComponent(String(userId)),
+      { method: "PATCH", body: input }
+    );
+  }
+
+  async adminSettings() {
+    return this.request<{ ok: boolean; settings: AdminSettings }>("/api/v1/admin/settings");
+  }
+
+  async updateAdminSettings(input: Partial<AdminSettings>) {
+    return this.request<{ ok: boolean; settings: AdminSettings }>("/api/v1/admin/settings", {
+      method: "PATCH",
+      body: input
+    });
+  }
+
+  async adminActivity() {
+    return this.request<{ ok: boolean; activity: AdminActivity[] }>("/api/v1/admin/activity");
+  }
+
+  async adminRecycleBin() {
+    return this.request<{ ok: boolean; recycle_bin: AdminRecycleBin }>("/api/v1/admin/recycle-bin");
+  }
+
+  async restoreRecycleItem(type: "project" | "asset", id: string) {
+    return this.request<{ ok: boolean; restored: boolean }>(
+      "/api/v1/admin/recycle-bin/" +
+        encodeURIComponent(type) +
+        "/" +
+        encodeURIComponent(id) +
+        "/restore",
+      { method: "POST" }
+    );
+  }
+
+  async purgeRecycleItem(type: "project" | "asset", id: string) {
+    return this.request<{ ok: boolean; purged: boolean }>(
+      "/api/v1/admin/recycle-bin/" +
+        encodeURIComponent(type) +
+        "/" +
+        encodeURIComponent(id),
+      { method: "DELETE" }
+    );
+  }
+
+  async adminNotifications() {
+    return this.request<{ ok: boolean; notifications: AdminNotification[] }>(
+      "/api/v1/admin/notifications"
+    );
+  }
+
+  async createAdminNotification(input: {
+    userId?: number | null;
+    level?: AdminNotification["level"];
+    title: string;
+    body: string;
+  }) {
+    return this.request<{ ok: boolean }>("/api/v1/admin/notifications", {
+      method: "POST",
+      body: {
+        user_id: input.userId ?? null,
+        level: input.level ?? "info",
+        title: input.title,
+        body: input.body
+      }
+    });
+  }
+
+  async adminExportJobs() {
+    return this.request<{ ok: boolean; jobs: AdminExportJob[] }>(
+      "/api/v1/admin/export-jobs"
+    );
+  }
+
+  async createAdminExportJob(input: {
+    userId?: number;
+    projectId?: string | null;
+    jobType: string;
+    payload?: Record<string, unknown>;
+  }) {
+    return this.request<{ ok: boolean; job: AdminExportJob }>(
+      "/api/v1/admin/export-jobs",
+      {
+        method: "POST",
+        body: {
+          user_id: input.userId,
+          project_id: input.projectId ?? null,
+          job_type: input.jobType,
+          payload: input.payload ?? {}
+        }
+      }
+    );
+  }
+
+  async adminBackups() {
+    return this.request<{ ok: boolean; backups: AdminBackup[] }>("/api/v1/admin/backups");
+  }
+
+  async createAdminBackup() {
+    return this.request<{ ok: boolean; backup: AdminBackup }>("/api/v1/admin/backups", {
+      method: "POST"
+    });
+  }
+
+  async adminRepair(action: "purge-expired-locks" | "purge-expired-pairing-codes" | "ensure-storage" | "purge-old-recycle") {
+    return this.request<{ ok: boolean; result: Record<string, unknown> }>(
+      "/api/v1/admin/repair",
+      { method: "POST", body: { action } }
+    );
+  }
+
+  async notifications() {
+    return this.request<{ ok: boolean; notifications: AdminNotification[] }>("/api/v1/notifications");
+  }
+
+  async markNotificationRead(notificationId: number) {
+    return this.request<{ ok: boolean; read: boolean }>(
+      "/api/v1/notifications/" + encodeURIComponent(String(notificationId)) + "/read",
+      { method: "POST" }
+    );
   }
 
   async listProjects() {
