@@ -245,3 +245,11 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .cover-barcode-reservation{position:absolute;border:1px dashed rgba(160,20,20,.8);background:rgba(255,255,255,.82);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;z-index:4;color:#8e2020;text-align:center}
 .cover-barcode-reservation strong{font-size:8px;letter-spacing:.8px}
 .cover-barcode-reservation small{font-size:7px}
+
+.template-overlay{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;z-index:2}
+.production-tools{display:grid;gap:6px;margin:8px 0}
+.hardcover-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:7px 0}
+.hardcover-presets button{font-size:9px;padding:6px}
+.template-controls{display:grid;gap:6px;margin:8px 0;padding:8px;border:1px solid #25302b;background:#0b100e;border-radius:8px}
+.template-controls label{display:grid;gap:4px;color:#88958f;font-size:10px}
+.template-controls input[type="range"]{width:100%}
