@@ -339,6 +339,26 @@ export class ZaxisCloudApi {
     );
   }
 
+  async removeAssetBackground(
+    assetId: string,
+    mode: "fast" | "quality" | "hair" = "quality",
+    model = "birefnet-general"
+  ) {
+    return this.request<{
+      ok: boolean;
+      asset: CloudAsset;
+      source_asset_id: string;
+      mode: string;
+      model: string;
+    }>(
+      "/api/v1/assets/" + encodeURIComponent(assetId) + "/background-remove",
+      {
+        method: "POST",
+        body: { mode, model }
+      }
+    );
+  }
+
   async replaceAssetContent(assetId: string, file: File) {
     const form = new FormData();
     form.append("file", file);
