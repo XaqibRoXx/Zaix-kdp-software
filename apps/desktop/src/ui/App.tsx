@@ -3625,6 +3625,7 @@ function AssetsScreen({
   const [batchFromAssetId, setBatchFromAssetId] = useState("");
   const [replacingAssetId, setReplacingAssetId] = useState("");
   const [backgroundMode, setBackgroundMode] = useState<"fast" | "quality" | "hair">("quality");
+  const [upscaleFactor, setUpscaleFactor] = useState<2 | 4>(2);
   const [processingAssetId, setProcessingAssetId] = useState("");
   const [batchBackgroundIds, setBatchBackgroundIds] = useState<string[]>([]);
   const [refineAssetId, setRefineAssetId] = useState("");
@@ -3842,6 +3843,43 @@ function AssetsScreen({
   function chooseReplacementFile(assetId: string) {
     setReplacingAssetId(assetId);
     replaceInputRef.current?.click();
+  }
+
+  async function upscaleImage(asset: CloudAsset) {
+    if (!asset.mime_type.startsWith("image/")) {
+      setLinkedStatus("Upscale requires an image asset.");
+      return;
+    }
+
+    setProcessingAssetId(asset.id);
+    setLinkedStatus(
+      "Upscaling " +
+        asset.original_name +
+        " • " +
+        upscaleFactor +
+        "x + cleanup..."
+    );
+
+    try {
+      const result = await api().upscaleAsset(
+        asset.id,
+        upscaleFactor,
+        true
+      );
+      setSelectedShareAssetId(result.asset.id);
+      setLinkedStatus(
+        "Upscaled PNG created • " +
+          result.asset.original_name +
+          " • original retained."
+      );
+      await refreshLibrary();
+    } catch (error) {
+      setLinkedStatus(
+        error instanceof Error ? error.message : "Image upscale failed."
+      );
+    } finally {
+      setProcessingAssetId("");
+    }
   }
 
   async function removeBackground(asset: CloudAsset) {
@@ -4383,6 +4421,17 @@ function AssetsScreen({
               <option value="hair">Hair / Fur / Soft Edge</option>
             </select>
           </label>
+          <label>Upscale
+            <select
+              value={upscaleFactor}
+              onChange={(event) =>
+                setUpscaleFactor(Number(event.target.value) as 2 | 4)
+              }
+            >
+              <option value={2}>2× + Cleanup</option>
+              <option value={4}>4× + Cleanup</option>
+            </select>
+          </label>
 
           <label>Batch Relink Source
             <select
@@ -4706,6 +4755,15 @@ function AssetsScreen({
                         {processingAssetId === asset.id
                           ? "Removing BG..."
                           : "Remove Background"}
+                      </button>
+                      <button
+                        className="secondary"
+                        disabled={processingAssetId !== ""}
+                        onClick={() => void upscaleImage(asset)}
+                      >
+                        {processingAssetId === asset.id
+                          ? "Processing..."
+                          : "Upscale " + upscaleFactor + "×"}
                       </button>
                       {asset.source_asset_id && (
                         <button
