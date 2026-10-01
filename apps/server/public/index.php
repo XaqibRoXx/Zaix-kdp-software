@@ -7,6 +7,7 @@ use ZaxisKdp\Auth;
 use ZaxisKdp\Config;
 use ZaxisKdp\Database;
 use ZaxisKdp\Http;
+use ZaxisKdp\ImageWorker;
 use ZaxisKdp\Pairing;
 use ZaxisKdp\ProjectDelta;
 use ZaxisKdp\ProjectLock;
@@ -465,6 +466,104 @@ try {
         Http::json([
             'ok' => true,
             'asset' => $asset,
+            'request_id' => $requestId,
+        ], 201);
+    }
+
+    if (
+        $method === 'POST' &&
+        preg_match('#^/api/v1/assets/([^/]+)/background-remove$#', $path, $matches)
+    ) {
+        $assetId = rawurldecode($matches[1]);
+        $body = Http::body();
+        $mode = trim((string) ($body['mode'] ?? 'quality'));
+        $model = trim((string) ($body['model'] ?? 'birefnet-general'));
+
+        $assetStmt = $db->prepare(
+            'SELECT id, project_id, original_name, mime_type
+             FROM assets
+             WHERE id = :id AND owner_user_id = :owner AND deleted_at IS NULL
+             LIMIT 1'
+        );
+        $assetStmt->execute(['id' => $assetId, 'owner' => $user['id']]);
+        $assetRow = $assetStmt->fetch();
+
+        if (!$assetRow) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Asset not found.',
+                'request_id' => $requestId,
+            ], 404);
+        }
+
+        if (!str_starts_with((string) $assetRow['mime_type'], 'image/')) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Background removal requires an image asset.',
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        $content = AssetStorage::resolveContent(
+            $db,
+            (int) $user['id'],
+            $assetId,
+            'original'
+        );
+
+        if (!$content) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Original asset content is missing.',
+                'request_id' => $requestId,
+            ], 404);
+        }
+
+        $tmp = null;
+
+        try {
+            $tmp = ImageWorker::removeBackground(
+                $content['path'],
+                $mode,
+                $model
+            );
+
+            $baseName = preg_replace(
+                '/\.[^.]+$/',
+                '',
+                (string) $assetRow['original_name']
+            ) ?: 'image';
+
+            $processed = AssetStorage::storeUpload(
+                $db,
+                (int) $user['id'],
+                $assetRow['project_id'] !== null ? (string) $assetRow['project_id'] : null,
+                [
+                    'name' => $baseName . '-transparent.png',
+                    'type' => 'image/png',
+                    'tmp_name' => $tmp,
+                    'error' => UPLOAD_ERR_OK,
+                    'size' => filesize($tmp) ?: 0,
+                ]
+            );
+        } catch (RuntimeException $error) {
+            Http::json([
+                'ok' => false,
+                'error' => $error->getMessage(),
+                'request_id' => $requestId,
+            ], 422);
+        } finally {
+            if (is_string($tmp) && is_file($tmp)) {
+                @unlink($tmp);
+            }
+        }
+
+        Http::json([
+            'ok' => true,
+            'asset' => $processed,
+            'source_asset_id' => $assetId,
+            'mode' => $mode,
+            'model' => $model,
             'request_id' => $requestId,
         ], 201);
     }
