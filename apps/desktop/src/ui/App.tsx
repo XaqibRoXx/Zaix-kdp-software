@@ -3346,34 +3346,86 @@ function AssetsScreen({
   project: ZaxisProject;
 }) {
   const [assets, setAssets] = useState<CloudAsset[]>([]);
+  const [shares, setShares] = useState<CloudShare[]>([]);
   const [status, setStatus] = useState("");
+  const [shareStatus, setShareStatus] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [selectedShareAssetId, setSelectedShareAssetId] = useState("");
+  const [shareTitle, setShareTitle] = useState("");
+  const [sharePassword, setSharePassword] = useState("");
+  const [shareExpiresAt, setShareExpiresAt] = useState("");
+  const [shareAllowDownload, setShareAllowDownload] = useState(true);
+  const [shareProofMode, setShareProofMode] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   function api() {
     return new ZaxisCloudApi(settings.cloudApiUrl.trim(), token.trim() || undefined);
   }
 
-  async function refreshAssets() {
+  function shareableAssets() {
+    return assets.filter(
+      (asset) =>
+        asset.mime_type === "application/pdf" ||
+        asset.mime_type.startsWith("image/")
+    );
+  }
+
+  function resolvedShareUrl(share: CloudShare) {
+    if (/^https?:\/\//i.test(share.url)) return share.url;
+
+    const base = (settings.shareDomain.trim() || settings.cloudApiUrl.trim())
+      .replace(/\/+$/, "");
+
+    return base + (share.url.startsWith("/") ? share.url : "/" + share.url);
+  }
+
+  async function refreshLibrary() {
     if (!settings.cloudApiUrl.trim() || !token.trim()) {
       setAssets([]);
+      setShares([]);
       setStatus("Connect Cloud & Server first.");
       return;
     }
 
-    setStatus("Loading assets...");
+    setStatus("Loading cloud library...");
 
     try {
-      const result = await api().listAssets(project.id);
-      setAssets(result.assets);
-      setStatus(result.assets.length + " project asset" + (result.assets.length === 1 ? "" : "s") + " loaded.");
+      const [assetResult, shareResult] = await Promise.all([
+        api().listAssets(project.id),
+        api().listShares(project.id)
+      ]);
+
+      setAssets(assetResult.assets);
+      setShares(shareResult.shares);
+
+      const available = assetResult.assets.filter(
+        (asset) =>
+          asset.mime_type === "application/pdf" ||
+          asset.mime_type.startsWith("image/")
+      );
+
+      setSelectedShareAssetId((current) =>
+        current && available.some((asset) => asset.id === current)
+          ? current
+          : available[0]?.id ?? ""
+      );
+
+      setStatus(
+        assetResult.assets.length +
+          " asset" +
+          (assetResult.assets.length === 1 ? "" : "s") +
+          " • " +
+          shareResult.shares.length +
+          " share link" +
+          (shareResult.shares.length === 1 ? "" : "s")
+      );
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not load cloud assets.");
+      setStatus(error instanceof Error ? error.message : "Could not load cloud library.");
     }
   }
 
   useEffect(() => {
-    void refreshAssets();
+    void refreshLibrary();
   }, [settings.cloudApiUrl, token, project.id]);
 
   async function uploadFile(file: File) {
@@ -3388,10 +3440,12 @@ function AssetsScreen({
     try {
       const result = await api().uploadAsset(file, project.id);
       setStatus(
-        "Uploaded " + result.asset.original_name +
-        (result.asset.variants.proxy ? " • proxy generated" : " • original stored")
+        "Uploaded " +
+          result.asset.original_name +
+          (result.asset.variants.proxy ? " • proxy generated" : " • original stored")
       );
-      await refreshAssets();
+      setSelectedShareAssetId(result.asset.id);
+      await refreshLibrary();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Asset upload failed.");
     } finally {
@@ -3400,23 +3454,173 @@ function AssetsScreen({
   }
 
   async function removeAsset(assetId: string) {
-    if (!window.confirm("Remove this cloud asset from the library?")) return;
+    if (!window.confirm("Remove this cloud asset from the library? Existing share links to this asset will stop serving it.")) {
+      return;
+    }
 
     try {
       await api().deleteAsset(assetId);
-      await refreshAssets();
+      await refreshLibrary();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not remove asset.");
     }
   }
 
+  async function createShare() {
+    if (!selectedShareAssetId) {
+      setShareStatus("Select a PDF or image asset first.");
+      return;
+    }
+
+    setShareStatus("Creating persistent share link...");
+
+    try {
+      const expiry = shareExpiresAt
+        ? new Date(shareExpiresAt).toISOString()
+        : null;
+
+      const result = await api().createShare({
+        assetId: selectedShareAssetId,
+        projectId: project.id,
+        title: shareTitle.trim(),
+        password: sharePassword,
+        expiresAt: expiry,
+        allowDownload: shareAllowDownload,
+        proofMode: shareProofMode
+      });
+
+      setSharePassword("");
+      setShareTitle("");
+      setShareExpiresAt("");
+      setShareStatus("Share link created: " + resolvedShareUrl(result.share));
+      await refreshLibrary();
+    } catch (error) {
+      setShareStatus(error instanceof Error ? error.message : "Could not create share link.");
+    }
+  }
+
+  async function copyShareLink(share: CloudShare) {
+    const url = resolvedShareUrl(share);
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareStatus("Share link copied.");
+    } catch {
+      setShareStatus(url);
+    }
+  }
+
+  function openShareLink(share: CloudShare) {
+    window.open(resolvedShareUrl(share), "_blank", "noopener,noreferrer");
+  }
+
+  async function toggleShareDownload(share: CloudShare) {
+    try {
+      await api().updateShare(share.id, { allowDownload: !share.allow_download });
+      setShareStatus("Download setting updated.");
+      await refreshLibrary();
+    } catch (error) {
+      setShareStatus(error instanceof Error ? error.message : "Could not update share.");
+    }
+  }
+
+  async function toggleProofMode(share: CloudShare) {
+    try {
+      await api().updateShare(share.id, { proofMode: !share.proof_mode });
+      setShareStatus("Proof mode updated.");
+      await refreshLibrary();
+    } catch (error) {
+      setShareStatus(error instanceof Error ? error.message : "Could not update share.");
+    }
+  }
+
+  async function setSharePasswordFor(share: CloudShare) {
+    const password = window.prompt(
+      share.password_protected
+        ? "Enter a new password. Leave blank to remove password protection."
+        : "Enter a password for this public link.",
+      ""
+    );
+
+    if (password === null) return;
+
+    try {
+      await api().updateShare(share.id, { password });
+      setShareStatus(password ? "Share password updated." : "Share password removed.");
+      await refreshLibrary();
+    } catch (error) {
+      setShareStatus(error instanceof Error ? error.message : "Could not update password.");
+    }
+  }
+
+  async function setShareExpiryFor(share: CloudShare) {
+    const value = window.prompt(
+      "Expiry date/time (ISO or any server-readable date). Leave blank for no expiry.",
+      share.expires_at ?? ""
+    );
+
+    if (value === null) return;
+
+    try {
+      await api().updateShare(share.id, {
+        expiresAt: value.trim() ? new Date(value).toISOString() : null
+      });
+      setShareStatus(value.trim() ? "Share expiry updated." : "Share expiry removed.");
+      await refreshLibrary();
+    } catch (error) {
+      setShareStatus(error instanceof Error ? error.message : "Could not update expiry.");
+    }
+  }
+
+  async function replaceShareFile(share: CloudShare) {
+    if (!selectedShareAssetId) {
+      setShareStatus("Select the replacement asset first.");
+      return;
+    }
+
+    const selected = assets.find((asset) => asset.id === selectedShareAssetId);
+    if (!selected) return;
+
+    if (!window.confirm(
+      "Replace the file behind this share link with " +
+        selected.original_name +
+        "? The public URL will stay exactly the same."
+    )) {
+      return;
+    }
+
+    try {
+      const result = await api().replaceShareAsset(share.id, selectedShareAssetId);
+      setShareStatus(
+        "File replaced. Same link kept: " + resolvedShareUrl(result.share)
+      );
+      await refreshLibrary();
+    } catch (error) {
+      setShareStatus(error instanceof Error ? error.message : "Could not replace shared file.");
+    }
+  }
+
+  async function revokeShare(share: CloudShare) {
+    if (!window.confirm("Revoke this public link? The URL will stop working.")) return;
+
+    try {
+      await api().revokeShare(share.id);
+      setShareStatus("Share link revoked.");
+      await refreshLibrary();
+    } catch (error) {
+      setShareStatus(error instanceof Error ? error.message : "Could not revoke share.");
+    }
+  }
+
+  const availableForSharing = shareableAssets();
+
   return (
     <section className="content">
       <div className="panel hero-panel">
         <div>
-          <span className="eyebrow">CLOUD ASSET LIBRARY</span>
-          <h2>Originals stay on the server. Lightweight proxies keep the editor responsive.</h2>
-          <p>{status || "Upload images, PDFs or supported fonts to the active project."}</p>
+          <span className="eyebrow">PHASE 3 • CLOUD ASSETS & SHARING</span>
+          <h2>Originals stay in cloud storage. Public proof links stay stable even when the file is replaced.</h2>
+          <p>{status || "Upload project assets and create secure public PDF/image links."}</p>
         </div>
         <div className="hero-actions">
           <input
@@ -3430,7 +3634,7 @@ function AssetsScreen({
               event.currentTarget.value = "";
             }}
           />
-          <button className="secondary" onClick={() => void refreshAssets()}>Refresh</button>
+          <button className="secondary" onClick={() => void refreshLibrary()}>Refresh</button>
           <button className="primary" disabled={uploading} onClick={() => inputRef.current?.click()}>
             {uploading ? "Uploading..." : "Upload Asset"}
           </button>
@@ -3440,7 +3644,167 @@ function AssetsScreen({
       <div className="panel">
         <div className="panel-heading">
           <div>
-            <span className="eyebrow">ACTIVE PROJECT</span>
+            <span className="eyebrow">CREATE PUBLIC LINK</span>
+            <h3>Share PDF / Image</h3>
+          </div>
+          <span className="pill">{shares.filter((share) => share.active).length} active</span>
+        </div>
+
+        <div className="settings-grid share-create-grid">
+          <label>File
+            <select
+              value={selectedShareAssetId}
+              onChange={(event) => setSelectedShareAssetId(event.target.value)}
+            >
+              {availableForSharing.length === 0 && <option value="">No shareable assets</option>}
+              {availableForSharing.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.original_name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>Public Title
+            <input
+              value={shareTitle}
+              onChange={(event) => setShareTitle(event.target.value)}
+              placeholder="Optional — defaults to file name"
+            />
+          </label>
+
+          <label>Password
+            <input
+              type="password"
+              value={sharePassword}
+              onChange={(event) => setSharePassword(event.target.value)}
+              placeholder="Optional"
+            />
+          </label>
+
+          <label>Expiry
+            <input
+              type="datetime-local"
+              value={shareExpiresAt}
+              onChange={(event) => setShareExpiresAt(event.target.value)}
+            />
+          </label>
+
+          <label className="toggle-setting">
+            <input
+              type="checkbox"
+              checked={shareAllowDownload}
+              onChange={(event) => setShareAllowDownload(event.target.checked)}
+            />
+            Allow download
+          </label>
+
+          <label className="toggle-setting">
+            <input
+              type="checkbox"
+              checked={shareProofMode}
+              onChange={(event) => setShareProofMode(event.target.checked)}
+            />
+            Proof mode + comments
+          </label>
+        </div>
+
+        <div className="hero-actions">
+          <button
+            className="primary"
+            disabled={!selectedShareAssetId}
+            onClick={() => void createShare()}
+          >
+            Create Persistent Share Link
+          </button>
+        </div>
+
+        {shareStatus && <p className="muted">{shareStatus}</p>}
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">SHARE MANAGER</span>
+            <h3>Persistent Links & Analytics</h3>
+          </div>
+          <span className="pill">{shares.length} links</span>
+        </div>
+
+        <div className="share-list">
+          {shares.length === 0 ? (
+            <div className="empty-projects">No public links for this project yet.</div>
+          ) : shares.map((share) => (
+            <div className={share.active ? "share-row" : "share-row inactive"} key={share.id}>
+              <div className="share-main">
+                <strong>{share.title}</strong>
+                <button className="share-url" onClick={() => void copyShareLink(share)}>
+                  {resolvedShareUrl(share)}
+                </button>
+                <small>
+                  {share.original_name}
+                  {share.password_protected ? " • Password" : " • Public"}
+                  {share.expires_at ? " • Expires " + new Date(share.expires_at).toLocaleString() : " • No expiry"}
+                </small>
+              </div>
+
+              <div className="share-analytics">
+                <span><small>Views</small><strong>{share.views}</strong></span>
+                <span><small>Downloads</small><strong>{share.downloads}</strong></span>
+                <span><small>Comments</small><strong>{share.comments}</strong></span>
+              </div>
+
+              <div className="share-flags">
+                <span className={share.allow_download ? "share-flag on" : "share-flag"}>
+                  Download {share.allow_download ? "On" : "Off"}
+                </span>
+                <span className={share.proof_mode ? "share-flag on" : "share-flag"}>
+                  Proof {share.proof_mode ? "On" : "Off"}
+                </span>
+                <span className={share.active ? "share-flag on" : "share-flag danger"}>
+                  {share.active ? "Active" : "Unavailable"}
+                </span>
+              </div>
+
+              <div className="share-actions">
+                <button className="secondary" onClick={() => void copyShareLink(share)}>Copy</button>
+                <button className="secondary" onClick={() => openShareLink(share)}>Open</button>
+                <button
+                  className="secondary"
+                  disabled={!selectedShareAssetId || selectedShareAssetId === share.asset_id}
+                  onClick={() => void replaceShareFile(share)}
+                >
+                  Replace • Same Link
+                </button>
+                <button className="secondary" onClick={() => void toggleShareDownload(share)}>
+                  Toggle Download
+                </button>
+                <button className="secondary" onClick={() => void toggleProofMode(share)}>
+                  Toggle Proof
+                </button>
+                <button className="secondary" onClick={() => void setSharePasswordFor(share)}>
+                  Password
+                </button>
+                <button className="secondary" onClick={() => void setShareExpiryFor(share)}>
+                  Expiry
+                </button>
+                <button
+                  className="secondary danger"
+                  disabled={!share.active}
+                  onClick={() => void revokeShare(share)}
+                >
+                  Revoke
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">ACTIVE PROJECT ASSETS</span>
             <h3>{project.name}</h3>
           </div>
           <span className="pill">{assets.length} assets</span>
@@ -3450,7 +3814,14 @@ function AssetsScreen({
           {assets.length === 0 ? (
             <div className="empty-projects">No cloud assets for this project yet.</div>
           ) : assets.map((asset) => (
-            <div className="asset-row" key={asset.id}>
+            <div
+              className={
+                asset.id === selectedShareAssetId
+                  ? "asset-row selected-for-share"
+                  : "asset-row"
+              }
+              key={asset.id}
+            >
               <div>
                 <strong>{asset.original_name}</strong>
                 <small>
@@ -3466,7 +3837,19 @@ function AssetsScreen({
                   </small>
                 )}
               </div>
-              <button className="secondary danger" onClick={() => void removeAsset(asset.id)}>Remove</button>
+              <div className="hero-actions">
+                {(asset.mime_type === "application/pdf" || asset.mime_type.startsWith("image/")) && (
+                  <button
+                    className="secondary"
+                    onClick={() => setSelectedShareAssetId(asset.id)}
+                  >
+                    {asset.id === selectedShareAssetId ? "Selected for Share" : "Use for Share"}
+                  </button>
+                )}
+                <button className="secondary danger" onClick={() => void removeAsset(asset.id)}>
+                  Remove
+                </button>
+              </div>
             </div>
           ))}
         </div>
