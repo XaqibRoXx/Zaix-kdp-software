@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 from fastapi import FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.responses import Response
-from PIL import Image
+from PIL import Image, ImageFilter, ImageOps
 from rembg import new_session, remove
 
 app = FastAPI(title="Zaxis KDP Image Worker", version="0.1.0")
@@ -109,6 +109,64 @@ def health():
         "max_upload_mb": MAX_UPLOAD_MB,
         "auth_required": bool(WORKER_TOKEN),
     }
+
+
+@app.post("/v1/image/upscale")
+async def upscale_image(
+    file: Annotated[UploadFile, File(...)],
+    authorization: Annotated[str | None, Header()] = None,
+    scale: Annotated[Literal[2, 4], Query()] = 2,
+    cleanup: Annotated[bool, Query()] = True,
+):
+    require_auth(authorization)
+    data = await read_image(file)
+
+    try:
+        image = Image.open(io.BytesIO(data)).convert("RGBA")
+        target_width = image.width * scale
+        target_height = image.height * scale
+
+        if max(target_width, target_height) > 12000:
+            raise HTTPException(
+                status_code=422,
+                detail="Upscaled image would exceed the 12000 px safety limit.",
+            )
+
+        alpha = image.getchannel("A")
+        rgb = image.convert("RGB")
+
+        if cleanup:
+            rgb = ImageOps.autocontrast(rgb, cutoff=0.5)
+            rgb = rgb.filter(
+                ImageFilter.UnsharpMask(radius=1.4, percent=115, threshold=3)
+            )
+
+        rgb = rgb.resize(
+            (target_width, target_height),
+            Image.Resampling.LANCZOS,
+        )
+        alpha = alpha.resize(
+            (target_width, target_height),
+            Image.Resampling.LANCZOS,
+        )
+
+        output = Image.merge("RGBA", (*rgb.split(), alpha))
+        buffer = io.BytesIO()
+        output.save(buffer, format="PNG", optimize=True)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Upscale failed: {exc}") from exc
+
+    return Response(
+        content=buffer.getvalue(),
+        media_type="image/png",
+        headers={
+            "X-Zaxis-Scale": str(scale),
+            "X-Zaxis-Cleanup": "1" if cleanup else "0",
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @app.post("/v1/background/remove")
