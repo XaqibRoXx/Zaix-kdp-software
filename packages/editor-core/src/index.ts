@@ -95,6 +95,27 @@ export interface PathObject extends DesignObjectBase {
 
 export type DesignObject = TextObject | ShapeObject | ImageObject | PathObject;
 
+export interface MasterPage {
+  id: string;
+  name: string;
+  objects: DesignObject[];
+}
+
+export interface ReusableStyle {
+  id: string;
+  name: string;
+  kind: "text" | "object";
+  properties: UpdateObjectInput;
+}
+
+export interface TemplateOverlay {
+  name: string;
+  src: string;
+  mimeType: string;
+  opacity: number;
+  visible: boolean;
+}
+
 export interface Artboard {
   id: string;
   name: string;
@@ -105,6 +126,8 @@ export interface Artboard {
   unit: Unit;
   bleed: number;
   background: string;
+  templateOverlay?: TemplateOverlay;
+  masterPageId?: string;
   objects: DesignObject[];
 }
 
@@ -114,6 +137,8 @@ export interface ZaxisProject {
   mode: "kdp" | "graphic-design";
   kdpSettings?: KdpSettings;
   bookStructure?: BookStructure;
+  masterPages?: MasterPage[];
+  reusableStyles?: ReusableStyle[];
   artboards: Artboard[];
   createdAt: string;
   updatedAt: string;
@@ -206,6 +231,8 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
     bookStructure: project.mode === "kdp"
       ? normalizeBookStructure(project.bookStructure)
       : project.bookStructure,
+    masterPages: Array.isArray(project.masterPages) ? project.masterPages : [],
+    reusableStyles: Array.isArray(project.reusableStyles) ? project.reusableStyles : [],
     artboards: project.artboards.map((artboard) => ({
       ...artboard,
       role: artboard.role ?? "page",
@@ -271,6 +298,8 @@ export function createBlankProject(input: BlankProjectInput): ZaxisProject {
     mode,
     kdpSettings: mode === "kdp" ? createDefaultKdpSettings(input.width, input.height, input.unit) : undefined,
     bookStructure: mode === "kdp" ? createDefaultBookStructure() : undefined,
+    masterPages: [],
+    reusableStyles: [],
     createdAt: timestamp,
     updatedAt: timestamp,
     artboards: [
@@ -681,6 +710,143 @@ export function addArtboard(
   };
 
   return touch(project, [...project.artboards, artboard]);
+}
+
+export function setArtboardTemplateOverlay(
+  project: ZaxisProject,
+  artboardId: string,
+  overlay?: TemplateOverlay
+): ZaxisProject {
+  return mapArtboard(project, artboardId, (artboard) => ({
+    ...artboard,
+    templateOverlay: overlay
+  }));
+}
+
+export function createMasterPageFromArtboard(
+  project: ZaxisProject,
+  artboardId: string,
+  name: string
+): ZaxisProject {
+  const artboard = project.artboards.find((item) => item.id === artboardId);
+  if (!artboard) return project;
+
+  const master: MasterPage = {
+    id: id("master"),
+    name: name.trim() || "Master Page",
+    objects: structuredClone(artboard.objects)
+  };
+
+  return {
+    ...project,
+    masterPages: [...(project.masterPages ?? []), master],
+    updatedAt: now()
+  };
+}
+
+export function applyMasterPage(
+  project: ZaxisProject,
+  artboardId: string,
+  masterPageId: string
+): ZaxisProject {
+  const master = (project.masterPages ?? []).find((item) => item.id === masterPageId);
+  if (!master) return project;
+
+  return mapArtboard(project, artboardId, (artboard) => ({
+    ...artboard,
+    masterPageId,
+    objects: [
+      ...master.objects.map((object) => ({
+        ...structuredClone(object),
+        id: id("object"),
+        name: "[Master] " + object.name
+      })),
+      ...artboard.objects.filter((object) => !object.name.startsWith("[Master] "))
+    ]
+  }));
+}
+
+export function saveReusableStyle(
+  project: ZaxisProject,
+  object: DesignObject,
+  name: string
+): ZaxisProject {
+  const properties: UpdateObjectInput =
+    object.type === "text"
+      ? {
+          fontFamily: object.fontFamily,
+          fontSize: object.fontSize,
+          fontWeight: object.fontWeight,
+          color: object.color,
+          textAlign: object.textAlign,
+          lineHeight: object.lineHeight,
+          letterSpacing: object.letterSpacing,
+          opacity: object.opacity
+        }
+      : object.type === "image"
+        ? { opacity: object.opacity, borderRadius: object.borderRadius }
+        : object.type === "path"
+          ? { fill: object.fill, stroke: object.stroke, strokeWidth: object.strokeWidth, opacity: object.opacity }
+          : { fill: object.fill, stroke: object.stroke, strokeWidth: object.strokeWidth, cornerRadius: object.cornerRadius, opacity: object.opacity };
+
+  const style: ReusableStyle = {
+    id: id("style"),
+    name: name.trim() || (object.type === "text" ? "Text Style" : "Object Style"),
+    kind: object.type === "text" ? "text" : "object",
+    properties
+  };
+
+  return {
+    ...project,
+    reusableStyles: [...(project.reusableStyles ?? []), style],
+    updatedAt: now()
+  };
+}
+
+export function applyReusableStyle(
+  project: ZaxisProject,
+  artboardId: string,
+  objectId: string,
+  styleId: string
+): ZaxisProject {
+  const style = (project.reusableStyles ?? []).find((item) => item.id === styleId);
+  if (!style) return project;
+  return updateObject(project, artboardId, objectId, style.properties);
+}
+
+export function resizeAllArtboardsWithContent(
+  project: ZaxisProject,
+  input: ResizeArtboardInput
+): ZaxisProject {
+  const source = project.artboards.find((item) => item.role !== "cover") ?? project.artboards[0];
+  const nextWidth = normalizeDimension(input.width ?? source?.width ?? 1);
+  const nextHeight = normalizeDimension(input.height ?? source?.height ?? 1);
+
+  return touch(
+    project,
+    project.artboards.map((artboard) => {
+      if (artboard.role === "cover") return artboard;
+
+      const widthScale = artboard.width > 0 ? nextWidth / artboard.width : 1;
+      const heightScale = artboard.height > 0 ? nextHeight / artboard.height : 1;
+      const uniformScale = Math.min(widthScale, heightScale);
+
+      return {
+        ...artboard,
+        width: nextWidth,
+        height: nextHeight,
+        unit: input.unit ?? artboard.unit,
+        objects: artboard.objects.map((object) => ({
+          ...object,
+          fontSize: object.type === "text" ? Math.max(1, object.fontSize * uniformScale) : undefined,
+          strokeWidth:
+            object.type === "rectangle" || object.type === "ellipse" || object.type === "path"
+              ? object.strokeWidth * uniformScale
+              : undefined
+        } as DesignObject))
+      };
+    })
+  );
 }
 
 export function duplicateArtboard(project: ZaxisProject, artboardId: string): ZaxisProject {
