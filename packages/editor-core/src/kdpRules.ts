@@ -72,7 +72,8 @@ export const KDP_RULES = {
     white: 0.002252,
     cream: 0.0025,
     groundwood: 0.00235,
-    color: 0.002347
+    standardColor: 0.002252,
+    premiumColor: 0.002347
   }
 } as const;
 
@@ -136,15 +137,17 @@ export function pageCountLimits(settings: KdpSettings): { min: number; max: numb
 
 export function calculatePaperbackSpineWidthIn(pageCount: number, settings: KdpSettings): number {
   const multiplier =
-    settings.inkType === "black"
-      ? KDP_RULES.spineMultiplierIn[
-          settings.paperType === "cream"
-            ? "cream"
-            : settings.paperType === "groundwood"
-              ? "groundwood"
-              : "white"
-        ]
-      : KDP_RULES.spineMultiplierIn.color;
+    settings.inkType === "standard-color"
+      ? KDP_RULES.spineMultiplierIn.standardColor
+      : settings.inkType === "premium-color"
+        ? KDP_RULES.spineMultiplierIn.premiumColor
+        : KDP_RULES.spineMultiplierIn[
+            settings.paperType === "cream"
+              ? "cream"
+              : settings.paperType === "groundwood"
+                ? "groundwood"
+                : "white"
+          ];
 
   return round4(Math.max(0, pageCount) * multiplier);
 }
