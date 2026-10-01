@@ -21,11 +21,12 @@ Turn the completed Phase 1–3 product into a reproducible, verifiable Windows r
 - [x] Optional image-worker ZIP artifact generation.
 - [x] SHA-256 manifest generation for Windows release candidates.
 - [x] Release artifacts kept separate from source-tree runtime data.
+- [x] Automated 400-page large-book core stress smoke with object creation, normalization, resize, cover generation, history, serialization and memory/timing metrics.
 
 ## Remaining Phase 4 work
 
 - [ ] Run the new workflow and fix any release-candidate failures.
-- [ ] Large-book and large-project stress QA.
+- [ ] Large-book and large-project stress QA (automated 400-page core smoke is now covered; interactive/render/export stress remains).
 - [ ] Memory/performance profiling and page/proxy virtualization hardening.
 - [ ] Autosave/offline/reconnect/conflict stress tests.
 - [ ] PDF fidelity/compression regression corpus.
