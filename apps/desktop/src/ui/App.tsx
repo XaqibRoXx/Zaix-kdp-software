@@ -75,7 +75,8 @@ import {
   ZaxisCloudApi,
   makeClientEventId,
   type CloudAsset,
-  type CloudProjectSummary
+  type CloudProjectSummary,
+  type ServerDiagnostics
 } from "../cloud/apiClient";
 import {
   flushPendingSnapshots,
@@ -3517,6 +3518,9 @@ function CloudScreen({
   const [credentialStatus, setCredentialStatus] = useState("");
   const [connectionCode, setConnectionCode] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
+  const [diagnostics, setDiagnostics] = useState<ServerDiagnostics | null>(null);
+  const [diagnosticsStatus, setDiagnosticsStatus] = useState("");
+  const [workerStatus, setWorkerStatus] = useState("");
   const [conflictInfo, setConflictInfo] = useState<{
     remoteRevision: number;
     remote: ZaxisProject | null;
@@ -3603,6 +3607,43 @@ function CloudScreen({
       setStatus(result.ok ? "API connected • DB " + result.database : "API returned an unhealthy state");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Connection failed");
+    }
+  }
+
+  async function runDiagnostics() {
+    if (!settings.cloudApiUrl.trim() || !token.trim()) {
+      setDiagnosticsStatus("Connect and verify the server first.");
+      return;
+    }
+
+    setDiagnosticsStatus("Running diagnostics...");
+
+    try {
+      const result = await api().diagnostics();
+      setDiagnostics(result.diagnostics);
+      setDiagnosticsStatus("Server diagnostics complete.");
+    } catch (error) {
+      setDiagnosticsStatus(error instanceof Error ? error.message : "Server diagnostics failed.");
+    }
+  }
+
+  async function testWorker() {
+    const workerUrl = settings.workerUrl.trim() || diagnostics?.worker_url?.trim() || "";
+
+    if (!workerUrl) {
+      setWorkerStatus("No optional worker URL configured.");
+      return;
+    }
+
+    setWorkerStatus("Testing worker...");
+
+    try {
+      const response = await fetch(workerUrl.replace(/\/+$/, "") + "/health", {
+        headers: { Accept: "application/json" }
+      });
+      setWorkerStatus(response.ok ? "Worker healthy." : "Worker returned HTTP " + response.status + ".");
+    } catch (error) {
+      setWorkerStatus(error instanceof Error ? error.message : "Worker test failed.");
     }
   }
 
@@ -3812,6 +3853,28 @@ function CloudScreen({
               placeholder="https://files.example.com"
             />
           </label>
+          <label>Preferred Storage Provider
+            <select
+              value={settings.storageProvider}
+              onChange={(event) => onSettingsChange({
+                ...settings,
+                storageProvider: event.target.value as AppSettings["storageProvider"]
+              })}
+            >
+              <option value="local-cpanel">Local / cPanel</option>
+              <option value="s3">Amazon S3</option>
+              <option value="r2">Cloudflare R2</option>
+              <option value="b2">Backblaze B2</option>
+              <option value="nas">NAS / Custom</option>
+            </select>
+          </label>
+          <label>Optional PDF Worker URL
+            <input
+              value={settings.workerUrl}
+              onChange={(event) => onSettingsChange({ ...settings, workerUrl: event.target.value })}
+              placeholder="https://worker.example.com"
+            />
+          </label>
           <label>Connection Code
             <input
               value={connectionCode}
@@ -3835,6 +3898,8 @@ function CloudScreen({
           <button className="primary" onClick={() => void connectWithCode()}>Connect with Code</button>
           <button className="secondary" onClick={() => void testHealth()}>Test API</button>
           <button className="secondary" onClick={() => void verifyToken()}>Verify Token</button>
+          <button className="secondary" onClick={() => void runDiagnostics()}>Run Diagnostics</button>
+          <button className="secondary" onClick={() => void testWorker()}>Test Worker</button>
           <button className="secondary" onClick={() => void generateConnectionCode()}>New Connection Code</button>
           <button className="secondary" onClick={() => void saveTokenSecurely()}>Save Manual Token</button>
           <button className="secondary danger" onClick={() => void clearStoredToken()}>Clear Stored Token</button>
@@ -3850,6 +3915,34 @@ function CloudScreen({
             <strong>{cloudSaveLabel(automaticState, pendingCount)}</strong>
           </div>
         </div>
+
+        {(diagnosticsStatus || diagnostics) && (
+          <div className="server-diagnostics">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">SERVER DIAGNOSTICS</span>
+                <h3>Production Health</h3>
+              </div>
+              <span className="pill">{diagnosticsStatus || "Ready"}</span>
+            </div>
+            {diagnostics && (
+              <div className="diagnostics-grid">
+                <div><small>PHP</small><strong>{diagnostics.php_version}</strong></div>
+                <div><small>Database</small><strong>{diagnostics.database}</strong></div>
+                <div><small>Storage Provider</small><strong>{diagnostics.storage_provider}</strong></div>
+                <div><small>Storage Writable</small><strong>{diagnostics.storage_writable ? "Yes" : "No"}</strong></div>
+                <div><small>Storage Free</small><strong>{diagnostics.storage_free_bytes == null ? "Unknown" : (diagnostics.storage_free_bytes / (1024 ** 3)).toFixed(2) + " GB"}</strong></div>
+                <div><small>GD Image Proxy</small><strong>{diagnostics.gd_available ? "Available" : "Unavailable"}</strong></div>
+                <div><small>Upload Limit</small><strong>{diagnostics.max_upload_mb} MB</strong></div>
+                <div><small>PHP Upload</small><strong>{diagnostics.upload_max_filesize ?? "Unknown"}</strong></div>
+                <div><small>Share URL</small><strong>{diagnostics.share_base_url || "Not configured"}</strong></div>
+                <div><small>Worker</small><strong>{diagnostics.worker_url || settings.workerUrl || "Optional / not configured"}</strong></div>
+              </div>
+            )}
+            {workerStatus && <p className="muted">{workerStatus}</p>}
+          </div>
+        )}
+
         {(automaticState === "conflict" || conflictInfo) && (
           <div className="conflict-panel">
             <div>
