@@ -48,6 +48,20 @@ export async function saveCustomFont(file: File, family: string) {
   db.close();
 }
 
+export async function getStoredFont(family: string): Promise<StoredFont | null> {
+  const db = await openDb();
+
+  const font = await new Promise<StoredFont | undefined>((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readonly");
+    const request = transaction.objectStore(STORE_NAME).get(family);
+    request.onsuccess = () => resolve(request.result as StoredFont | undefined);
+    request.onerror = () => reject(request.error ?? new Error("Failed to load custom font"));
+  });
+
+  db.close();
+  return font ?? null;
+}
+
 export async function listStoredFonts(): Promise<StoredFont[]> {
   const db = await openDb();
 
