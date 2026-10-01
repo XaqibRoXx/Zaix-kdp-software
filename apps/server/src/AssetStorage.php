@@ -58,7 +58,7 @@ final class AssetStorage
         }
 
         $existingStmt = $db->prepare(
-            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, created_at
+            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, created_at, updated_at
              FROM assets
              WHERE owner_user_id = :owner AND sha256 = :sha AND deleted_at IS NULL
              LIMIT 1'
@@ -112,7 +112,7 @@ final class AssetStorage
         self::createImageProxy($db, $assetId, $absolutePath, $mime, $storageRoot, $folder);
 
         $stmt = $db->prepare(
-            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, created_at
+            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, created_at, updated_at
              FROM assets WHERE id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $assetId]);
@@ -120,6 +120,141 @@ final class AssetStorage
 
         if (!$asset) {
             throw new RuntimeException('Stored asset could not be reloaded.');
+        }
+
+        return self::decorateAsset($db, $asset);
+    }
+
+    /**
+     * Replace the binary behind an existing asset while keeping the stable asset id.
+     *
+     * @param array{name:string,type:string,tmp_name:string,error:int,size:int} $file
+     * @return array<string,mixed>
+     */
+    public static function replaceUpload(PDO $db, int $userId, string $assetId, array $file): array
+    {
+        $currentStmt = $db->prepare(
+            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, created_at, updated_at
+             FROM assets
+             WHERE id = :id AND owner_user_id = :owner AND deleted_at IS NULL
+             LIMIT 1'
+        );
+        $currentStmt->execute(['id' => $assetId, 'owner' => $userId]);
+        $current = $currentStmt->fetch();
+
+        if (!$current) {
+            throw new RuntimeException('Asset not found.');
+        }
+
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('Upload failed with code ' . (int) ($file['error'] ?? -1) . '.');
+        }
+
+        $size = (int) ($file['size'] ?? 0);
+        $maxMb = max(1, (int) (Config::env('MAX_UPLOAD_MB', '100') ?? '100'));
+        if ($size <= 0 || $size > $maxMb * 1024 * 1024) {
+            throw new RuntimeException('File exceeds the configured upload size limit.');
+        }
+
+        $tmp = (string) ($file['tmp_name'] ?? '');
+        if ($tmp === '' || !is_file($tmp)) {
+            throw new RuntimeException('Temporary upload file is missing.');
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mime = (string) $finfo->file($tmp);
+        $extensions = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+            'application/pdf' => 'pdf',
+            'application/zip' => 'zip',
+            'font/ttf' => 'ttf',
+            'font/otf' => 'otf',
+            'font/woff' => 'woff',
+            'font/woff2' => 'woff2',
+            'application/font-sfnt' => 'ttf',
+        ];
+
+        if (!isset($extensions[$mime])) {
+            throw new RuntimeException('Unsupported asset type: ' . $mime);
+        }
+
+        $sha256 = hash_file('sha256', $tmp);
+        if ($sha256 === false) {
+            throw new RuntimeException('Could not hash replacement asset.');
+        }
+
+        if (hash_equals((string) $current['sha256'], $sha256)) {
+            return self::decorateAsset($db, $current);
+        }
+
+        $storageRoot = rtrim((string) Config::env('STORAGE_PATH', dirname(__DIR__) . '/storage'), '/\\');
+        $folder = 'assets/' . $userId . '/' . substr($assetId, 0, 2);
+        $absoluteFolder = $storageRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $folder);
+
+        if (!is_dir($absoluteFolder) && !mkdir($absoluteFolder, 0750, true) && !is_dir($absoluteFolder)) {
+            throw new RuntimeException('Could not create cloud asset directory.');
+        }
+
+        $storageKey = $folder . '/' . $assetId . '-v' . ((int) $current['version'] + 1) . '.' . $extensions[$mime];
+        $absolutePath = $storageRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $storageKey);
+
+        if (!move_uploaded_file($tmp, $absolutePath) && !copy($tmp, $absolutePath)) {
+            throw new RuntimeException('Could not store replacement asset.');
+        }
+
+        $originalName = trim((string) ($file['name'] ?? 'asset.' . $extensions[$mime]));
+        if ($originalName === '') {
+            $originalName = 'asset.' . $extensions[$mime];
+        }
+
+        $db->beginTransaction();
+
+        try {
+            $db->prepare(
+                'UPDATE assets
+                 SET original_name = :original_name,
+                     mime_type = :mime_type,
+                     size_bytes = :size_bytes,
+                     sha256 = :sha256,
+                     storage_key = :storage_key,
+                     version = version + 1,
+                     updated_at = NOW()
+                 WHERE id = :id AND owner_user_id = :owner'
+            )->execute([
+                'original_name' => mb_substr($originalName, 0, 255),
+                'mime_type' => $mime,
+                'size_bytes' => filesize($absolutePath) ?: $size,
+                'sha256' => $sha256,
+                'storage_key' => $storageKey,
+                'id' => $assetId,
+                'owner' => $userId,
+            ]);
+
+            $db->prepare('DELETE FROM asset_variants WHERE asset_id = :asset_id')
+                ->execute(['asset_id' => $assetId]);
+
+            self::createImageProxy($db, $assetId, $absolutePath, $mime, $storageRoot, $folder);
+            $db->commit();
+        } catch (\Throwable $error) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            @unlink($absolutePath);
+            throw $error;
+        }
+
+        $reloaded = $db->prepare(
+            'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, created_at, updated_at
+             FROM assets WHERE id = :id AND owner_user_id = :owner LIMIT 1'
+        );
+        $reloaded->execute(['id' => $assetId, 'owner' => $userId]);
+        $asset = $reloaded->fetch();
+
+        if (!$asset) {
+            throw new RuntimeException('Replacement asset could not be reloaded.');
         }
 
         return self::decorateAsset($db, $asset);
@@ -153,7 +288,9 @@ final class AssetStorage
             'mime_type' => (string) $asset['mime_type'],
             'size_bytes' => (int) $asset['size_bytes'],
             'sha256' => (string) $asset['sha256'],
+            'version' => isset($asset['version']) ? (int) $asset['version'] : 1,
             'created_at' => (string) $asset['created_at'],
+            'updated_at' => isset($asset['updated_at']) ? (string) $asset['updated_at'] : (string) $asset['created_at'],
             'variants' => $variants,
         ];
     }
