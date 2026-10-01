@@ -194,6 +194,12 @@ export function buildProjectDelta(
   if (JSON.stringify(base.reusableStyles ?? []) !== JSON.stringify(current.reusableStyles ?? [])) {
     project.reusableStyles = current.reusableStyles;
   }
+  if (JSON.stringify(base.reusableComponents ?? []) !== JSON.stringify(current.reusableComponents ?? [])) {
+    project.reusableComponents = current.reusableComponents;
+  }
+  if (JSON.stringify(base.projectOverrides ?? {}) !== JSON.stringify(current.projectOverrides ?? {})) {
+    project.projectOverrides = current.projectOverrides;
+  }
   if (base.updatedAt !== current.updatedAt) project.updatedAt = current.updatedAt;
 
   const baseById = new Map(base.artboards.map((artboard) => [artboard.id, artboard]));
