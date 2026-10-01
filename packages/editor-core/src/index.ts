@@ -836,14 +836,23 @@ export function resizeAllArtboardsWithContent(
         width: nextWidth,
         height: nextHeight,
         unit: input.unit ?? artboard.unit,
-        objects: artboard.objects.map((object) => ({
-          ...object,
-          fontSize: object.type === "text" ? Math.max(1, object.fontSize * uniformScale) : undefined,
-          strokeWidth:
-            object.type === "rectangle" || object.type === "ellipse" || object.type === "path"
-              ? object.strokeWidth * uniformScale
-              : undefined
-        } as DesignObject))
+        objects: artboard.objects.map((object): DesignObject => {
+          if (object.type === "text") {
+            return {
+              ...object,
+              fontSize: Math.max(1, object.fontSize * uniformScale)
+            };
+          }
+
+          if (object.type === "rectangle" || object.type === "ellipse" || object.type === "path") {
+            return {
+              ...object,
+              strokeWidth: object.strokeWidth * uniformScale
+            };
+          }
+
+          return { ...object };
+        })
       };
     })
   );
