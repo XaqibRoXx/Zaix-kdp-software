@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [phase4-release-qa]
+    branches: [phase4-release-qa, phase4-hardening-next]
 
 concurrency:
   group: phase4-release-qa-${{ github.ref }}
