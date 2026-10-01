@@ -55,6 +55,30 @@ export interface CloudAsset {
   }>;
 }
 
+export interface CloudShare {
+  id: string;
+  project_id: string | null;
+  asset_id: string;
+  slug: string;
+  url: string;
+  title: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  password_protected: boolean;
+  expires_at: string | null;
+  allow_download: boolean;
+  proof_mode: boolean;
+  revoked_at: string | null;
+  replaced_at: string | null;
+  active: boolean;
+  views: number;
+  downloads: number;
+  comments: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ServerDiagnostics {
   php_version: string;
   database: string;
@@ -337,6 +361,75 @@ export class ZaxisCloudApi {
     }
 
     return response.blob();
+  }
+
+  async listShares(projectId?: string) {
+    const query = projectId ? "?project_id=" + encodeURIComponent(projectId) : "";
+    return this.request<{ ok: boolean; shares: CloudShare[] }>("/api/v1/shares" + query);
+  }
+
+  async createShare(input: {
+    assetId: string;
+    projectId?: string;
+    title?: string;
+    password?: string;
+    expiresAt?: string | null;
+    allowDownload?: boolean;
+    proofMode?: boolean;
+  }) {
+    return this.request<{ ok: boolean; share: CloudShare }>("/api/v1/shares", {
+      method: "POST",
+      body: {
+        asset_id: input.assetId,
+        project_id: input.projectId ?? null,
+        title: input.title ?? "",
+        password: input.password ?? "",
+        expires_at: input.expiresAt ?? null,
+        allow_download: input.allowDownload ?? true,
+        proof_mode: input.proofMode ?? false
+      }
+    });
+  }
+
+  async updateShare(
+    shareId: string,
+    input: {
+      title?: string;
+      password?: string;
+      expiresAt?: string | null;
+      allowDownload?: boolean;
+      proofMode?: boolean;
+    }
+  ) {
+    const body: Record<string, unknown> = {};
+
+    if (input.title !== undefined) body.title = input.title;
+    if (input.password !== undefined) body.password = input.password;
+    if (input.expiresAt !== undefined) body.expires_at = input.expiresAt;
+    if (input.allowDownload !== undefined) body.allow_download = input.allowDownload;
+    if (input.proofMode !== undefined) body.proof_mode = input.proofMode;
+
+    return this.request<{ ok: boolean; share: CloudShare }>(
+      "/api/v1/shares/" + encodeURIComponent(shareId),
+      { method: "PATCH", body }
+    );
+  }
+
+  async replaceShareAsset(shareId: string, assetId: string) {
+    return this.request<{ ok: boolean; share: CloudShare }>(
+      "/api/v1/shares/" + encodeURIComponent(shareId) + "/replace",
+      {
+        method: "POST",
+        body: { asset_id: assetId }
+      }
+    );
+  }
+
+  async revokeShare(shareId: string) {
+    return this.request<{ ok: boolean; revoked: boolean }>(
+      "/api/v1/shares/" + encodeURIComponent(shareId),
+      { method: "DELETE" }
+    );
   }
 
   private async request<T>(
