@@ -167,6 +167,113 @@ jobs:
             throw "No Windows installer bundle was produced."
           }
 
+      - name: Silent MSI install and uninstall smoke
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem "release/installed" -Filter *.msi | Select-Object -First 1
+          if (-not $msi) {
+            throw "MSI bundle is required for install/uninstall smoke testing."
+          }
+
+          $installLog = Join-Path (Resolve-Path "release").Path "msi-install.log"
+          $install = Start-Process "msiexec.exe" -ArgumentList @(
+            "/i",
+            ('"' + $msi.FullName + '"'),
+            "/qn",
+            "/norestart",
+            "/L*v",
+            ('"' + $installLog + '"')
+          ) -Wait -PassThru
+
+          if ($install.ExitCode -ne 0) {
+            Get-Content $installLog -Tail 120 -ErrorAction SilentlyContinue
+            throw "MSI silent install failed with exit code $($install.ExitCode)."
+          }
+
+          $roots = @(
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+          )
+          $product = Get-ItemProperty $roots -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq "Zaxis KDP" } |
+            Select-Object -First 1
+
+          if (-not $product) {
+            throw "Zaxis KDP was not registered after MSI installation."
+          }
+
+          $productCode = $product.PSChildName
+          if ($productCode -notmatch '^\{[0-9A-Fa-f-]+\}
+      - name: Stage portable package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release/portable/app-data | Out-Null
+          Copy-Item "apps/desktop/src-tauri/target/release/zaxis-kdp.exe" "release/portable/Zaxis-KDP-Portable.exe"
+          Set-Content -Path "release/portable/PORTABLE.txt" -Value "Keep this folder together. Tauri-managed app data is stored in ./app-data for this portable flavor."
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "release/portable/Zaxis-KDP-Portable.exe"
+          $process = Start-Process $exe.Path -PassThru
+          Start-Sleep -Seconds 8
+
+          if ($process.HasExited) {
+            throw "Portable executable exited during startup smoke with code $($process.ExitCode)."
+          }
+
+          Stop-Process -Id $process.Id -Force
+          "Portable startup smoke passed." | Set-Content "release/portable/STARTUP-SMOKE.txt"
+
+      - name: Generate Windows SHA-256 manifest
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem release -Recurse -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            $relative = $file.FullName.Substring((Resolve-Path release).Path.Length + 1).Replace("\\", "/")
+            "$hash  $relative"
+          }
+          $lines | Set-Content release/SHA256SUMS.txt
+
+      - name: Upload Windows release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: zaxis-kdp-windows-release-candidate
+          path: |
+            release/installed/**
+            release/portable/**
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+) {
+            throw "Could not resolve MSI ProductCode from uninstall registry."
+          }
+
+          $uninstallLog = Join-Path (Resolve-Path "release").Path "msi-uninstall.log"
+          $uninstall = Start-Process "msiexec.exe" -ArgumentList @(
+            "/x",
+            $productCode,
+            "/qn",
+            "/norestart",
+            "/L*v",
+            ('"' + $uninstallLog + '"')
+          ) -Wait -PassThru
+
+          if ($uninstall.ExitCode -ne 0) {
+            Get-Content $uninstallLog -Tail 120 -ErrorAction SilentlyContinue
+            throw "MSI silent uninstall failed with exit code $($uninstall.ExitCode)."
+          }
+
+          $remaining = Get-ItemProperty $roots -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq "Zaxis KDP" } |
+            Select-Object -First 1
+          if ($remaining) {
+            throw "Zaxis KDP remained registered after MSI uninstall."
+          }
+
+          "MSI install/uninstall smoke passed." | Set-Content "release/msi-smoke.txt"
+
       - name: Build portable Windows executable
         run: npm --workspace @zaxis-kdp/desktop run tauri -- build --no-bundle --config src-tauri/tauri.portable.conf.json
 
