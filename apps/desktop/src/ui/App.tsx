@@ -3407,6 +3407,7 @@ function AssetsScreen({
   const [replacingAssetId, setReplacingAssetId] = useState("");
   const [backgroundMode, setBackgroundMode] = useState<"fast" | "quality" | "hair">("quality");
   const [processingAssetId, setProcessingAssetId] = useState("");
+  const [batchBackgroundIds, setBatchBackgroundIds] = useState<string[]>([]);
   const [refineAssetId, setRefineAssetId] = useState("");
   const [shareTitle, setShareTitle] = useState("");
   const [sharePassword, setSharePassword] = useState("");
@@ -3668,6 +3669,56 @@ function AssetsScreen({
     }
 
     setRefineAssetId(asset.id);
+  }
+
+  async function runBatchBackgroundRemoval() {
+    if (batchBackgroundIds.length === 0) {
+      setLinkedStatus("Select one or more image assets for batch background removal.");
+      return;
+    }
+
+    setProcessingAssetId("batch");
+    setLinkedStatus(
+      "Batch background removal running for " +
+        batchBackgroundIds.length +
+        " image" +
+        (batchBackgroundIds.length === 1 ? "" : "s") +
+        "..."
+    );
+
+    try {
+      const result = await api().removeAssetBackgroundBatch(
+        batchBackgroundIds,
+        backgroundMode,
+        "birefnet-general"
+      );
+
+      setLinkedStatus(
+        "Batch complete • " +
+          result.assets.length +
+          " created" +
+          (result.failures.length ? " • " + result.failures.length + " failed" : "")
+      );
+      setBatchBackgroundIds([]);
+      if (result.assets[0]) setSelectedShareAssetId(result.assets[0].id);
+      await refreshLibrary();
+    } catch (error) {
+      setLinkedStatus(
+        error instanceof Error ? error.message : "Batch background removal failed."
+      );
+    } finally {
+      setProcessingAssetId("");
+    }
+  }
+
+  function toggleBatchBackground(assetId: string) {
+    setBatchBackgroundIds((current) =>
+      current.includes(assetId)
+        ? current.filter((id) => id !== assetId)
+        : current.length >= 50
+          ? current
+          : [...current, assetId]
+    );
   }
 
   async function removeAsset(assetId: string) {
@@ -4061,6 +4112,15 @@ function AssetsScreen({
             >
               Refresh All Linked Updates
             </button>
+            <button
+              className="secondary"
+              disabled={batchBackgroundIds.length === 0 || processingAssetId !== ""}
+              onClick={() => void runBatchBackgroundRemoval()}
+            >
+              {processingAssetId === "batch"
+                ? "Batch Processing..."
+                : "Remove BG Batch (" + batchBackgroundIds.length + ")"}
+            </button>
           </div>
         </div>
 
@@ -4369,6 +4429,16 @@ function AssetsScreen({
                   )}
                 </div>
                 <div className="hero-actions">
+                  {asset.mime_type.startsWith("image/") && (
+                    <label className="batch-asset-toggle">
+                      <input
+                        type="checkbox"
+                        checked={batchBackgroundIds.includes(asset.id)}
+                        onChange={() => toggleBatchBackground(asset.id)}
+                      />
+                      Batch
+                    </label>
+                  )}
                   {asset.mime_type.startsWith("image/") && (
                     <>
                       <button
