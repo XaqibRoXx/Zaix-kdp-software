@@ -50,6 +50,7 @@ try {
     }
 
     $db = Database::connection();
+    $publicFeatures = AdminService::getSettings($db);
 
     if ($method === 'POST' && $path === '/api/pair') {
         $body = Http::body();
@@ -82,6 +83,10 @@ try {
     }
 
     if (preg_match('#^/s/([^/]+)/file$#', $path, $matches) && $method === 'GET') {
+        if (!(bool) ($publicFeatures['feature_public_sharing'] ?? true)) {
+            http_response_code(404);
+            exit('Share links are disabled.');
+        }
         $slug = rawurldecode($matches[1]);
         $share = ShareService::publicShare($db, $slug);
 
@@ -127,6 +132,15 @@ try {
     }
 
     if (preg_match('#^/s/([^/]+)/comments$#', $path, $matches) && $method === 'POST') {
+        if (!(bool) ($publicFeatures['feature_public_sharing'] ?? true)) {
+            http_response_code(404);
+            exit('Share links are disabled.');
+        }
+        if (!(bool) ($publicFeatures['feature_proof_comments'] ?? true)) {
+            http_response_code(403);
+            exit('Proof comments are disabled.');
+        }
+
         $slug = rawurldecode($matches[1]);
         $share = ShareService::publicShare($db, $slug);
 
@@ -162,6 +176,10 @@ try {
     }
 
     if (preg_match('#^/s/([^/]+)$#', $path, $matches) && in_array($method, ['GET', 'POST'], true)) {
+        if (!(bool) ($publicFeatures['feature_public_sharing'] ?? true)) {
+            http_response_code(404);
+            exit('Share links are disabled.');
+        }
         $slug = rawurldecode($matches[1]);
         $share = ShareService::publicShare($db, $slug);
 
@@ -188,6 +206,10 @@ try {
             PublicSharePage::render($db, $share, null, 'Incorrect password.');
         }
 
+        if (!(bool) ($publicFeatures['feature_proof_comments'] ?? true)) {
+            $share['proof_mode'] = false;
+        }
+
         PublicSharePage::render($db, $share, $access);
     }
 
@@ -199,6 +221,22 @@ try {
             'error' => 'Unauthorized.',
             'request_id' => $requestId,
         ], 401);
+    }
+
+    $reviewerReadException =
+        $method === 'POST' &&
+        preg_match('#^/api/v1/notifications/\d+/read$#', $path);
+
+    if (
+        (string) ($user['role'] ?? '') === 'reviewer' &&
+        $method !== 'GET' &&
+        !$reviewerReadException
+    ) {
+        Http::json([
+            'ok' => false,
+            'error' => 'Reviewer role is read-only.',
+            'request_id' => $requestId,
+        ], 403);
     }
 
     if ($method === 'GET' && $path === '/api/v1/me') {
@@ -277,6 +315,15 @@ try {
     }
 
     if ($method === 'POST' && $path === '/api/v1/shares') {
+        $shareSettings = AdminService::getSettings($db);
+        if (!(bool) ($shareSettings['feature_public_sharing'] ?? true)) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Public sharing is disabled by Admin.',
+                'request_id' => $requestId,
+            ], 403);
+        }
+
         $body = Http::body();
 
         try {
@@ -290,8 +337,13 @@ try {
                 isset($body['expires_at']) && $body['expires_at'] !== null
                     ? (string) $body['expires_at']
                     : null,
-                !array_key_exists('allow_download', $body) || (bool) $body['allow_download'],
-                (bool) ($body['proof_mode'] ?? false)
+                array_key_exists('allow_download', $body)
+                    ? (bool) $body['allow_download']
+                    : (bool) ($shareSettings['default_share_download'] ?? true),
+                (bool) ($shareSettings['feature_proof_comments'] ?? true) &&
+                    (array_key_exists('proof_mode', $body)
+                        ? (bool) $body['proof_mode']
+                        : (bool) ($shareSettings['default_share_proof_mode'] ?? false))
             );
         } catch (RuntimeException $error) {
             Http::json([
