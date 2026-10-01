@@ -9,7 +9,8 @@ import {
   type AdminOverview,
   type AdminRecycleBin,
   type AdminSettings,
-  type AdminUser
+  type AdminUser,
+  type ServerDiagnostics
 } from "../cloud/apiClient";
 import type { AppSettings } from "../state/appSettings";
 
@@ -28,7 +29,8 @@ const emptySettings: AdminSettings = {
   backup_retention_count: 14,
   backup_include_assets: false,
   backup_secondary_path: "",
-  recycle_retention_days: 30
+  recycle_retention_days: 30,
+  worker_url_override: ""
 };
 
 export function AdminScreen({
@@ -46,6 +48,7 @@ export function AdminScreen({
   const [activity, setActivity] = useState<AdminActivity[]>([]);
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [jobs, setJobs] = useState<AdminExportJob[]>([]);
+  const [diagnostics, setDiagnostics] = useState<ServerDiagnostics | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [notifyTitle, setNotifyTitle] = useState("");
@@ -75,7 +78,8 @@ export function AdminScreen({
         recycleResult,
         activityResult,
         notificationResult,
-        jobResult
+        jobResult,
+        diagnosticsResult
       ] = await Promise.all([
         api.adminOverview(),
         api.adminUsers(),
@@ -84,7 +88,8 @@ export function AdminScreen({
         api.adminRecycleBin(),
         api.adminActivity(),
         api.adminNotifications(),
-        api.adminExportJobs()
+        api.adminExportJobs(),
+        api.diagnostics()
       ]);
 
       setOverview(overviewResult.overview);
@@ -95,6 +100,7 @@ export function AdminScreen({
       setActivity(activityResult.activity);
       setNotifications(notificationResult.notifications);
       setJobs(jobResult.jobs);
+      setDiagnostics(diagnosticsResult.diagnostics);
       setStatus("Admin data refreshed.");
     } catch (error) {
       if (error instanceof CloudApiError && error.status === 403) {
@@ -363,6 +369,16 @@ export function AdminScreen({
               onChange={(event) => setSettings({ ...settings, recycle_retention_days: Number(event.target.value) })}
             />
           </label>
+          <label>Image Worker URL
+            <input
+              value={settings.worker_url_override}
+              onChange={(event) => setSettings({
+                ...settings,
+                worker_url_override: event.target.value
+              })}
+              placeholder="Inherit WORKER_URL from server .env"
+            />
+          </label>
         </div>
       </div>
 
@@ -416,6 +432,39 @@ export function AdminScreen({
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">SERVER / STORAGE / WORKER</span>
+            <h3>Deep Diagnostics</h3>
+          </div>
+        </div>
+
+        {diagnostics ? (
+          <div className="admin-diagnostics-grid">
+            <AdminMetric label="Database" value={diagnostics.database} />
+            <AdminMetric label="PHP" value={diagnostics.php_version} />
+            <AdminMetric label="Storage Used" value={(diagnostics.storage_used_bytes / (1024 * 1024)).toFixed(1) + " MB"} />
+            <AdminMetric label="Storage Free" value={diagnostics.storage_free_bytes === null ? "Unknown" : (diagnostics.storage_free_bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB"} />
+            <AdminMetric label="My Quota" value={diagnostics.user_storage_quota_bytes > 0 ? (diagnostics.user_storage_quota_bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB" : "Unlimited"} />
+            <AdminMetric label="Worker" value={diagnostics.worker_url ? (diagnostics.worker_healthy === true ? "Healthy" : diagnostics.worker_healthy === false ? "Error" : "Configured") : "Not configured"} />
+            <AdminMetric label="ZIP Backups" value={diagnostics.zip_available ? "Ready" : "Missing"} />
+            <AdminMetric label="cURL" value={diagnostics.curl_available ? "Ready" : "Missing"} />
+            <AdminMetric label="GD Proxy" value={diagnostics.gd_available ? "Ready" : "Missing"} />
+            <AdminMetric label="Backups" value={diagnostics.backup_count} />
+          </div>
+        ) : (
+          <p className="muted">Diagnostics not loaded.</p>
+        )}
+
+        {diagnostics?.worker_error && (
+          <p className="admin-diagnostic-error">{diagnostics.worker_error}</p>
+        )}
+        {diagnostics?.last_backup_at && (
+          <p className="muted">Last successful backup: {new Date(diagnostics.last_backup_at).toLocaleString()}</p>
+        )}
       </div>
 
       <div className="panel">
