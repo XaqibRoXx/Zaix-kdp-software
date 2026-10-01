@@ -2163,6 +2163,8 @@ function KdpBookPanel({
 
   if (!maybeSettings) return null;
   const kdpSettings = maybeSettings;
+  const templateInputRef = useRef<HTMLInputElement | null>(null);
+  const coverArtboard = project.artboards.find((item) => item.role === "cover");
 
   function update(input: Parameters<typeof updateKdpSettings>[1]) {
     onCommit(updateKdpSettings(project, input));
@@ -2171,14 +2173,77 @@ function KdpBookPanel({
   const applyPageSize = () => {
     const width = kdpSettings.trimWidthIn + (kdpSettings.bleed ? KDP_RULES.bleedIn : 0);
     const height = kdpSettings.trimHeightIn + (kdpSettings.bleed ? KDP_RULES.bleedIn * 2 : 0);
-    onCommit(resizeAllArtboards(project, { width, height, unit: "in" }));
+    onCommit(resizeAllArtboardsWithContent(project, { width, height, unit: "in" }));
   };
 
   const createCover = () => {
+    if (kdpSettings.format === "hardcover") {
+      templateInputRef.current?.click();
+      return;
+    }
+
     const result = createOrUpdateKdpCoverArtboard(project);
     onCommit(result.project);
     if (result.artboardId) onOpenArtboard(result.artboardId);
   };
+
+  async function importKdpTemplate(file: File) {
+    if (!file.type.startsWith("image/")) {
+      window.alert("Use the PNG cover template downloaded from the KDP Cover Calculator.");
+      return;
+    }
+
+    const src = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Template could not be read."));
+      reader.onerror = () => reject(reader.error ?? new Error("Template could not be read."));
+      reader.readAsDataURL(file);
+    });
+
+    let nextProject = project;
+    let targetId = coverArtboard?.id;
+
+    if (!targetId) {
+      if (kdpSettings.format === "paperback") {
+        const created = createOrUpdateKdpCoverArtboard(project);
+        nextProject = created.project;
+        targetId = created.artboardId;
+      } else {
+        const widthInput = window.prompt("Official KDP template total cover width (inches)", String(kdpSettings.trimWidthIn * 2 + 2.5));
+        const heightInput = window.prompt("Official KDP template total cover height (inches)", String(kdpSettings.trimHeightIn + 1.02));
+        if (!widthInput || !heightInput) return;
+
+        const added = addArtboard(project, {
+          width: Math.max(1, Number(widthInput) || 1),
+          height: Math.max(1, Number(heightInput) || 1),
+          unit: "in",
+          background: "#ffffff"
+        });
+        targetId = added.artboards.at(-1)?.id;
+        nextProject = {
+          ...added,
+          artboards: added.artboards.map((item) =>
+            item.id === targetId
+              ? { ...item, role: "cover" as const, name: "Hardcover Cover" }
+              : item
+          )
+        };
+      }
+    }
+
+    if (!targetId) return;
+
+    nextProject = setArtboardTemplateOverlay(nextProject, targetId, {
+      name: file.name,
+      src,
+      mimeType: file.type,
+      opacity: 0.55,
+      visible: true
+    });
+
+    onCommit(nextProject);
+    onOpenArtboard(targetId);
+  }
 
   const generateToc = () => {
     const result = createOrUpdateTocArtboard(project);
@@ -2214,6 +2279,36 @@ function KdpBookPanel({
           {result.ready ? "Ready" : errorCount + " errors"}
         </span>
       </div>
+
+      <label className="inspector-field">Binding
+        <select
+          value={kdpSettings.format}
+          onChange={(event) => {
+            const format = event.target.value as "paperback" | "hardcover";
+            const next = format === "hardcover"
+              ? { format, trimWidthIn: 6, trimHeightIn: 9, paperType: "white" as const, inkType: "black" as const }
+              : { format };
+            update(next);
+          }}
+        >
+          <option value="paperback">Paperback</option>
+          <option value="hardcover">Hardcover</option>
+        </select>
+      </label>
+
+      {kdpSettings.format === "hardcover" && (
+        <div className="hardcover-presets">
+          {KDP_RULES.hardcoverTrimSizes.map(([width, height]) => (
+            <button
+              key={width + "x" + height}
+              className="secondary"
+              onClick={() => update({ trimWidthIn: width, trimHeightIn: height })}
+            >
+              {width}" × {height}"
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="inspector-grid">
         <label>Trim W
@@ -2270,10 +2365,56 @@ function KdpBookPanel({
         </select>
       </label>
 
+      <input
+        ref={templateInputRef}
+        className="hidden-input"
+        type="file"
+        accept="image/png,image/jpeg,.png,.jpg,.jpeg"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void importKdpTemplate(file);
+          event.currentTarget.value = "";
+        }}
+      />
       <div className="artboard-actions">
-        <button className="secondary" onClick={applyPageSize}>Apply Page Size</button>
-        <button className="secondary" onClick={createCover}>Create / Update Cover</button>
+        <button className="secondary" onClick={applyPageSize}>Scale Book to KDP Size</button>
+        <button className="secondary" onClick={createCover}>
+          {kdpSettings.format === "hardcover" ? "Import KDP Cover Template" : "Create / Update Cover"}
+        </button>
       </div>
+      {coverArtboard?.templateOverlay && (
+        <div className="template-controls">
+          <label>Template Opacity
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={coverArtboard.templateOverlay.opacity}
+              onChange={(event) =>
+                onCommit(setArtboardTemplateOverlay(project, coverArtboard.id, {
+                  ...coverArtboard.templateOverlay!,
+                  opacity: Number(event.target.value)
+                }))
+              }
+            />
+          </label>
+          <button
+            className="secondary"
+            onClick={() =>
+              onCommit(setArtboardTemplateOverlay(project, coverArtboard.id, {
+                ...coverArtboard.templateOverlay!,
+                visible: !coverArtboard.templateOverlay!.visible
+              }))
+            }
+          >
+            {coverArtboard.templateOverlay.visible ? "Hide Template" : "Show Template"}
+          </button>
+          <button className="secondary danger" onClick={() => onCommit(setArtboardTemplateOverlay(project, coverArtboard.id, undefined))}>
+            Remove Template
+          </button>
+        </div>
+      )}
 
       <div className="kdp-metrics">
         <span><small>Pages</small><strong>{result.pageCount}</strong></span>
@@ -2283,9 +2424,18 @@ function KdpBookPanel({
       </div>
 
       <div className="kdp-cover-size">
-        <small>Full paperback cover + bleed</small>
-        <strong>{result.coverWidthIn}" × {result.coverHeightIn}"</strong>
-        <span>{result.spineTextAllowed ? "Spine text allowed" : "No spine text below 80 pages"}</span>
+        <small>{kdpSettings.format === "paperback" ? "Full paperback cover + bleed" : "Hardcover cover"}</small>
+        {kdpSettings.format === "paperback" ? (
+          <>
+            <strong>{result.coverWidthIn}" × {result.coverHeightIn}"</strong>
+            <span>{result.spineTextAllowed ? "Spine text allowed" : "No spine text below 80 pages"}</span>
+          </>
+        ) : (
+          <>
+            <strong>Official KDP template driven</strong>
+            <span>75–550 pages • import the exact PNG template from KDP Cover Calculator</span>
+          </>
+        )}
       </div>
 
       <div className="kdp-subsection">
