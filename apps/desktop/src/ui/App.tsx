@@ -6,6 +6,7 @@ import {
   addBookChapter,
   alignObject,
   analyzeKdpProject,
+  calculatePaperbackCoverLayout,
   calculatePaperbackCoverSize,
   createChapter,
   deleteBookChapter,
@@ -1657,13 +1658,24 @@ function KdpCoverGuides({ project }: { project: ZaxisProject }) {
   if (!settings) return null;
 
   const pageCount = project.artboards.filter((item) => (item.role ?? "page") === "page").length;
-  const cover = calculatePaperbackCoverSize(pageCount, settings);
-  const totalWidth = cover.widthIn || 1;
-  const bleed = KDP_RULES.bleedIn;
-  const backStart = (bleed / totalWidth) * 100;
-  const spineStart = ((bleed + settings.trimWidthIn) / totalWidth) * 100;
-  const frontStart = ((bleed + settings.trimWidthIn + cover.spineWidthIn) / totalWidth) * 100;
-  const rightTrim = ((bleed + settings.trimWidthIn + cover.spineWidthIn + settings.trimWidthIn) / totalWidth) * 100;
+  const layout = calculatePaperbackCoverLayout(pageCount, settings);
+  const totalWidth = layout.totalWidthIn || 1;
+  const totalHeight = layout.totalHeightIn || 1;
+
+  const pctX = (value: number) => (value / totalWidth) * 100;
+  const pctY = (value: number) => (value / totalHeight) * 100;
+
+  const backStart = pctX(layout.backCover.xIn);
+  const spineStart = pctX(layout.spine.xIn);
+  const frontStart = pctX(layout.frontCover.xIn);
+  const rightTrim = pctX(layout.frontCover.xIn + layout.frontCover.widthIn);
+  const bleedTop = pctY(layout.bleedIn);
+  const bleedBottom = 100 - bleedTop;
+
+  const safeInsetX = pctX(layout.outerSafeMarginIn);
+  const safeInsetY = pctY(layout.outerSafeMarginIn);
+  const spineInset = pctX(Math.min(layout.spineSafeInsetIn, layout.spine.widthIn / 2));
+  const barcode = layout.barcodeReservation;
 
   return (
     <div className="cover-guides" aria-hidden="true">
@@ -1671,15 +1683,68 @@ function KdpCoverGuides({ project }: { project: ZaxisProject }) {
       <div className="cover-line spine-left" style={{ left: spineStart + "%" }} />
       <div className="cover-line spine-right" style={{ left: frontStart + "%" }} />
       <div className="cover-line bleed-right" style={{ left: rightTrim + "%" }} />
+      <div className="cover-line horizontal bleed-top" style={{ top: bleedTop + "%" }} />
+      <div className="cover-line horizontal bleed-bottom" style={{ top: bleedBottom + "%" }} />
 
       <div className="cover-zone back" style={{ left: backStart + "%", width: (spineStart - backStart) + "%" }}>
         <span>BACK COVER</span>
       </div>
       <div className="cover-zone spine" style={{ left: spineStart + "%", width: (frontStart - spineStart) + "%" }}>
-        <span>SPINE</span>
+        <span>SPINE {layout.spine.widthIn.toFixed(3)}"</span>
       </div>
       <div className="cover-zone front" style={{ left: frontStart + "%", width: (rightTrim - frontStart) + "%" }}>
         <span>FRONT COVER</span>
+      </div>
+
+      <div
+        className="cover-safe back-safe"
+        style={{
+          left: (backStart + safeInsetX) + "%",
+          right: (100 - spineStart + safeInsetX) + "%",
+          top: safeInsetY + "%",
+          bottom: safeInsetY + "%"
+        }}
+      >
+        <span>BACK SAFE AREA</span>
+      </div>
+
+      <div
+        className="cover-safe front-safe"
+        style={{
+          left: (frontStart + safeInsetX) + "%",
+          right: (100 - rightTrim + safeInsetX) + "%",
+          top: safeInsetY + "%",
+          bottom: safeInsetY + "%"
+        }}
+      >
+        <span>FRONT SAFE AREA</span>
+      </div>
+
+      {layout.spine.widthIn > 0 && (
+        <div
+          className="cover-spine-safe"
+          style={{
+            left: (spineStart + spineInset) + "%",
+            width: Math.max(0, (frontStart - spineStart) - spineInset * 2) + "%",
+            top: safeInsetY + "%",
+            bottom: safeInsetY + "%"
+          }}
+        >
+          <span>{pageCount >= KDP_RULES.spineTextMinimumPages ? "SPINE SAFE" : "NO SPINE TEXT"}</span>
+        </div>
+      )}
+
+      <div
+        className="cover-barcode-reservation"
+        style={{
+          left: pctX(barcode.xIn) + "%",
+          bottom: pctY(barcode.yIn) + "%",
+          width: pctX(barcode.widthIn) + "%",
+          height: pctY(barcode.heightIn) + "%"
+        }}
+      >
+        <strong>BARCODE</strong>
+        <small>2" × 1.2" suggested</small>
       </div>
     </div>
   );
