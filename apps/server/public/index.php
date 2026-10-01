@@ -535,6 +535,26 @@ try {
             ]);
         }
 
+        if ($method === 'POST' && $path === '/api/v1/admin/users') {
+            try {
+                $created = AdminService::createUser($db, $user, Http::body());
+            } catch (RuntimeException $error) {
+                Http::json([
+                    'ok' => false,
+                    'error' => $error->getMessage(),
+                    'request_id' => $requestId,
+                ], 422);
+            }
+
+            Http::json([
+                'ok' => true,
+                'user' => $created['user'],
+                'connection_code' => $created['connection_code'],
+                'expires_at' => $created['expires_at'],
+                'request_id' => $requestId,
+            ], 201);
+        }
+
         if ($method === 'PATCH' && preg_match('#^/api/v1/admin/users/(\d+)$#', $path, $matches)) {
             try {
                 $updated = AdminService::updateUser(
