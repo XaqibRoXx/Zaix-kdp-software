@@ -291,6 +291,16 @@ export class ZaxisCloudApi {
     return this.request<{ ok: boolean; diagnostics: ServerDiagnostics }>("/api/v1/diagnostics");
   }
 
+  async effectiveSettings(projectId?: string) {
+    const query = projectId
+      ? "?project_id=" + encodeURIComponent(projectId)
+      : "";
+
+    return this.request<{ ok: boolean; settings: AdminSettings }>(
+      "/api/v1/effective-settings" + query
+    );
+  }
+
   async exportJobs() {
     return this.request<{ ok: boolean; jobs: AdminExportJob[] }>(
       "/api/v1/export-jobs"
