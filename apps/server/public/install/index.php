@@ -212,7 +212,10 @@ try {
         'DB_PASS=' . $dbPass,
         'ALLOWED_ORIGINS=tauri://localhost,http://tauri.localhost,https://tauri.localhost',
         'STORAGE_PATH=' . $storagePath,
+        'STORAGE_PROVIDER=local-cpanel',
         'SHARE_BASE_URL=' . $shareUrl,
+        'WORKER_URL=',
+        'MAX_UPLOAD_MB=100',
         '',
     ]);
 
