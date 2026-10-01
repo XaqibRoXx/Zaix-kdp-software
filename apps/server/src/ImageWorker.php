@@ -11,9 +11,15 @@ final class ImageWorker
     public static function removeBackground(
         string $sourcePath,
         string $mode = 'quality',
-        string $model = 'birefnet-general'
+        string $model = 'birefnet-general',
+        ?string $workerUrlOverride = null
     ): string {
-        $workerUrl = rtrim((string) Config::env('WORKER_URL', ''), '/');
+        $workerUrl = rtrim(
+            trim((string) $workerUrlOverride) !== ''
+                ? (string) $workerUrlOverride
+                : (string) Config::env('WORKER_URL', ''),
+            '/'
+        );
         if ($workerUrl === '') {
             throw new RuntimeException('Image worker URL is not configured.');
         }
