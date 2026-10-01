@@ -1,0 +1,167 @@
+name: Signed Windows Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (SemVer, for example 0.2.0)"
+        required: true
+        type: string
+      notes:
+        description: "Release notes"
+        required: false
+        default: "Zaxis KDP signed Windows release"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  signed-windows-release:
+    runs-on: windows-latest
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_NOTES: ${{ inputs.notes }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      ZAXIS_UPDATER_PUBLIC_KEY: ${{ secrets.ZAXIS_UPDATER_PUBLIC_KEY }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate release inputs and signing secrets
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+            throw "RELEASE_VERSION must be valid SemVer."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw "Missing GitHub secret TAURI_SIGNING_PRIVATE_KEY."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:ZAXIS_UPDATER_PUBLIC_KEY)) {
+            throw "Missing GitHub secret ZAXIS_UPDATER_PUBLIC_KEY."
+          }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: Build signed updater configuration
+        shell: pwsh
+        run: |
+          $config = @{
+            version = $env:RELEASE_VERSION
+            bundle = @{
+              createUpdaterArtifacts = $true
+            }
+            plugins = @{
+              updater = @{
+                pubkey = $env:ZAXIS_UPDATER_PUBLIC_KEY
+                endpoints = @(
+                  "https://github.com/XaqibRoXx/Zaix-kdp-software/releases/latest/download/latest.json"
+                )
+                requireSignedVersion = $true
+                windows = @{
+                  installMode = "passive"
+                }
+              }
+            }
+          }
+          $config |
+            ConvertTo-Json -Depth 10 |
+            Set-Content "apps/desktop/src-tauri/tauri.signed.generated.conf.json"
+
+      - name: Build signed Windows updater artifacts
+        run: npm --workspace @zaxis-kdp/desktop run tauri -- build --config src-tauri/tauri.signed.generated.conf.json
+
+      - name: Prepare release manifest
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-signed | Out-Null
+
+          $nsis = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis" -Filter *.exe |
+            Select-Object -First 1
+          if (-not $nsis) {
+            throw "Signed NSIS installer was not produced."
+          }
+
+          $signaturePath = $nsis.FullName + ".sig"
+          if (-not (Test-Path $signaturePath)) {
+            throw "Updater signature was not produced for the NSIS installer."
+          }
+
+          $signature = (Get-Content $signaturePath -Raw).Trim()
+          if ([string]::IsNullOrWhiteSpace($signature)) {
+            throw "Updater signature is empty."
+          }
+
+          $tag = "v" + $env:RELEASE_VERSION
+          $assetName = $nsis.Name.Replace(" ", "%20")
+          $assetUrl = "https://github.com/XaqibRoXx/Zaix-kdp-software/releases/download/" +
+            $tag + "/" + $assetName
+
+          $latest = @{
+            version = $env:RELEASE_VERSION
+            notes = $env:RELEASE_NOTES
+            pub_date = (Get-Date).ToUniversalTime().ToString("o")
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $signature
+                url = $assetUrl
+              }
+            }
+          }
+
+          $latest |
+            ConvertTo-Json -Depth 10 |
+            Set-Content "release-signed/latest.json"
+
+          Copy-Item $nsis.FullName "release-signed/"
+          Copy-Item $signaturePath "release-signed/"
+
+          $msi = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/msi" -Filter *.msi |
+            Select-Object -First 1
+          if ($msi) {
+            Copy-Item $msi.FullName "release-signed/"
+            if (Test-Path ($msi.FullName + ".sig")) {
+              Copy-Item ($msi.FullName + ".sig") "release-signed/"
+            }
+          }
+
+          $files = Get-ChildItem release-signed -File |
+            Where-Object { $_.Name -ne "SHA256SUMS.txt" }
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            "$hash  $($file.Name)"
+          }
+          $lines | Set-Content "release-signed/SHA256SUMS.txt"
+
+      - name: Create or update GitHub release
+        shell: pwsh
+        run: |
+          $tag = "v" + $env:RELEASE_VERSION
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --target "${{ github.sha }}" --title "Zaxis KDP $env:RELEASE_VERSION" --notes "$env:RELEASE_NOTES"
+          }
+
+          gh release upload $tag release-signed/* --clobber
+
+      - name: Upload signed release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: zaxis-kdp-signed-windows-${{ inputs.version }}
+          path: release-signed/**
+          if-no-files-found: error
