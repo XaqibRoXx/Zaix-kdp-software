@@ -235,3 +235,13 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .toc-preview em{font-style:normal}
 .toc-preview i{border-bottom:1px dotted #46514c;transform:translateY(-2px)}
 .toc-preview b{font-weight:600}
+
+.cover-line.horizontal{left:0;right:0;width:auto;height:1px}
+.cover-line.bleed-top,.cover-line.bleed-bottom{background:#00f6ac;opacity:.75}
+.cover-safe{position:absolute;border:1px dashed rgba(20,110,80,.65);background:rgba(0,246,172,.035);display:flex;align-items:flex-end;justify-content:center;padding:4px;z-index:2}
+.cover-safe span{font-size:8px;letter-spacing:.7px;color:rgba(0,95,65,.75);font-weight:700}
+.cover-spine-safe{position:absolute;border:1px dashed rgba(181,115,20,.8);background:rgba(241,169,74,.07);display:flex;align-items:center;justify-content:center;z-index:3}
+.cover-spine-safe span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:8px;letter-spacing:.7px;color:rgba(139,82,0,.85);font-weight:800}
+.cover-barcode-reservation{position:absolute;border:1px dashed rgba(160,20,20,.8);background:rgba(255,255,255,.82);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;z-index:4;color:#8e2020;text-align:center}
+.cover-barcode-reservation strong{font-size:8px;letter-spacing:.8px}
+.cover-barcode-reservation small{font-size:7px}
