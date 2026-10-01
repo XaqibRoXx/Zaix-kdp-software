@@ -290,3 +290,25 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .share-actions{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
 .asset-row.selected-for-share{border-color:#00f6ac;box-shadow:inset 0 0 0 1px rgba(0,246,172,.12)}
 @media(max-width:980px){.share-row{grid-template-columns:1fr}.share-flags{justify-content:flex-start}.share-actions{grid-column:auto}}
+
+.linked-asset-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #1f2c26;background:#0a0e0c;border-radius:9px;padding:11px;margin:10px 0}
+.linked-asset-summary small,.linked-asset-summary strong,.linked-asset-summary span{display:block}
+.linked-asset-summary small,.linked-asset-summary span{color:#7d8a83}
+.linked-batch-grid{margin:10px 0}
+.linked-reference-list{display:grid;gap:7px;margin-top:12px;max-height:300px;overflow:auto}
+.linked-reference-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid #25312b;background:#0b100d;border-radius:8px;padding:9px}
+.linked-reference-row strong,.linked-reference-row small{display:block}
+.linked-reference-row small{color:#748179;margin-top:2px}
+.linked-reference-row.outdated{border-color:#66501f;background:#151208}
+.linked-reference-row.missing{border-color:#5b2727;background:#140a0a}
+.linked-state{border-radius:999px;padding:4px 7px;font-size:9px;font-weight:700;white-space:nowrap}
+.linked-state.current{border:1px solid #1d6047;color:#00f6ac;background:#07140f}
+.linked-state.outdated{border:1px solid #6b531d;color:#ffc565;background:#181308}
+.linked-state.missing{border:1px solid #5d2828;color:#ff9494;background:#160a0a}
+.asset-link-state{margin-top:4px!important}
+.asset-link-state.current{color:#00f6ac!important}
+.asset-link-state.outdated{color:#ffc565!important}
+.asset-link-state.missing{color:#ff9494!important}
+.warning-pill{border-color:#65501e!important;color:#ffc565!important}
+.danger-pill{border-color:#5c2828!important;color:#ff9494!important}
+@media(max-width:850px){.linked-asset-summary{align-items:flex-start;flex-direction:column}.linked-reference-row{grid-template-columns:1fr}}
