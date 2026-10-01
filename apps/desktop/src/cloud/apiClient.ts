@@ -92,13 +92,22 @@ export interface ServerDiagnostics {
   storage_writable: boolean;
   storage_free_bytes: number | null;
   storage_total_bytes: number | null;
+  storage_used_bytes: number;
+  user_storage_used_bytes: number;
+  user_storage_quota_bytes: number;
   share_base_url: string;
   worker_url: string;
+  worker_healthy: boolean | null;
+  worker_error: string | null;
   max_upload_mb: number;
   gd_available: boolean;
   pdo_mysql_available: boolean;
+  curl_available: boolean;
+  zip_available: boolean;
   upload_max_filesize: string | null;
   post_max_size: string | null;
+  backup_count: number;
+  last_backup_at: string | null;
 }
 
 export interface AdminOverview {
@@ -141,6 +150,7 @@ export interface AdminSettings {
   backup_include_assets: boolean;
   backup_secondary_path: string;
   recycle_retention_days: number;
+  worker_url_override: string;
 }
 
 export interface AdminActivity {
