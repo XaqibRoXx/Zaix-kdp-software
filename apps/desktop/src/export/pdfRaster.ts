@@ -39,7 +39,11 @@ export interface PdfLossyRecompressResult {
 
 async function loadPdf(file: File): Promise<{ task: ReturnType<typeof getDocument>; doc: PDFDocumentProxy }> {
   const data = new Uint8Array(await file.arrayBuffer());
-  const task = getDocument({ data });
+  const task = getDocument({
+    data,
+    enableScripting: false,
+    isEvalSupported: false
+  });
   const doc = await task.promise;
   return { task, doc };
 }
