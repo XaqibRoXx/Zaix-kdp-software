@@ -801,17 +801,24 @@ export class ZaxisCloudApi {
     allowDownload?: boolean;
     proofMode?: boolean;
   }) {
+    const body: Record<string, unknown> = {
+      asset_id: input.assetId,
+      project_id: input.projectId ?? null,
+      title: input.title ?? "",
+      password: input.password ?? "",
+      expires_at: input.expiresAt ?? null
+    };
+
+    if (input.allowDownload !== undefined) {
+      body.allow_download = input.allowDownload;
+    }
+    if (input.proofMode !== undefined) {
+      body.proof_mode = input.proofMode;
+    }
+
     return this.request<{ ok: boolean; share: CloudShare }>("/api/v1/shares", {
       method: "POST",
-      body: {
-        asset_id: input.assetId,
-        project_id: input.projectId ?? null,
-        title: input.title ?? "",
-        password: input.password ?? "",
-        expires_at: input.expiresAt ?? null,
-        allow_download: input.allowDownload ?? true,
-        proof_mode: input.proofMode ?? false
-      }
+      body
     });
   }
 
