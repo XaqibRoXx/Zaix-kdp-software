@@ -26,6 +26,7 @@ jobs:
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       ZAXIS_UPDATER_PUBLIC_KEY: ${{ secrets.ZAXIS_UPDATER_PUBLIC_KEY }}
       GH_TOKEN: ${{ github.token }}
+      ZAXIS_ENABLE_UPDATER: "1"
 
     steps:
       - name: Checkout
