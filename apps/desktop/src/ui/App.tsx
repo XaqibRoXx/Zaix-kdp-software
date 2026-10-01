@@ -33,11 +33,13 @@ import {
   distributeObjects,
   duplicateArtboard,
   fitObjectInsideArtboard,
+  linkImageObjectToCloudAsset,
   moveArtboard,
   moveObjectLayer,
   resizeAllArtboards,
   resizeAllArtboardsWithContent,
   resizeArtboard,
+  replaceLinkedAssetReferences,
   saveReusableStyle,
   setArtboardTemplateOverlay,
   setObjectLocked,
@@ -781,6 +783,9 @@ export function App() {
             settings={appSettings}
             token={cloudToken}
             project={project}
+            selectedArtboardId={selectedArtboardId}
+            selectedObjectId={selectedObjectId}
+            onCommit={commit}
           />
         )}
         {screen === "pdfTools" && <PdfToolsScreen />}
