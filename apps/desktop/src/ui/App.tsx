@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import {
   KDP_RULES,
   SnapshotHistory,
@@ -4888,6 +4889,18 @@ function SettingsScreen({
 }) {
   const [nativeCache, setNativeCache] = useState<NativeCacheStatus | null>(null);
   const [cacheMessage, setCacheMessage] = useState("");
+  const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
+  const [updateStatus, setUpdateStatus] = useState("Not checked.");
+  const [updateProgress, setUpdateProgress] = useState("");
+  const [updateBusy, setUpdateBusy] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (availableUpdate) {
+        void availableUpdate.close();
+      }
+    };
+  }, [availableUpdate]);
 
   async function refreshNativeCache() {
     try {
@@ -4910,6 +4923,84 @@ function SettingsScreen({
       setCacheMessage("Native cache cleared.");
     } catch {
       setCacheMessage("Native cache clear is available in the Windows app.");
+    }
+  }
+
+  async function checkForAppUpdate() {
+    setUpdateBusy(true);
+    setUpdateProgress("");
+    setUpdateStatus("Checking signed update channel...");
+
+    try {
+      if (availableUpdate) {
+        await availableUpdate.close().catch(() => undefined);
+        setAvailableUpdate(null);
+      }
+
+      const update = await check({ timeout: 15000 });
+      if (!update) {
+        setUpdateStatus("You are running the latest available version.");
+        return;
+      }
+
+      setAvailableUpdate(update);
+      setUpdateStatus(
+        "Update " + update.version + " is available. Current version: " + update.currentVersion + "."
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setUpdateStatus(
+        "Update check unavailable in this build. Signed release builds require the configured HTTPS update channel and trusted public key. " +
+          message
+      );
+    } finally {
+      setUpdateBusy(false);
+    }
+  }
+
+  async function installAppUpdate() {
+    if (!availableUpdate) return;
+
+    setUpdateBusy(true);
+    setUpdateProgress("Preparing download...");
+    let downloaded = 0;
+    let contentLength = 0;
+
+    try {
+      await availableUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          contentLength = event.data.contentLength ?? 0;
+          setUpdateProgress(
+            contentLength > 0
+              ? "Downloading 0 / " + (contentLength / (1024 * 1024)).toFixed(1) + " MB"
+              : "Downloading update..."
+          );
+          return;
+        }
+
+        if (event.event === "Progress") {
+          downloaded += event.data.chunkLength;
+          setUpdateProgress(
+            contentLength > 0
+              ? "Downloading " +
+                  (downloaded / (1024 * 1024)).toFixed(1) +
+                  " / " +
+                  (contentLength / (1024 * 1024)).toFixed(1) +
+                  " MB"
+              : "Downloaded " + (downloaded / (1024 * 1024)).toFixed(1) + " MB"
+          );
+          return;
+        }
+
+        setUpdateProgress("Download complete. Launching verified installer...");
+      });
+
+      setUpdateStatus("Verified update handed to the Windows installer.");
+    } catch (error) {
+      setUpdateStatus(error instanceof Error ? error.message : "Update installation failed.");
+      setUpdateProgress("");
+    } finally {
+      setUpdateBusy(false);
     }
   }
 
@@ -4974,6 +5065,31 @@ function SettingsScreen({
           </div>
         </div>
         <button className="secondary danger" onClick={onClearCache}>Clear Local Recovery Cache</button>
+      </div>
+
+      <div className="panel">
+        <span className="eyebrow">SIGNED SOFTWARE UPDATES</span>
+        <h2>Auto Update</h2>
+        <p className="muted">
+          Release builds verify every downloaded update with the embedded Tauri public key before installation.
+        </p>
+        <div className="cache-status-card">
+          <strong>{availableUpdate ? "Version " + availableUpdate.version + " available" : "Update Channel"}</strong>
+          <small>{updateStatus}</small>
+          {availableUpdate?.date && <span>Published {new Date(availableUpdate.date).toLocaleString()}</span>}
+          {availableUpdate?.body && <small>{availableUpdate.body}</small>}
+          {updateProgress && <span>{updateProgress}</span>}
+          <div className="hero-actions">
+            <button className="secondary" disabled={updateBusy} onClick={() => void checkForAppUpdate()}>
+              {updateBusy ? "Working..." : "Check for Updates"}
+            </button>
+            {availableUpdate && (
+              <button className="primary" disabled={updateBusy} onClick={() => void installAppUpdate()}>
+                Install {availableUpdate.version}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="panel">
