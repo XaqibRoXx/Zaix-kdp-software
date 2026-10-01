@@ -928,6 +928,38 @@ function PdfExportDialog({
     setStatus(batchSeparate ? "Rendering batch PDFs..." : "Rendering PDF...");
     setWarnings([]);
 
+    let exportJobApi: ZaxisCloudApi | null = null;
+    let exportJobId = "";
+
+    if (settings.cloudApiUrl.trim() && token.trim()) {
+      try {
+        exportJobApi = new ZaxisCloudApi(
+          settings.cloudApiUrl.trim(),
+          token.trim()
+        );
+        const queued = await exportJobApi.createExportJob({
+          projectId: project.id,
+          jobType: batchSeparate ? "pdf-batch-export" : "pdf-export",
+          payload: {
+            target,
+            quality,
+            pageRange,
+            destination,
+            colorMode,
+            cropMarks,
+            batchSeparate
+          }
+        });
+        exportJobId = queued.job.id;
+        await exportJobApi.updateExportJob(exportJobId, {
+          status: "running"
+        });
+      } catch {
+        exportJobApi = null;
+        exportJobId = "";
+      }
+    }
+
     try {
       const baseOptions = {
         quality,
@@ -991,6 +1023,11 @@ function PdfExportDialog({
         if (savedPath) {
           destinations.push(savedPath.startsWith("browser-download:") ? "computer download" : savedPath);
         } else if (destination === "computer") {
+          if (exportJobApi && exportJobId) {
+            await exportJobApi.updateExportJob(exportJobId, {
+              status: "cancelled"
+            }).catch(() => undefined);
+          }
           setStatus("Export cancelled.");
           setBusy(false);
           return;
@@ -1035,6 +1072,20 @@ function PdfExportDialog({
         }
       }
 
+      if (exportJobApi && exportJobId) {
+        await exportJobApi.updateExportJob(exportJobId, {
+          status: "completed",
+          result: {
+            file_name: outputName,
+            mime_type: outputMime,
+            size_bytes: outputBytes.byteLength,
+            rendered_pages: renderedPages,
+            destinations,
+            warnings: exportWarnings.length
+          }
+        }).catch(() => undefined);
+      }
+
       setWarnings(exportWarnings);
       setStatus(
         "Exported " +
@@ -1045,7 +1096,14 @@ function PdfExportDialog({
           (destinations.length ? " • " + destinations.join(" • ") : "")
       );
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "PDF export failed.");
+      const message = error instanceof Error ? error.message : "PDF export failed.";
+      if (exportJobApi && exportJobId) {
+        await exportJobApi.updateExportJob(exportJobId, {
+          status: "failed",
+          errorMessage: message
+        }).catch(() => undefined);
+      }
+      setStatus(message);
     } finally {
       setBusy(false);
     }
