@@ -267,3 +267,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .diagnostics-grid small{color:#75817b;font-size:9px}
 .diagnostics-grid strong{margin-top:3px;color:#e7efeb;word-break:break-word;font-size:11px}
 @media(max-width:800px){.diagnostics-grid{grid-template-columns:1fr}}
+
+.revision-preview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:9px 0;padding:9px;border:1px solid #284138;background:#07140f;border-radius:8px}
+.revision-preview strong{grid-column:1/-1;color:#00f6ac}
+.revision-preview span{color:#a5b3ad;font-size:10px}
