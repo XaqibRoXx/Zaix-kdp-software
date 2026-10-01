@@ -6,7 +6,7 @@ Last updated: 2026-10-01
 - Phase 1: **BASELINE COMPLETE**
 - Phase 2: **100% COMPLETE**
 - Phase 3: **100% COMPLETE**
-- Phase 4: **PENDING**
+- Phase 4: **IN PROGRESS**
 
 Detailed Phase 2 exit checklist: `docs/PHASE2_EXIT.md`
 
@@ -242,13 +242,20 @@ The master plan marks these optional or “where supported”, so they are not P
 
 Phase 3 exit condition is satisfied: cloud collaboration, high-quality image utilities and production-ready administration are functional.
 
-## Pending — Phase 4
+## Phase 4 — IN PROGRESS
+- [x] Dedicated Phase 4 release/QA workflow foundation.
+- [x] Portable build configuration with app-local data directory.
+- [x] Automated cPanel/server ZIP packaging.
+- [x] Automated optional worker ZIP packaging.
+- [x] Windows release-candidate SHA-256 manifest generation.
+- [ ] First Phase 4 release workflow run verified green.
 - [ ] Large-book/performance stress QA.
-- [ ] Installer/portable release polish.
-- [ ] Auto-update.
-- [ ] Final cPanel server ZIP/database/optional worker delivery.
-- [ ] Backup/restore release package.
+- [ ] Installer/portable release polish and clean-machine validation.
+- [ ] Signed auto-update channel and in-app updater UX.
+- [ ] Backup/restore release validation.
 - [ ] Final documentation and release QA.
+
+Detailed Phase 4 checklist: `docs/PHASE4_RELEASE_QA.md`.
 
 ## Blocked
 No product-feature blocker.
