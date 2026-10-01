@@ -97,6 +97,75 @@ export async function rotatePdfPages(
   return document.save({ useObjectStreams: true });
 }
 
+export async function removePdfPages(file: File, range: string): Promise<Uint8Array> {
+  const source = await PDFDocument.load(await file.arrayBuffer(), { updateMetadata: false });
+  const remove = new Set(parsePdfPageRange(range, source.getPageCount()));
+
+  if (remove.size === 0) throw new Error("Select one or more pages to remove.");
+  if (remove.size >= source.getPageCount()) throw new Error("At least one page must remain.");
+
+  const output = await PDFDocument.create();
+  const keepIndices = source.getPageIndices().filter((index) => !remove.has(index));
+  const pages = await output.copyPages(source, keepIndices);
+  pages.forEach((page) => output.addPage(page));
+
+  return output.save({ useObjectStreams: true, addDefaultPage: false });
+}
+
+export async function reorderPdfPages(file: File, order: string): Promise<Uint8Array> {
+  const source = await PDFDocument.load(await file.arrayBuffer(), { updateMetadata: false });
+  const total = source.getPageCount();
+  const values = order
+    .split(",")
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value))
+    .map((value) => value - 1);
+
+  if (values.length !== total) {
+    throw new Error("Reorder list must contain every page exactly once.");
+  }
+
+  const unique = new Set(values);
+  if (unique.size !== total || values.some((value) => value < 0 || value >= total)) {
+    throw new Error("Reorder list contains duplicates or invalid page numbers.");
+  }
+
+  const output = await PDFDocument.create();
+  const pages = await output.copyPages(source, values);
+  pages.forEach((page) => output.addPage(page));
+  return output.save({ useObjectStreams: true, addDefaultPage: false });
+}
+
+export async function cropPdfPages(
+  file: File,
+  range: string,
+  marginsPt: { top: number; right: number; bottom: number; left: number }
+): Promise<Uint8Array> {
+  const document = await PDFDocument.load(await file.arrayBuffer(), { updateMetadata: false });
+  const indices = parsePdfPageRange(range, document.getPageCount());
+
+  if (indices.length === 0) throw new Error("Select one or more pages to crop.");
+
+  for (const index of indices) {
+    const page = document.getPage(index);
+    const box = page.getCropBox();
+    const left = Math.max(0, marginsPt.left);
+    const right = Math.max(0, marginsPt.right);
+    const top = Math.max(0, marginsPt.top);
+    const bottom = Math.max(0, marginsPt.bottom);
+    const width = box.width - left - right;
+    const height = box.height - top - bottom;
+
+    if (width <= 10 || height <= 10) {
+      throw new Error("Crop margins are too large for page " + (index + 1) + ".");
+    }
+
+    page.setCropBox(box.x + left, box.y + bottom, width, height);
+  }
+
+  return document.save({ useObjectStreams: true });
+}
+
 export async function inspectPdfStructure(file: File): Promise<PdfStructureInfo> {
   const document = await PDFDocument.load(await file.arrayBuffer(), {
     updateMetadata: false
