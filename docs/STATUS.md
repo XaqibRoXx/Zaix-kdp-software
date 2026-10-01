@@ -149,6 +149,16 @@ The master plan marks these optional or “where supported”, so they are not P
 - External heavy PDF worker (local desktop processing works without it).
 
 ## Phase 3 — In Progress
+- [x] Optional Python image worker package added.
+- [x] Worker supports Fast / Quality / Hair-Fur background removal modes.
+- [x] BiRefNet-general default model with selectable alternatives.
+- [x] Edge decontamination and ViTMatte soft-edge refinement supported by worker.
+- [x] Background mask endpoint foundation for manual refine workflow.
+- [x] Batch background-removal ZIP endpoint.
+- [x] Secure PHP server-to-worker bridge; Windows app never receives worker secret.
+- [x] Authenticated cloud asset background-removal endpoint.
+- [x] Background removal creates a new transparent PNG cloud asset and preserves the original.
+- [x] Asset Library Remove Background action connected.
 - [x] Cloud assets now have stable version numbers and updated timestamps.
 - [x] Existing cloud asset binary can be replaced while keeping the same asset ID.
 - [x] Image proxies are regenerated after cloud asset replacement.
@@ -181,7 +191,7 @@ The master plan marks these optional or “where supported”, so they are not P
 
 ## Remaining — Phase 3
 - [x] Advanced linked-asset/proxy lifecycle, update/missing detection, stable asset replacement and batch relink UI.
-- [ ] High-quality background remover + refine brush/edge cleanup.
+- [ ] Manual restore/erase refine-brush UI remains. High-quality background removal, hair/fur mode and edge cleanup worker pipeline are connected.
 - [ ] Admin/storage/backups/quota management and deeper diagnostics.
 
 ## Pending — Phase 4
