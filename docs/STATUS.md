@@ -165,6 +165,8 @@ The master plan marks these optional or “where supported”, so they are not P
 - [x] Set/change/remove share password and expiry.
 - [x] View/download/comment counters in desktop UI.
 - [x] Select a replacement asset and keep the existing public URL.
+- [x] Cloud/Both PDF export can automatically create a persistent public share link.
+- [x] Export result reports the new public URL immediately.
 
 ## Remaining — Phase 3
 - [ ] Advanced linked-asset/proxy lifecycle and duplicate-management UI.
