@@ -1,362 +1,174 @@
 # Zaxis KDP — Live Development Status
 
-Last updated: 2026-09-30
+Last updated: 2026-10-01
 
 ## Overall
 - Phase 1: **BASELINE COMPLETE**
-- Phase 2: **IN PROGRESS**
+- Phase 2: **FEATURE COMPLETE — FINAL WINDOWS GATE VERIFYING**
 - Phase 3: **PENDING**
 - Phase 4: **PENDING**
 
-## Done
-- [x] Product name locked: Zaxis KDP.
-- [x] Four-phase delivery model locked.
-- [x] GitHub repository access verified with admin/push permission.
-- [x] Canonical master plan added to repository.
-- [x] Architecture direction locked: Windows app + secure API + server storage/database + optional worker.
-- [x] “No important hardcoding” product rule documented.
-- [x] Cloud-first storage and bounded local-cache rule documented.
-- [x] Canva-style autosave requirement documented.
-- [x] Undo/Redo and long-term revision history separated in architecture.
-- [x] General graphic-design use added in addition to KDP.
-- [x] Full font-library requirement included.
-- [x] Custom artboard units/sizes included.
-- [x] Background remover requirement included.
-- [x] PDF merge/export/compression/share workflow included.
-- [x] Monorepo workspace created.
-- [x] Windows desktop app package created.
-- [x] Tauri Windows shell created.
-- [x] React/Vite UI foundation created.
-- [x] Zaxis KDP dashboard/editor shell created.
-- [x] Shared package and editor-core package created.
-- [x] Initial project/artboard document model created.
-- [x] Units contract added: px, in, cm, mm, pt, pica.
-- [x] Initial Undo/Redo command-history engine created.
-- [x] App sections scaffolded: Projects, Editor, Assets, Cloud & Server, Settings.
-- [x] Initial editor layout scaffolded: tools, artboards panel, canvas, properties and status bar.
+Detailed Phase 2 exit checklist: `docs/PHASE2_EXIT.md`
 
-## In Progress
-- [x] Real multi-artboard create/delete/duplicate/reorder behavior.
-- [x] Editable artboard size/unit controls.
-- [x] Undo/Redo wired to artboard editor actions.
-- [ ] Cloud/offline autosave state machine and recovery queue. Local recovery autosave is working.
-- [x] Initial layers/object model with visibility, locking and z-order controls.
-- [ ] Full font-provider abstraction. Native Windows system-font discovery is now wired; project/cloud/custom font install remains.
-- [x] Initial clipboard image ingestion: pasted clipboard images become editable image objects.
-- [ ] Cloud/full persistence layer. Multi-project local recovery library is now working.
-- [ ] First runnable Windows development build verification. Previous Windows build failed on the same revision-handler compile issue; fix has been pushed and rebuild is being verified.
+## Current Build Gates
+- [x] Desktop TypeScript/Vite build: **SUCCESS**
+- [x] Desktop dependency security audit (high severity): **SUCCESS**
+- [x] Latest install audit: **0 known npm vulnerabilities**
+- [x] PHP server syntax/CI: **SUCCESS**
+- [ ] Latest Windows Tauri release/bundle: **IN PROGRESS**
+- [x] Earlier Windows installer artifact generation was already proven successfully in Phase 1.
 
-## Newly Completed in Current Implementation
-- [x] Windows installer workflow completed successfully.
-- [x] zaxis-kdp-windows build artifact generated and verified.
-- [x] Phase 1 baseline exit criteria reached: usable editor core + local recovery + Windows build.
-- [x] Image mask type: None / Ellipse / Custom Polygon.
-- [x] Custom polygon mask point model.
-- [x] Polygon mask X/Y inspector editing.
-- [x] CSS clipping render for ellipse and polygon masks.
-- [x] Windows release executable reached successful Rust release compilation.
-- [x] Tauri MSI bundling progressed past app compile.
-- [x] MSI icon lookup blocker diagnosed.
-- [x] Generated icon path now uses CARGO_MANIFEST_DIR.
-- [x] Tauri bundle config explicitly registers icons/icon.ico.
-- [x] Skew X/Y transforms.
-- [x] Flip X/Y transforms.
-- [x] Transform migration defaults for older saved projects.
-- [x] Tool keyboard shortcuts: V Select, A Direct Select, T Text, R Rectangle, E Ellipse, P Pen.
-- [x] Smooth vs Corner vector anchor state.
-- [x] Smooth/Corner toggle per anchor.
-- [x] Mirrored opposite Bezier handle movement for smooth anchors.
-- [x] Default curve handles for converted smooth points.
-- [x] Cubic Bezier path rendering.
-- [x] Incoming and outgoing control handles per anchor.
-- [x] Direct Select Bezier handle drag.
-- [x] Anchor movement keeps attached handles relative.
-- [x] Bezier handle guide lines.
-- [x] Vector anchor-point inspector list.
-- [x] Exact anchor X/Y editing.
-- [x] Add anchor point action.
-- [x] Delete anchor point action with minimum-point protection.
-- [x] Native Windows cache directory resolution.
-- [x] Configurable cache path with System Default fallback.
-- [x] Native cache size and file-count diagnostics.
-- [x] Cache-limit enforcement by trimming oldest files.
-- [x] Native cache clear/recreate action.
-- [x] Settings UI for checking actual native cache status.
-- [x] Pen tool creates a vector path object.
-- [x] Vector path object model with anchor points.
-- [x] Open/closed path setting.
-- [x] Vector fill/stroke/stroke-width controls.
-- [x] Direct Select tool mode.
-- [x] Direct anchor-node drag editing foundation.
-- [x] Persistent custom font storage using IndexedDB.
-- [x] Imported custom fonts auto-register on app startup.
-- [x] Windows Tauri missing icon blocker identified and fixed.
-- [x] Build-time embedded Zaxis KDP Windows icon generation.
-- [x] Artboard center smart guides during object drag.
-- [x] Center snap assistance when object center reaches artboard center.
-- [x] Horizontal distribution for 3+ visible unlocked objects.
-- [x] Vertical distribution for 3+ visible unlocked objects.
-- [x] Revision handler scope compile issue fixed.
-- [x] Local named revision history foundation.
-- [x] Manual named restore points.
-- [x] Revision list in editor.
-- [x] Restore revision workflow.
-- [x] Automatic safety snapshot before restoring an older revision.
-- [x] Up to 50 local revisions retained per project.
-- [x] Frontend desktop build pipeline reached a successful GitHub Actions compile.
-- [x] Windows-latest Tauri build workflow added.
-- [x] MSI/NSIS artifact upload step configured for Windows builds.
-- [x] Configurable project preset registry separated from editor UI.
-- [x] KDP project presets for common trim sizes.
-- [x] Graphic-design presets for common screen/print formats.
-- [x] New project creation can start from a preset and correct document mode.
-- [x] Text weight control.
-- [x] Text left/center/right alignment.
-- [x] Text line-height control.
-- [x] Text letter-spacing control.
-- [x] Basic image crop-position controls (X/Y).
-- [x] Image scale control.
-- [x] Rounded mask-radius foundation for images.
-- [x] Settings screen for cache limit/location and autosave delay.
-- [x] Grid/Snap default preferences.
-- [x] Clear local recovery cache action.
-- [x] Grid visibility toggle on artboard.
-- [x] Snap toggle for object drag and resize.
-- [x] 2% canvas snap step foundation.
-- [x] Local multi-project recovery library.
-- [x] Recent projects dashboard list.
-- [x] Create new project without overwriting previous local projects.
-- [x] Open local project.
-- [x] Rename local project.
-- [x] Delete local project recovery copy.
-- [x] Separate local recovery record per project plus active-project tracking.
-- [x] Canvas drag/move for unlocked objects with live preview.
-- [x] Bottom-right resize handle with live preview.
-- [x] One Undo/Redo history entry per completed drag/resize gesture.
-- [x] Align selected object: left/center/right/top/middle/bottom.
-- [x] Fit selected object inside artboard.
-- [x] Session-level custom font import for TTF/OTF/WOFF/WOFF2/TTC via FontFace API.
-- [x] Native Windows font-folder discovery through Tauri.
-- [x] Installed TTF/OTF/TTC font names exposed to the text inspector.
-- [x] Text font selector uses system-font results with development fallbacks.
-- [x] Ctrl+V clipboard image paste into active artboard.
-- [x] Pasted PNG/bitmap becomes an editable image object.
-- [x] Pasted images appear in Layers and local recovery state.
-- [x] Image contain/cover/fill controls.
-- [x] Image alt-text field foundation.
-- [x] Basic object selection on canvas and from Layers panel.
-- [x] Text object creation and editing.
-- [x] Rectangle and ellipse object creation.
-- [x] Object X/Y/W/H, rotation and opacity controls.
-- [x] Shape fill/stroke/stroke-width controls.
-- [x] Layer visibility toggle.
-- [x] Layer lock/unlock.
-- [x] Layer z-order move up/down.
-- [x] Delete selected object with UI or Delete/Backspace.
-- [x] Objects persist through local recovery autosave.
-- [x] Debounced local recovery autosave with Saving/Saved/Error status.
-- [x] Active artboard selection.
-- [x] Add, duplicate, delete and move artboards.
-- [x] Custom width/height editing.
-- [x] Unit switching across px/in/cm/mm/pt/pica.
-- [x] Snapshot Undo/Redo engine connected to editor changes.
-- [x] Apply active artboard dimensions to all artboards.
-- [x] Current project restores from local recovery storage on restart.
+Phase 2 will move to **COMPLETE** only after the current Windows Tauri run succeeds and its bundle artifact is verified.
 
-## Phase 1 — Non-blocking Follow-up Polish
-- [x] Local dashboard project CRUD and recent projects. Cloud project library remains Phase 2.
-- [ ] Advanced asymmetric smooth-handle controls remain. Cubic Bezier rendering, Smooth/Corner anchor conversion, mirrored smooth handles, direct handle dragging, anchor drag, exact anchor X/Y editing and anchor add/delete are working.
-- [ ] Advanced text engine remains. Font family/size/weight/color, alignment, line height and letter spacing are working.
-- [x] Initial Smooth/Corner anchor conversion and mirrored-handle behavior are working for vector paths.
-- [ ] Advanced on-canvas mask-node editing remains. Clipboard paste, contain/cover/fill, crop position, image scale, rounded mask, ellipse mask and custom polygon mask are working.
-- [ ] Advanced multi-object smart guides remain. Center smart guides plus horizontal/vertical distribution and single-object alignment are working.
-- [ ] Advanced multi-object transforms remain. Canvas drag/move, resize, rotation, skew X/Y, flip X/Y and opacity controls are working.
-- [ ] Cloud font sync remains. Imported custom fonts now persist locally in IndexedDB and reload across app restarts; Windows installed-font discovery is working.
-- [x] Initial bulk artboard resize (apply active size/unit to all). Advanced content behavior remains Phase 1 work.
-- [x] Initial graphic-design presets: A4, A5, Instagram, Story/Reel, YouTube thumbnail and US Letter flyer.
-- [x] Initial KDP/book presets: 5×8, 5.25×8, 5.5×8.5, 6×9, 7×10, 8×10, 8.5×11.
-- [x] Undo/Redo keyboard shortcuts: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z.
-- [x] Native Windows disk-cache manager now creates configured cache path, reports size/files, trims oldest files to the configured limit and supports native clear. Project/asset cache usage will expand with later asset/cloud work.
-- [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
+## Phase 1 — Baseline Complete
+- [x] Windows Tauri + React/TypeScript application shell.
+- [x] Multi-project local library and crash recovery.
+- [x] Multi-artboard editor.
+- [x] Text, shapes, images, paths and layers.
+- [x] Drag/resize/rotate/skew/flip/opacity.
+- [x] Pen/Direct Select, cubic Bezier anchors and handles.
+- [x] Undo/Redo.
+- [x] Clipboard image paste.
+- [x] Image crop/fit/masks.
+- [x] Windows system fonts + persistent imported fonts.
+- [x] Grids, snap, alignment, distribution and smart-center guides.
+- [x] Native bounded Windows cache manager.
+- [x] Local named revisions and restore points.
+- [x] KDP and graphic-design project presets.
+- [x] Successful Windows build artifact foundation.
 
-## Phase 2 — In Progress
-- [x] Batched PDF split supports semicolon groups such as 1-10;11-20;21-30.
-- [x] Blank split groups input produces one PDF per source page.
-- [x] Split outputs are packaged into one downloadable ZIP archive.
-- [x] Lossless PDF optimize pass rewrites with object streams.
-- [x] Lossless optimizer compares actual byte sizes and refuses to claim compression when output is not smaller.
-- [x] Optimize UI reports before/after MB and actual saved percentage.
-- [x] Project PDF quality presets now perform real image downsampling.
-- [x] High PDF preset targets 300 DPI.
-- [x] Standard PDF preset targets 200 DPI.
-- [x] Small PDF preset targets 144 DPI with stronger JPEG compression.
-- [x] Maximum PDF preset preserves original image bytes.
-- [x] PNG transparency is preserved during downsampling.
-- [x] Advanced paperback cover guide geometry centralized in KDP rules.
-- [x] Live back cover / spine / front cover regions.
-- [x] Top/bottom/left/right bleed trim guides.
-- [x] Front/back safe-area overlays.
-- [x] Spine safe-area overlay using 0.0625" inset guidance.
-- [x] Suggested 2" × 1.2" barcode reservation on the back cover.
-- [x] Cover preflight validates full cover dimensions.
-- [x] Cover preflight warns when objects overlap the barcode reservation.
-- [x] Cover preflight rejects spine text below 80 interior pages.
-- [x] Corrected Standard Color spine multiplier to 0.002252" per page; Premium Color remains 0.002347".
-- [x] Generate / Update TOC creates a real editable interior artboard.
-- [x] First TOC insertion shifts chapter physical start pages and page-number start page so existing content references remain aligned.
-- [x] Generated TOC uses current chapter titles and logical page-number labels.
-- [x] TOC page participates in normal editor, autosave, cloud sync, preflight and PDF export.
-- [x] Special TOC/Cover artboard names are preserved during normal artboard renumbering.
-- [x] KDP book-structure model added to project state and older projects are normalized automatically.
-- [x] Automatic page numbering can start on any interior page and any logical number.
-- [x] Arabic, lower-Roman and upper-Roman page number formats.
-- [x] Bottom/Top Center and Bottom/Top Outside placement.
-- [x] Odd/even outside placement follows right/left page parity.
-- [x] Optional skip page numbers on chapter opening pages.
-- [x] Chapter manager with editable title and physical start page.
-- [x] TOC title + live TOC metadata preview.
-- [x] Automatic page numbers render both on the editor canvas and exported PDFs.
-- [x] KDP Trim / Bleed / Safe overlay toggles in the editor toolbar.
-- [x] Bleed-aware trim boundaries on interior artboards.
-- [x] Page-count-based safe-area overlay uses current KDP inside/outside margin rules.
-- [x] Odd/right pages place the gutter on the left; even/left pages place the gutter on the right.
-- [x] Page side/number indicator shown directly on KDP guide overlay.
-- [x] Generic Phase 1 safe border is hidden on KDP pages to avoid conflicting guidance.
-- [x] Incremental cloud sync endpoint applies versioned project deltas to the latest full snapshot.
-- [x] Revision history still stores a complete snapshot after every delta for recovery.
-- [x] Desktop remembers the last successfully synced full snapshot in IndexedDB.
-- [x] Autosave compares artboards by ID and sends only changed/new artboards plus removed IDs/order/project metadata.
-- [x] Delta sync is used only when its payload is at least 20% smaller than a full snapshot.
-- [x] Automatic full-snapshot fallback keeps compatibility with older/unupgraded servers.
-- [x] Cloud project name/mode metadata now stays aligned on full and delta snapshot writes.
-- [x] Conflict/cloud-restore workflows update the local sync baseline snapshot for later deltas.
-- [x] Server-enforced expiring project edit locks.
-- [x] Project lock schema + migration for existing servers.
-- [x] Lock acquire/status/release API with 120-second default TTL.
-- [x] Snapshot writes return HTTP 423 when another active client owns the project lock.
-- [x] Stable per-installation desktop client ID added to all cloud API requests.
-- [x] Editor automatically acquires and refreshes its project lock every 60 seconds.
-- [x] Editor cleanup releases the owned lock when leaving/switching the project.
-- [x] Locked cloud writes remain queued locally instead of becoming generic failures.
-- [x] Top bar exposes current edit-lock status.
-- [x] Cloud revision snapshot retrieval endpoint.
-- [x] Desktop Cloud Revision History list for the active project.
-- [x] Restore old cloud revision as a new current revision without deleting newer history.
-- [x] Local safety revision is created before cloud replacement.
-- [x] Cloud restore updates base revision and uses the conflict-safe autosave queue.
-- [x] Cloud-origin restore no longer immediately reuploads the same snapshot unless restore-as-new explicitly requests it.
-- [x] Dedicated PDF Tools screen added to desktop navigation.
-- [x] Real multi-file PDF merge with drag-order style up/down reordering controls.
-- [x] Extract selected PDF pages/ranges into a new PDF.
-- [x] Rotate selected PDF page ranges by 90/180/270 degrees.
-- [x] Structural PDF compare: page count, page dimensions, rotations and file-size change.
-- [x] PDF tool outputs use the same native Windows save flow.
-- [x] Real PDF generation foundation using pdf-lib.
-- [x] Interior-only, cover-only and interior+cover export targets.
-- [x] Interior page-range parser such as 1-10,12,15-18.
-- [x] PDF metadata title/author/creator foundation.
-- [x] Rectangle, ellipse, text, PNG/JPEG image and vector-path line rendering.
-- [x] Native Windows Save dialog using Tauri dialog plugin.
-- [x] Native Rust binary file writer for exported PDFs.
-- [x] Browser-preview download fallback for development mode.
-- [x] PDF destination: My Computer / Cloud / Both.
-- [x] Cloud PDF export reuses authenticated project asset storage.
-- [x] Export notes identify unsupported advanced crop/mask/Bezier/font-compression fidelity rather than silently pretending exact output.
-- [x] Centralized versioned KDP paperback rules module.
-- [x] KDP project settings stored in the project model and migrated for older local projects.
-- [x] Live KDP preflight engine.
-- [x] Page-count minimum/maximum checks by current ink/paper setup.
-- [x] Trim/custom-size range validation.
-- [x] Bleed-aware page-size validation across every artboard.
-- [x] Minimum 7 pt text check.
-- [x] Blank-page and missing-image checks.
-- [x] Page-count-based inside/outside margin calculation.
-- [x] Paperback spine width calculator for white/cream/groundwood/color paper rules.
-- [x] Full paperback cover width/height calculation including bleed.
-- [x] Spine-text eligibility indicator at 80+ pages.
-- [x] KDP Book & Preflight panel in the editor.
-- [x] Apply KDP page size to all artboards.
-- [x] Clicking a page-level preflight issue opens that page.
-- [x] Cloud conflict review panel.
-- [x] Conflict inspector loads queued local snapshot and current cloud snapshot/revision.
-- [x] Use Cloud resolution removes queued local conflict, updates sync base, and creates a local safety revision before replacement.
-- [x] Keep Local resolution explicitly pushes against the current remote revision only after user confirmation.
-- [x] Conflict resolution never silently overwrites without an explicit choice.
-- [x] Cloud asset schema extended with proxy/thumbnail variants.
-- [x] Migration added for existing servers.
-- [x] Authenticated multipart asset upload endpoint.
-- [x] Per-user SHA-256 deduplication for repeated uploads.
-- [x] Project ownership validation on asset upload.
-- [x] Server storage keys keep originals outside the public web root.
-- [x] Automatic WebP proxy generation for JPEG/PNG/WebP when PHP GD is available.
-- [x] Authenticated original/proxy content streaming endpoint.
-- [x] Cloud asset list and soft-delete endpoints.
-- [x] Desktop cloud API client supports asset upload/list/download/delete.
-- [x] Desktop Asset Library screen is connected to the active project's cloud assets.
-- [x] Asset Library shows original size and proxy dimensions/status.
-- [x] Server .env loader added so cPanel-written configuration is actually consumed by the API.
-- [x] Pairing-code database table with expiry and one-time-use enforcement.
-- [x] Unauthenticated /api/pair endpoint exchanges a valid one-time code for a desktop API token.
-- [x] Authenticated /api/v1/connection-codes endpoint generates additional 15-minute desktop pairing codes.
-- [x] One-time /install/ cPanel wizard configures DB, runs schema, creates first owner, writes .env, creates storage directory and locks itself.
-- [x] Installer returns an initial one-time Windows connection code.
-- [x] Windows Cloud & Server screen supports Connect with Code.
-- [x] Paired token is immediately encrypted with the Windows user account.
-- [x] Manual cloud sync now routes through the same conflict-safe queue instead of fetching latest revision and overwriting.
-- [x] Phase 2 marked active in the desktop UI.
-- [x] Cloud autosave queue stores project snapshots in IndexedDB.
-- [x] Offline edits remain queued and flush when connectivity returns.
-- [x] Base revision metadata is stored per project.
-- [x] Queue coalescing preserves the original base revision until sync succeeds.
-- [x] Remote revision mismatch now produces a conflict instead of silently overwriting newer cloud work.
-- [x] Successful sync updates the local last-known cloud revision.
-- [x] API token can be encrypted with Windows user-bound DPAPI and restored automatically on launch.
-- [x] API token is not stored in localStorage.
-- [x] cPanel-ready PHP 8.2 API foundation.
-- [x] Environment configuration and PDO/MySQL connection layer.
-- [x] Bearer-token authentication with SHA-256 token hashes.
-- [x] Database schema for users, API tokens, projects, snapshots, sync events and assets.
-- [x] Health endpoint with DB connectivity check.
-- [x] Project create/list/open/update/delete endpoints.
-- [x] Snapshot sync endpoint with base-revision conflict detection.
-- [x] Idempotent client-event replay protection.
-- [x] Revision metadata endpoint.
-- [x] Desktop cloud API client.
-- [x] Cloud & Server connection screen.
-- [x] API health test and token verification.
-- [x] Manual current-project cloud sync.
-- [x] Cloud project list refresh.
-- [x] PHP syntax CI workflow.
-- [x] Windows user-bound encrypted API token storage with save/load/clear commands.
-- [x] Automatic Canva-style cloud autosave queue.
-- [x] Offline operation queue and automatic reconnect flush.
-- [x] Project locking with server-side write protection.
-- [ ] Automatic structural merge remains. Conflict review UI now supports explicit Use Cloud / Keep Local resolution with safety revision before local replacement.
-- [x] One-time cPanel web installer + one-time connection-code pairing workflow.
-- [x] Asset upload/list/delete/content endpoints plus automatic image proxy generation.
+### Phase 1 Future Polish — Non-blocking
+These are editor-depth improvements, not Phase 2 blockers:
+- asymmetric Bezier-handle power controls;
+- richer typography engine;
+- advanced on-canvas polygon-mask editing;
+- more advanced multi-object smart guides;
+- cloud font library/sync.
 
-## Pending — Phase 2
-- [x] Initial cPanel connection wizard and secure pairing API.
-- [x] Canva-style cloud autosave and offline sync.
-- [x] Cloud revision history metadata, snapshot retrieval and restore-as-new workflow are working. Local named revisions remain separate.
-- [ ] Template import/background tooling remains. Advanced paperback cover layout now includes live back/spine/front, bleed, safe-area, spine-safe and barcode reservation guides plus cover-aware preflight.
-- [ ] Visual pixel-diff compare and standalone lossy image recompression remain. Real PDF export, Merge, Extract/Range, Rotate, structural Compare, batched Split ZIP, honest lossless optimization and DPI-based project-export image downsampling are working.
-- [x] PDF save destination supports Laptop / Cloud / Both.
+## Phase 2 — Feature Complete
+
+### Cloud & Server
+- [x] cPanel/PHP 8.2/MySQL backend.
+- [x] One-time cPanel installer.
+- [x] Server `.env` configuration loader.
+- [x] API URL / share-domain / storage profile / worker settings.
+- [x] One-time desktop connection-code pairing.
+- [x] Windows user-bound encrypted token storage.
+- [x] Health, identity and production diagnostics.
+- [x] DB/storage/free-space/GD/upload-limit diagnostics.
+- [x] Optional worker health check.
+- [x] Cloud project CRUD foundation.
+- [x] Continuous cloud autosave.
+- [x] Incremental delta sync with full snapshot fallback.
+- [x] Offline queue + reconnect flush.
+- [x] Base revision tracking.
+- [x] Project edit locks.
+- [x] Conflict review + explicit Use Cloud / Keep Local.
+- [x] Cloud revision history.
+- [x] Cloud revision preview/compare.
+- [x] Restore old cloud revision as a new current revision.
+- [x] Local safety revision before cloud replacement.
+- [x] Asset upload/list/content/delete.
+- [x] SHA-256 asset dedupe.
+- [x] Automatic image proxy generation when PHP GD is available.
+- [x] Desktop Cloud Asset Library.
+- [x] Book structure, Master Pages and reusable styles participate in delta sync.
+
+### KDP Production
+- [x] Book interior workflow.
+- [x] Paperback mode.
+- [x] Hardcover interior mode.
+- [x] Paperback and current hardcover trim presets.
+- [x] Bleed / trim / safe-area overlays.
+- [x] Gutter-aware odd/even safe areas.
+- [x] Master Pages.
+- [x] Automatic page numbering.
+- [x] Arabic + Roman page-number formats.
+- [x] Odd/even outside page-number placement.
+- [x] Chapter manager.
+- [x] Editable generated TOC artboard.
+- [x] Character styles.
+- [x] Paragraph styles.
+- [x] Object styles.
+- [x] Paperback spine calculator.
+- [x] Paperback cover creator.
+- [x] Back / spine / front cover guides.
+- [x] Cover bleed and safe-area guides.
+- [x] Barcode reservation guide + overlap preflight.
+- [x] Spine-text eligibility validation.
+- [x] Official KDP cover-template overlay import.
+- [x] Template opacity/show/hide/remove.
+- [x] Hardcover template-driven cover workflow.
+- [x] Whole-book content-aware size conversion.
+- [x] Live KDP preflight.
+- [x] Page-count, trim-size and page-size validation.
+- [x] Minimum text-size check.
+- [x] Missing-image and blank-page checks.
+- [x] Cover-size validation.
+- [x] Ready/errors state with click-through to affected pages.
+
+### PDF Production
+- [x] Real PDF generation.
+- [x] Interior-only / cover-only / combined export.
+- [x] Selected page-range export.
+- [x] Batch separate Interior + Cover ZIP.
+- [x] Laptop / Cloud / Both destinations.
+- [x] Native Windows save dialog with arbitrary drive/folder selection.
+- [x] Metadata title/author/creator.
+- [x] RGB output.
+- [x] Grayscale output.
+- [x] Crop marks.
+- [x] Maximum/no-downsample quality.
+- [x] High 300-DPI smart downsampling.
+- [x] Standard 200-DPI smart downsampling.
+- [x] Small 144-DPI compression.
+- [x] Custom DPI + JPEG quality.
+- [x] Lossless optimize with honest before/after byte comparison.
+- [x] Standalone lossy PDF recompression.
+- [x] Imported custom-font embedding/subsetting.
+- [x] Unicode text preservation with embeddable imported fonts.
+- [x] Cubic Bezier vector export.
+- [x] Image contain/cover/fill/crop/scale/mask rendering.
+- [x] PDF Merge.
+- [x] PDF Split to ZIP.
+- [x] Extract pages/ranges.
+- [x] Reorder pages.
+- [x] Remove pages.
+- [x] Rotate pages.
+- [x] Crop pages.
+- [x] Structural compare.
+- [x] Rendered visual pixel-diff compare.
+- [x] PDF.js upgraded to patched 6.3.289.
+- [x] CI blocks high-severity npm dependency regressions.
+
+### Optional / Non-blocking PDF Extensions
+The master plan marks these optional or “where supported”, so they are not Phase 2 exit blockers:
+- OCR/text extraction for scanned PDFs.
+- PDF/X conformance presets.
+- Full ICC/CMYK conversion engine.
+- External heavy PDF worker (local desktop processing works without it).
 
 ## Pending — Phase 3
-- [ ] Asset library and proxies.
-- [ ] High-quality background remover/refine workflow.
-- [ ] Public PDF share links and same-link replacement.
-- [ ] Admin/server/storage/backups/diagnostics.
+- [ ] Advanced linked-asset/proxy lifecycle and duplicate-management UI.
+- [ ] High-quality background remover + refine brush/edge cleanup.
+- [ ] Public PDF share links.
+- [ ] Password/private/expiry/revoke/download controls.
+- [ ] Replace File, Keep Same Link.
+- [ ] Share analytics.
+- [ ] Admin/storage/backups/quota management and deeper diagnostics.
 
 ## Pending — Phase 4
-- [ ] Performance/large-book QA.
-- [ ] Installer/portable build/auto-update.
-- [ ] Server ZIP/database/worker delivery.
+- [ ] Large-book/performance stress QA.
+- [ ] Installer/portable release polish.
+- [ ] Auto-update.
+- [ ] Final cPanel server ZIP/database/optional worker delivery.
+- [ ] Backup/restore release package.
 - [ ] Final documentation and release QA.
 
 ## Blocked
-- No product feature blocker. GitHub Actions build verification is being monitored separately; source work continues.
+No product-feature blocker.
+
+Current gate: final latest-source Windows Tauri bundle verification.
 
 ## Rule
-Every implemented feature must move from Pending → In Progress → Done here. Significant architecture decisions must also be recorded in docs/ARCHITECTURE.md or docs/DECISIONS.md.
+Every implemented feature must be reflected here. Major architecture decisions must also be recorded in `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, or the phase exit document.
