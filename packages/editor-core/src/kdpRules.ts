@@ -214,6 +214,11 @@ interface PreflightObjectLike {
   type: string;
   fontSize?: number;
   src?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  visible?: boolean;
 }
 
 interface PreflightArtboardLike {
@@ -331,6 +336,81 @@ export function analyzeKdpProject(project: KdpPreflightProjectLike): KdpPrefligh
       }
     });
   });
+
+  const coverArtboard = project.artboards.find((artboard) => artboard.role === "cover");
+  const coverLayout = calculatePaperbackCoverLayout(pageCount, settings);
+
+  if (!coverArtboard) {
+    issues.push({
+      severity: "warning",
+      code: "cover-missing",
+      message: "No paperback cover artboard exists yet."
+    });
+  } else {
+    const coverWidthIn = toInches(coverArtboard.width, coverArtboard.unit);
+    const coverHeightIn = toInches(coverArtboard.height, coverArtboard.unit);
+
+    if (
+      Math.abs(coverWidthIn - coverLayout.totalWidthIn) > 0.01 ||
+      Math.abs(coverHeightIn - coverLayout.totalHeightIn) > 0.01
+    ) {
+      issues.push({
+        severity: "error",
+        code: "cover-size",
+        message:
+          "Paperback cover size is " +
+          round4(coverWidthIn) +
+          " × " +
+          round4(coverHeightIn) +
+          " in; expected " +
+          coverLayout.totalWidthIn +
+          " × " +
+          coverLayout.totalHeightIn +
+          " in."
+      });
+    }
+
+    for (const object of coverArtboard.objects) {
+      if (object.visible === false) continue;
+
+      const x = ((object.x ?? 0) / 100) * coverLayout.totalWidthIn;
+      const width = ((object.width ?? 0) / 100) * coverLayout.totalWidthIn;
+      const top = ((object.y ?? 0) / 100) * coverLayout.totalHeightIn;
+      const height = ((object.height ?? 0) / 100) * coverLayout.totalHeightIn;
+
+      const barcodeTop =
+        coverLayout.totalHeightIn -
+        coverLayout.barcodeReservation.yIn -
+        coverLayout.barcodeReservation.heightIn;
+
+      const overlapsBarcode =
+        x < coverLayout.barcodeReservation.xIn + coverLayout.barcodeReservation.widthIn &&
+        x + width > coverLayout.barcodeReservation.xIn &&
+        top < barcodeTop + coverLayout.barcodeReservation.heightIn &&
+        top + height > barcodeTop;
+
+      if (overlapsBarcode) {
+        issues.push({
+          severity: "warning",
+          code: "barcode-overlap",
+          message: object.type + " object overlaps the reserved Amazon barcode area on the back cover."
+        });
+      }
+
+      if (
+        pageCount < KDP_RULES.spineTextMinimumPages &&
+        object.type === "text" &&
+        x < coverLayout.spine.xIn + coverLayout.spine.widthIn &&
+        x + width > coverLayout.spine.xIn
+      ) {
+        issues.push({
+          severity: "error",
+          code: "spine-text-not-allowed",
+          message: "Text overlaps the spine area, but this book has fewer than 80 interior pages."
+        });
+      }
+    }
+  }
 
   if (pageCount < KDP_RULES.spineTextMinimumPages) {
     issues.push({
