@@ -19,6 +19,7 @@ import { getStoredFont } from "../state/fontStore";
 
 export type PdfExportTarget = "interior" | "cover" | "all";
 export type PdfQualityPreset = "maximum" | "high" | "standard" | "small" | "custom";
+export type PdfColorMode = "rgb" | "grayscale";
 
 export interface PdfExportOptions {
   target: PdfExportTarget;
@@ -28,6 +29,8 @@ export interface PdfExportOptions {
   author?: string;
   customDpi?: number;
   customJpegQuality?: number;
+  colorMode?: PdfColorMode;
+  cropMarks?: boolean;
 }
 
 export interface PdfExportResult {
@@ -74,18 +77,25 @@ export async function renderProjectPdf(
   }
 
   for (const artboard of artboards) {
-    const widthPt = Math.max(1, toInches(artboard.width, artboard.unit) * 72);
-    const heightPt = Math.max(1, toInches(artboard.height, artboard.unit) * 72);
+    const contentWidthPt = Math.max(1, toInches(artboard.width, artboard.unit) * 72);
+    const contentHeightPt = Math.max(1, toInches(artboard.height, artboard.unit) * 72);
+    const markMargin = options.cropMarks ? 18 : 0;
+    const widthPt = contentWidthPt + markMargin * 2;
+    const heightPt = contentHeightPt + markMargin * 2;
     const page = pdf.addPage([widthPt, heightPt]);
 
-    const background = parseHexColor(artboard.background);
+    const background = parseHexColor(artboard.background, options.colorMode);
     page.drawRectangle({
-      x: 0,
-      y: 0,
-      width: widthPt,
-      height: heightPt,
+      x: markMargin,
+      y: markMargin,
+      width: contentWidthPt,
+      height: contentHeightPt,
       color: background
     });
+
+    if (options.cropMarks) {
+      drawCropMarks(page, markMargin, contentWidthPt, contentHeightPt);
+    }
 
     for (const object of artboard.objects) {
       if (!object.visible) continue;
@@ -95,13 +105,14 @@ export async function renderProjectPdf(
           pdf,
           page,
           object,
-          widthPt,
-          heightPt,
+          contentWidthPt,
+          contentHeightPt,
           regularFont,
           boldFont,
           warnings,
           options,
-          embeddedFonts
+          embeddedFonts,
+          markMargin
         );
       } catch (error) {
         warnings.push(
@@ -119,11 +130,12 @@ export async function renderProjectPdf(
       if (physicalPage > 0) {
         renderAutomaticPageNumber(
           page,
-          widthPt,
-          heightPt,
+          contentWidthPt,
+          contentHeightPt,
           physicalPage,
           project,
-          regularFont
+          regularFont,
+          markMargin
         );
       }
     }
@@ -184,7 +196,8 @@ function renderAutomaticPageNumber(
   pageHeight: number,
   physicalPage: number,
   project: ZaxisProject,
-  font: PDFFont
+  font: PDFFont,
+  offsetPt = 0
 ) {
   const structure = normalizeBookStructure(project.bookStructure);
   const label = getPageNumberLabel(physicalPage, structure);
@@ -211,8 +224,8 @@ function renderAutomaticPageNumber(
   }
 
   page.drawText(label, {
-    x,
-    y,
+    x: x + offsetPt,
+    y: y + offsetPt,
     size,
     font,
     color: rgb(0.12, 0.12, 0.12)
@@ -229,17 +242,23 @@ async function renderObject(
   boldFont: PDFFont,
   warnings: string[],
   options: PdfExportOptions,
-  embeddedFonts: Map<string, PDFFont>
+  embeddedFonts: Map<string, PDFFont>,
+  offsetPt = 0
 ) {
-  const frame = objectFrame(object, pageWidth, pageHeight);
+  const baseFrame = objectFrame(object, pageWidth, pageHeight);
+  const frame = {
+    ...baseFrame,
+    x: baseFrame.x + offsetPt,
+    y: baseFrame.y + offsetPt
+  };
 
   if (object.skewX || object.skewY || object.flipX || object.flipY) {
     warnings.push(object.name + ": skew/flip export is approximated in the current PDF renderer.");
   }
 
   if (object.type === "rectangle") {
-    const fill = parseHexColor(object.fill);
-    const stroke = parseHexColor(object.stroke);
+    const fill = parseHexColor(object.fill, options.colorMode);
+    const stroke = parseHexColor(object.stroke, options.colorMode);
 
     page.drawRectangle({
       x: frame.x,
@@ -262,8 +281,8 @@ async function renderObject(
       y: frame.y + frame.height / 2,
       xScale: frame.width / 2,
       yScale: frame.height / 2,
-      color: parseHexColor(object.fill),
-      borderColor: parseHexColor(object.stroke),
+      color: parseHexColor(object.fill, options.colorMode),
+      borderColor: parseHexColor(object.stroke, options.colorMode),
       borderWidth: object.strokeWidth,
       opacity: object.opacity,
       borderOpacity: object.opacity,
@@ -307,7 +326,7 @@ async function renderObject(
         y,
         size: fontSize,
         font,
-        color: parseHexColor(object.color),
+        color: parseHexColor(object.color, options.colorMode),
         opacity: object.opacity,
         rotate: degrees(-object.rotation)
       });
@@ -373,7 +392,7 @@ async function renderObject(
 
     const path = buildSvgPath(object);
     const fillColor = object.closed && object.fill !== "transparent"
-      ? parseHexColor(object.fill)
+      ? parseHexColor(object.fill, options.colorMode)
       : undefined;
 
     page.drawSvgPath(path, {
@@ -381,7 +400,7 @@ async function renderObject(
       y: frame.y,
       scale: Math.min(frame.width, frame.height) / 100,
       color: fillColor,
-      borderColor: parseHexColor(object.stroke),
+      borderColor: parseHexColor(object.stroke, options.colorMode),
       borderWidth: Math.max(0.1, object.strokeWidth),
       opacity: object.opacity,
       borderOpacity: object.opacity,
@@ -474,12 +493,44 @@ function objectFrame(object: DesignObject, pageWidth: number, pageHeight: number
   return { x, y, width, height };
 }
 
-function parseHexColor(value: string) {
+function parseHexColor(value: string, mode: PdfColorMode = "rgb") {
   const normalized = /^#[0-9a-f]{6}$/i.test(value) ? value.slice(1) : "000000";
   const red = parseInt(normalized.slice(0, 2), 16) / 255;
   const green = parseInt(normalized.slice(2, 4), 16) / 255;
   const blue = parseInt(normalized.slice(4, 6), 16) / 255;
+
+  if (mode === "grayscale") {
+    const gray = red * 0.2126 + green * 0.7152 + blue * 0.0722;
+    return rgb(gray, gray, gray);
+  }
+
   return rgb(red, green, blue);
+}
+
+function drawCropMarks(page: PDFPage, margin: number, width: number, height: number) {
+  const color = rgb(0, 0, 0);
+  const thickness = 0.5;
+  const length = 12;
+  const gap = 3;
+  const left = margin;
+  const right = margin + width;
+  const bottom = margin;
+  const top = margin + height;
+
+  const segments = [
+    [{ x: left - gap - length, y: bottom }, { x: left - gap, y: bottom }],
+    [{ x: left, y: bottom - gap - length }, { x: left, y: bottom - gap }],
+    [{ x: right + gap, y: bottom }, { x: right + gap + length, y: bottom }],
+    [{ x: right, y: bottom - gap - length }, { x: right, y: bottom - gap }],
+    [{ x: left - gap - length, y: top }, { x: left - gap, y: top }],
+    [{ x: left, y: top + gap }, { x: left, y: top + gap + length }],
+    [{ x: right + gap, y: top }, { x: right + gap + length, y: top }],
+    [{ x: right, y: top + gap }, { x: right, y: top + gap + length }]
+  ] as const;
+
+  for (const [start, end] of segments) {
+    page.drawLine({ start, end, thickness, color });
+  }
 }
 
 function wrapText(font: PDFFont, text: string, size: number, maxWidth: number): string[] {
