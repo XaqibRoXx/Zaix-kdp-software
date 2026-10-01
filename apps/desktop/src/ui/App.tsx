@@ -97,6 +97,7 @@ import {
   type PdfQualityPreset
 } from "../export/pdfExporter";
 import { ensurePdfExtension, saveBinaryToComputer, savePdfToComputer } from "../export/savePdf";
+import { AdminScreen } from "./AdminScreen";
 import {
   comparePdfStructure,
   cropPdfPages,
@@ -124,7 +125,7 @@ import {
   type ProjectSummary
 } from "../state/projectLibrary";
 
-type Screen = "dashboard" | "editor" | "assets" | "pdfTools" | "cloud" | "settings";
+type Screen = "dashboard" | "editor" | "assets" | "pdfTools" | "cloud" | "admin" | "settings";
 
 interface NativeCacheStatus {
   path: string;
@@ -156,6 +157,7 @@ const navigation: Array<{ id: Screen; label: string }> = [
   { id: "assets", label: "Assets" },
   { id: "pdfTools", label: "PDF Tools" },
   { id: "cloud", label: "Cloud & Server" },
+  { id: "admin", label: "Admin" },
   { id: "settings", label: "Settings" }
 ];
 
@@ -805,6 +807,12 @@ export function App() {
             onReplaceProject={replaceProjectFromCloud}
           />
         )}
+        {screen === "admin" && (
+          <AdminScreen
+            appSettings={appSettings}
+            token={cloudToken}
+          />
+        )}
         {screen === "settings" && (
           <SettingsScreen
             settings={appSettings}
@@ -864,6 +872,7 @@ function titleFor(screen: Screen) {
   if (screen === "assets") return "Asset Library";
   if (screen === "pdfTools") return "PDF Tools";
   if (screen === "cloud") return "Cloud & Server";
+  if (screen === "admin") return "Admin";
   if (screen === "settings") return "Settings";
   return "Zaxis KDP";
 }
