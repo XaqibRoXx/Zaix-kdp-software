@@ -98,6 +98,7 @@ import {
 } from "../export/pdfExporter";
 import { ensurePdfExtension, saveBinaryToComputer, savePdfToComputer } from "../export/savePdf";
 import { AdminScreen } from "./AdminScreen";
+import { ImageRefineModal } from "./ImageRefineModal";
 import {
   comparePdfStructure,
   cropPdfPages,
@@ -3406,6 +3407,7 @@ function AssetsScreen({
   const [replacingAssetId, setReplacingAssetId] = useState("");
   const [backgroundMode, setBackgroundMode] = useState<"fast" | "quality" | "hair">("quality");
   const [processingAssetId, setProcessingAssetId] = useState("");
+  const [refineAssetId, setRefineAssetId] = useState("");
   const [shareTitle, setShareTitle] = useState("");
   const [sharePassword, setSharePassword] = useState("");
   const [shareExpiresAt, setShareExpiresAt] = useState("");
@@ -3651,6 +3653,21 @@ function AssetsScreen({
     } finally {
       setProcessingAssetId("");
     }
+  }
+
+  function openRefineEditor(asset: CloudAsset) {
+    if (!asset.source_asset_id) {
+      setLinkedStatus("Refine Editor requires a processed image linked to its original source.");
+      return;
+    }
+
+    const source = assetById(asset.source_asset_id);
+    if (!source) {
+      setLinkedStatus("Original source asset is missing. Restore it before refining.");
+      return;
+    }
+
+    setRefineAssetId(asset.id);
   }
 
   async function removeAsset(assetId: string) {
@@ -3972,6 +3989,7 @@ function AssetsScreen({
   const selectedImage = selectedImageObject();
 
   return (
+    <>
     <section className="content">
       <div className="panel hero-panel">
         <div>
@@ -4369,6 +4387,14 @@ function AssetsScreen({
                           ? "Removing BG..."
                           : "Remove Background"}
                       </button>
+                      {asset.source_asset_id && (
+                        <button
+                          className="secondary"
+                          onClick={() => openRefineEditor(asset)}
+                        >
+                          Refine / Replace Background
+                        </button>
+                      )}
                     </>
                   )}
                   <button
@@ -4395,6 +4421,32 @@ function AssetsScreen({
         </div>
       </div>
     </section>
+
+    {refineAssetId && (() => {
+      const processed = assetById(refineAssetId);
+      const source = processed?.source_asset_id
+        ? assetById(processed.source_asset_id)
+        : undefined;
+
+      if (!processed || !source) return null;
+
+      return (
+        <ImageRefineModal
+          api={api()}
+          sourceAsset={source}
+          processedAsset={processed}
+          projectId={project.id}
+          onSaved={(asset) => {
+            setRefineAssetId("");
+            setSelectedShareAssetId(asset.id);
+            setLinkedStatus("Refined PNG saved • " + asset.original_name);
+            void refreshLibrary();
+          }}
+          onClose={() => setRefineAssetId("")}
+        />
+      );
+    })()}
+  </>
   );
 }
 
