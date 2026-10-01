@@ -180,6 +180,16 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Advanced paperback cover guide geometry centralized in KDP rules.
+- [x] Live back cover / spine / front cover regions.
+- [x] Top/bottom/left/right bleed trim guides.
+- [x] Front/back safe-area overlays.
+- [x] Spine safe-area overlay using 0.0625" inset guidance.
+- [x] Suggested 2" × 1.2" barcode reservation on the back cover.
+- [x] Cover preflight validates full cover dimensions.
+- [x] Cover preflight warns when objects overlap the barcode reservation.
+- [x] Cover preflight rejects spine text below 80 interior pages.
+- [x] Corrected Standard Color spine multiplier to 0.002252" per page; Premium Color remains 0.002347".
 - [x] Generate / Update TOC creates a real editable interior artboard.
 - [x] First TOC insertion shifts chapter physical start pages and page-number start page so existing content references remain aligned.
 - [x] Generated TOC uses current chapter titles and logical page-number labels.
@@ -317,7 +327,7 @@ Last updated: 2026-09-30
 - [x] Initial cPanel connection wizard and secure pairing API.
 - [ ] Canva-style cloud autosave and offline sync.
 - [x] Cloud revision history metadata, snapshot retrieval and restore-as-new workflow are working. Local named revisions remain separate.
-- [ ] Advanced cover creator remains. Live KDP book settings, preflight, margins and paperback spine/cover calculator foundation are working.
+- [ ] Template import/background tooling remains. Advanced paperback cover layout now includes live back/spine/front, bleed, safe-area, spine-safe and barcode reservation guides plus cover-aware preflight.
 - [ ] Advanced compression, visual diff compare and full split batching remain. Real PDF export, Merge, Extract/Range, Rotate and structural Compare foundations are working.
 - [x] PDF save destination supports Laptop / Cloud / Both.
 
