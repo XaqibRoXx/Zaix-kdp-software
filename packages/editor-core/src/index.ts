@@ -232,7 +232,12 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
       ? normalizeBookStructure(project.bookStructure)
       : project.bookStructure,
     masterPages: Array.isArray(project.masterPages) ? project.masterPages : [],
-    reusableStyles: Array.isArray(project.reusableStyles) ? project.reusableStyles : [],
+    reusableStyles: (Array.isArray(project.reusableStyles) ? project.reusableStyles : []).map((style) => ({
+      ...style,
+      kind: (style as ReusableStyle & { kind?: string }).kind === "text"
+        ? "character"
+        : style.kind
+    })) as ReusableStyle[],
     artboards: project.artboards.map((artboard) => ({
       ...artboard,
       role: artboard.role ?? "page",
