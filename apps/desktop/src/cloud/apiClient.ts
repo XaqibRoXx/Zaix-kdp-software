@@ -344,6 +344,28 @@ export class ZaxisCloudApi {
     return this.request<{ ok: boolean; users: AdminUser[] }>("/api/v1/admin/users");
   }
 
+  async createAdminUser(input: {
+    email: string;
+    name: string;
+    role: AdminUser["role"];
+    storageQuotaBytes: number;
+  }) {
+    return this.request<{
+      ok: boolean;
+      user: AdminUser;
+      connection_code: string;
+      expires_at: string;
+    }>("/api/v1/admin/users", {
+      method: "POST",
+      body: {
+        email: input.email,
+        name: input.name,
+        role: input.role,
+        storage_quota_bytes: input.storageQuotaBytes
+      }
+    });
+  }
+
   async updateAdminUser(
     userId: number,
     input: Partial<Pick<AdminUser, "role" | "storage_quota_bytes">>
