@@ -104,7 +104,7 @@ export interface MasterPage {
 export interface ReusableStyle {
   id: string;
   name: string;
-  kind: "text" | "object";
+  kind: "character" | "paragraph" | "object";
   properties: UpdateObjectInput;
 }
 
@@ -769,30 +769,45 @@ export function applyMasterPage(
 export function saveReusableStyle(
   project: ZaxisProject,
   object: DesignObject,
-  name: string
+  name: string,
+  kind?: ReusableStyle["kind"]
 ): ZaxisProject {
-  const properties: UpdateObjectInput =
+  const resolvedKind: ReusableStyle["kind"] =
     object.type === "text"
+      ? (kind === "paragraph" ? "paragraph" : "character")
+      : "object";
+
+  const properties: UpdateObjectInput =
+    object.type === "text" && resolvedKind === "paragraph"
       ? {
-          fontFamily: object.fontFamily,
-          fontSize: object.fontSize,
-          fontWeight: object.fontWeight,
-          color: object.color,
           textAlign: object.textAlign,
           lineHeight: object.lineHeight,
-          letterSpacing: object.letterSpacing,
-          opacity: object.opacity
+          letterSpacing: object.letterSpacing
         }
-      : object.type === "image"
-        ? { opacity: object.opacity, borderRadius: object.borderRadius }
-        : object.type === "path"
-          ? { fill: object.fill, stroke: object.stroke, strokeWidth: object.strokeWidth, opacity: object.opacity }
-          : { fill: object.fill, stroke: object.stroke, strokeWidth: object.strokeWidth, cornerRadius: object.cornerRadius, opacity: object.opacity };
+      : object.type === "text"
+        ? {
+            fontFamily: object.fontFamily,
+            fontSize: object.fontSize,
+            fontWeight: object.fontWeight,
+            color: object.color,
+            opacity: object.opacity
+          }
+        : object.type === "image"
+          ? { opacity: object.opacity, borderRadius: object.borderRadius }
+          : object.type === "path"
+            ? { fill: object.fill, stroke: object.stroke, strokeWidth: object.strokeWidth, opacity: object.opacity }
+            : { fill: object.fill, stroke: object.stroke, strokeWidth: object.strokeWidth, cornerRadius: object.cornerRadius, opacity: object.opacity };
 
   const style: ReusableStyle = {
     id: id("style"),
-    name: name.trim() || (object.type === "text" ? "Text Style" : "Object Style"),
-    kind: object.type === "text" ? "text" : "object",
+    name: name.trim() || (
+      resolvedKind === "paragraph"
+        ? "Paragraph Style"
+        : resolvedKind === "character"
+          ? "Character Style"
+          : "Object Style"
+    ),
+    kind: resolvedKind,
     properties
   };
 
