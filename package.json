@@ -11,7 +11,8 @@
     "dev:desktop": "npm --workspace @zaxis-kdp/desktop run dev",
     "build:desktop": "npm --workspace @zaxis-kdp/desktop run build",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "qa:large-book": "tsx scripts/stress-large-book.ts"
+    "qa:large-book": "tsx scripts/stress-large-book.ts",
+    "qa:sync-delta": "tsx scripts/stress-sync-delta.ts"
   },
   "devDependencies": {
     "tsx": "4.20.6"
