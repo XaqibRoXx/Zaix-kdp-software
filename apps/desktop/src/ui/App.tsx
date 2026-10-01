@@ -3437,7 +3437,9 @@ function AssetsScreen({
   function linkedImageObjects() {
     return project.artboards.flatMap((artboard) =>
       artboard.objects
-        .filter((object) => object.type === "image" && !!object.linkedAssetId)
+        .filter((object): object is Extract<DesignObject, { type: "image" }> =>
+          object.type === "image" && !!object.linkedAssetId
+        )
         .map((object) => ({
           artboardId: artboard.id,
           artboardName: artboard.name,
@@ -3520,8 +3522,10 @@ function AssetsScreen({
         new Set(
           project.artboards.flatMap((artboard) =>
             artboard.objects
-              .filter((object) => object.type === "image" && !!object.linkedAssetId)
-              .map((object) => object.type === "image" ? object.linkedAssetId ?? "" : "")
+              .filter((object): object is Extract<DesignObject, { type: "image" }> =>
+                object.type === "image" && !!object.linkedAssetId
+              )
+              .map((object) => object.linkedAssetId ?? "")
               .filter(Boolean)
           )
         )
