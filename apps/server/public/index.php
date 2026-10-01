@@ -1132,6 +1132,148 @@ try {
 
     if (
         $method === 'POST' &&
+        preg_match('#^/api/v1/assets/([^/]+)/upscale$#', $path, $matches)
+    ) {
+        $assetId = rawurldecode($matches[1]);
+        $body = Http::body();
+        $scale = (int) ($body['scale'] ?? 2);
+        $cleanup = !array_key_exists('cleanup', $body) || (bool) $body['cleanup'];
+
+        $assetStmt = $db->prepare(
+            'SELECT id, project_id, original_name, mime_type
+             FROM assets
+             WHERE id = :id AND owner_user_id = :owner AND deleted_at IS NULL
+             LIMIT 1'
+        );
+        $assetStmt->execute(['id' => $assetId, 'owner' => $user['id']]);
+        $assetRow = $assetStmt->fetch();
+
+        if (!$assetRow) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Asset not found.',
+                'request_id' => $requestId,
+            ], 404);
+        }
+
+        if (!str_starts_with((string) $assetRow['mime_type'], 'image/')) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Upscale requires an image asset.',
+                'request_id' => $requestId,
+            ], 422);
+        }
+
+        $features = AdminService::effectiveSettings(
+            $db,
+            (int) $user['id'],
+            $assetRow['project_id'] !== null ? (string) $assetRow['project_id'] : null
+        );
+        $workerUrlOverride = trim((string) ($features['worker_url_override'] ?? ''));
+
+        $content = AssetStorage::resolveContent(
+            $db,
+            (int) $user['id'],
+            $assetId,
+            'original'
+        );
+
+        if (!$content) {
+            Http::json([
+                'ok' => false,
+                'error' => 'Original asset content is missing.',
+                'request_id' => $requestId,
+            ], 404);
+        }
+
+        $tmp = null;
+
+        try {
+            $tmp = ImageWorker::upscale(
+                $content['path'],
+                $scale,
+                $cleanup,
+                $workerUrlOverride
+            );
+
+            $baseName = preg_replace(
+                '/\.[^.]+$/',
+                '',
+                (string) $assetRow['original_name']
+            ) ?: 'image';
+
+            $processed = AssetStorage::storeUpload(
+                $db,
+                (int) $user['id'],
+                $assetRow['project_id'] !== null ? (string) $assetRow['project_id'] : null,
+                [
+                    'name' => $baseName . '-upscaled-' . $scale . 'x.png',
+                    'type' => 'image/png',
+                    'tmp_name' => $tmp,
+                    'error' => UPLOAD_ERR_OK,
+                    'size' => filesize($tmp) ?: 0,
+                ]
+            );
+
+            $db->prepare(
+                'UPDATE assets
+                 SET source_asset_id = :source_asset_id,
+                     process_kind = :process_kind
+                 WHERE id = :id AND owner_user_id = :owner'
+            )->execute([
+                'source_asset_id' => $assetId,
+                'process_kind' => 'upscale:' . $scale . 'x:' . ($cleanup ? 'cleanup' : 'plain'),
+                'id' => $processed['id'],
+                'owner' => $user['id'],
+            ]);
+
+            $processedStmt = $db->prepare(
+                'SELECT id, project_id, original_name, mime_type, size_bytes, sha256, storage_key, version, source_asset_id, process_kind, created_at, updated_at
+                 FROM assets
+                 WHERE id = :id AND owner_user_id = :owner
+                 LIMIT 1'
+            );
+            $processedStmt->execute([
+                'id' => $processed['id'],
+                'owner' => $user['id'],
+            ]);
+            $row = $processedStmt->fetch();
+            if ($row) {
+                $processed = AssetStorage::decorateAsset($db, $row);
+            }
+        } catch (RuntimeException $error) {
+            Http::json([
+                'ok' => false,
+                'error' => $error->getMessage(),
+                'request_id' => $requestId,
+            ], 422);
+        } finally {
+            if (is_string($tmp) && is_file($tmp)) {
+                @unlink($tmp);
+            }
+        }
+
+        AdminService::log(
+            $db,
+            (int) $user['id'],
+            'image.upscale',
+            'asset',
+            $assetId,
+            ['scale' => $scale, 'cleanup' => $cleanup]
+        );
+
+        Http::json([
+            'ok' => true,
+            'asset' => $processed,
+            'source_asset_id' => $assetId,
+            'scale' => $scale,
+            'cleanup' => $cleanup,
+            'request_id' => $requestId,
+        ], 201);
+    }
+
+    if (
+        $method === 'POST' &&
         preg_match('#^/api/v1/assets/([^/]+)/background-remove$#', $path, $matches)
     ) {
         $assetId = rawurldecode($matches[1]);
