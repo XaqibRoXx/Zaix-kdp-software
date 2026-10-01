@@ -1472,6 +1472,26 @@ function EditorShell({
     [project, selectedArtboardId]
   );
 
+  const artboardThumbnailWindow = useMemo(() => {
+    const windowSize = 12;
+    const total = project.artboards.length;
+    const activeIndex = Math.max(
+      0,
+      project.artboards.findIndex((item) => item.id === artboard.id)
+    );
+    const maxStart = Math.max(0, total - windowSize);
+    const start = Math.min(
+      Math.max(0, activeIndex - Math.floor(windowSize / 2)),
+      maxStart
+    );
+
+    return {
+      activeIndex,
+      start,
+      items: project.artboards.slice(start, start + windowSize)
+    };
+  }, [project.artboards, artboard.id]);
+
   const selectedObject = useMemo(
     () => artboard.objects.find((object) => object.id === selectedObjectId) ?? null,
     [artboard, selectedObjectId]
@@ -1588,20 +1608,45 @@ function EditorShell({
       <aside className="artboards-panel">
         <div className="panel-title">Artboards</div>
 
-        {project.artboards.map((item, index) => (
-          <button
-            className={item.id === artboard.id ? "artboard-thumb active" : "artboard-thumb"}
-            key={item.id}
-            onClick={() => onSelectArtboard(item.id)}
+        <div className="artboard-window-meta">
+          <span>
+            Showing {artboardThumbnailWindow.start + 1}–
+            {artboardThumbnailWindow.start + artboardThumbnailWindow.items.length}
+            {" / "}{project.artboards.length}
+          </span>
+          <select
+            className="artboard-jump"
+            value={artboard.id}
+            onChange={(event) => onSelectArtboard(event.target.value)}
+            aria-label="Jump to artboard"
           >
-            <span>{item.role === "cover" ? "C" : index + 1}</span>
-            <div style={{ aspectRatio: String(item.width) + " / " + String(item.height) }} />
-            <small>
-              {item.role === "cover" ? "Cover • " : item.kind === "toc" ? "TOC • " : ""}
-              {item.width} × {item.height} {item.unit}
-            </small>
-          </button>
-        ))}
+            {project.artboards.map((item, index) => (
+              <option key={item.id} value={item.id}>
+                {item.role === "cover"
+                  ? "Cover"
+                  : (item.kind === "toc" ? "TOC • " : "") + "Artboard " + (index + 1)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {artboardThumbnailWindow.items.map((item, offset) => {
+          const index = artboardThumbnailWindow.start + offset;
+          return (
+            <button
+              className={item.id === artboard.id ? "artboard-thumb active" : "artboard-thumb"}
+              key={item.id}
+              onClick={() => onSelectArtboard(item.id)}
+            >
+              <span>{item.role === "cover" ? "C" : index + 1}</span>
+              <div style={{ aspectRatio: String(item.width) + " / " + String(item.height) }} />
+              <small>
+                {item.role === "cover" ? "Cover • " : item.kind === "toc" ? "TOC • " : ""}
+                {item.width} × {item.height} {item.unit}
+              </small>
+            </button>
+          );
+        })}
 
         <button className="secondary full" onClick={add}>+ Add Artboard</button>
         <div className="artboard-actions">
