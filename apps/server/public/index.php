@@ -247,6 +247,22 @@ try {
         ]);
     }
 
+    if ($method === 'GET' && $path === '/api/v1/effective-settings') {
+        $projectId = isset($_GET['project_id'])
+            ? trim((string) $_GET['project_id'])
+            : null;
+
+        Http::json([
+            'ok' => true,
+            'settings' => AdminService::effectiveSettings(
+                $db,
+                (int) $user['id'],
+                $projectId
+            ),
+            'request_id' => $requestId,
+        ]);
+    }
+
     if ($method === 'GET' && $path === '/api/v1/diagnostics') {
         $storagePath = rtrim(
             (string) Config::env('STORAGE_PATH', dirname(__DIR__) . '/storage'),
@@ -381,7 +397,15 @@ try {
     }
 
     if ($method === 'POST' && $path === '/api/v1/shares') {
-        $shareSettings = AdminService::getSettings($db);
+        $body = Http::body();
+        $shareProjectId = isset($body['project_id']) && $body['project_id'] !== null
+            ? trim((string) $body['project_id'])
+            : null;
+        $shareSettings = AdminService::effectiveSettings(
+            $db,
+            (int) $user['id'],
+            $shareProjectId
+        );
         if (!(bool) ($shareSettings['feature_public_sharing'] ?? true)) {
             Http::json([
                 'ok' => false,
@@ -389,8 +413,6 @@ try {
                 'request_id' => $requestId,
             ], 403);
         }
-
-        $body = Http::body();
 
         try {
             $share = ShareService::create(
