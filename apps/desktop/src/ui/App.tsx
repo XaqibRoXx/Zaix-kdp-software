@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -88,6 +89,7 @@ import {
 } from "../cloud/syncQueue";
 import {
   renderProjectPdf,
+  type PdfColorMode,
   type PdfExportTarget,
   type PdfQualityPreset
 } from "../export/pdfExporter";
@@ -877,6 +879,9 @@ function PdfExportDialog({
   const [quality, setQuality] = useState<PdfQualityPreset>("maximum");
   const [customDpi, setCustomDpi] = useState(240);
   const [customJpegQuality, setCustomJpegQuality] = useState(0.85);
+  const [colorMode, setColorMode] = useState<PdfColorMode>("rgb");
+  const [cropMarks, setCropMarks] = useState(false);
+  const [batchSeparate, setBatchSeparate] = useState(false);
   const [pageRange, setPageRange] = useState("");
   const [destination, setDestination] = useState<"computer" | "cloud" | "both">("computer");
   const [fileName, setFileName] = useState(project.name.replace(/[^A-Za-z0-9._-]+/g, "-") || "zaxis-kdp-export");
@@ -887,25 +892,68 @@ function PdfExportDialog({
 
   async function runExport() {
     setBusy(true);
-    setStatus("Rendering PDF...");
+    setStatus(batchSeparate ? "Rendering batch PDFs..." : "Rendering PDF...");
     setWarnings([]);
 
     try {
-      const result = await renderProjectPdf(project, {
-        target,
+      const baseOptions = {
         quality,
         pageRange,
         title: project.name,
         author,
         customDpi,
-        customJpegQuality
-      });
+        customJpegQuality,
+        colorMode,
+        cropMarks
+      };
 
       const finalName = ensurePdfExtension(fileName);
       const destinations: string[] = [];
+      let outputBytes: Uint8Array;
+      let outputName: string;
+      let outputMime: string;
+      let renderedPages = 0;
+      const exportWarnings: string[] = [];
+
+      if (batchSeparate) {
+        const zip = new JSZip();
+        const interior = await renderProjectPdf(project, { ...baseOptions, target: "interior" });
+        renderedPages += interior.pageCount;
+        exportWarnings.push(...interior.warnings);
+        zip.file(finalName.replace(/\.pdf$/i, "") + "-interior.pdf", interior.bytes);
+
+        if (project.artboards.some((item) => item.role === "cover")) {
+          const cover = await renderProjectPdf(project, { ...baseOptions, target: "cover", pageRange: "" });
+          renderedPages += cover.pageCount;
+          exportWarnings.push(...cover.warnings);
+          zip.file(finalName.replace(/\.pdf$/i, "") + "-cover.pdf", cover.bytes);
+        }
+
+        outputBytes = await zip.generateAsync({
+          type: "uint8array",
+          compression: "DEFLATE",
+          compressionOptions: { level: 6 }
+        });
+        outputName = finalName.replace(/\.pdf$/i, "") + "-batch.zip";
+        outputMime = "application/zip";
+      } else {
+        const result = await renderProjectPdf(project, { ...baseOptions, target });
+        outputBytes = result.bytes;
+        outputName = finalName;
+        outputMime = "application/pdf";
+        renderedPages = result.pageCount;
+        exportWarnings.push(...result.warnings);
+      }
 
       if (destination === "computer" || destination === "both") {
-        const savedPath = await savePdfToComputer(result.bytes, finalName);
+        const savedPath = outputMime === "application/pdf"
+          ? await savePdfToComputer(outputBytes, outputName)
+          : await saveBinaryToComputer(outputBytes, outputName, {
+              title: "Save Batch PDF Export",
+              mimeType: outputMime,
+              filterName: "ZIP Archive",
+              extensions: ["zip"]
+            });
 
         if (savedPath) {
           destinations.push(savedPath.startsWith("browser-download:") ? "computer download" : savedPath);
@@ -921,12 +969,12 @@ function PdfExportDialog({
           throw new Error("Cloud destination requires a connected Cloud & Server account.");
         }
 
-        const buffer = result.bytes.buffer.slice(
-          result.bytes.byteOffset,
-          result.bytes.byteOffset + result.bytes.byteLength
+        const buffer = outputBytes.buffer.slice(
+          outputBytes.byteOffset,
+          outputBytes.byteOffset + outputBytes.byteLength
         ) as ArrayBuffer;
 
-        const file = new File([buffer], finalName, { type: "application/pdf" });
+        const file = new File([buffer], outputName, { type: outputMime });
         const uploaded = await new ZaxisCloudApi(
           settings.cloudApiUrl.trim(),
           token.trim()
@@ -935,12 +983,13 @@ function PdfExportDialog({
         destinations.push("cloud asset " + uploaded.asset.id);
       }
 
-      setWarnings(result.warnings);
+      setWarnings(exportWarnings);
       setStatus(
         "Exported " +
-          result.pageCount +
-          " PDF page" +
-          (result.pageCount === 1 ? "" : "s") +
+          renderedPages +
+          " page" +
+          (renderedPages === 1 ? "" : "s") +
+          (batchSeparate ? " in batch ZIP" : " as PDF") +
           (destinations.length ? " • " + destinations.join(" • ") : "")
       );
     } catch (error) {
@@ -1006,6 +1055,20 @@ function PdfExportDialog({
           <label>Author
             <input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="Optional" />
           </label>
+          <label>Color Mode
+            <select value={colorMode} onChange={(event) => setColorMode(event.target.value as PdfColorMode)}>
+              <option value="rgb">RGB</option>
+              <option value="grayscale">Grayscale</option>
+            </select>
+          </label>
+          <label className="toggle-setting">
+            <input type="checkbox" checked={cropMarks} onChange={(event) => setCropMarks(event.target.checked)} />
+            Add crop marks (expands page size)
+          </label>
+          <label className="toggle-setting">
+            <input type="checkbox" checked={batchSeparate} onChange={(event) => setBatchSeparate(event.target.checked)} />
+            Batch separate Interior + Cover ZIP
+          </label>
           {quality === "custom" && (
             <>
               <label>Custom Image DPI
@@ -1038,6 +1101,9 @@ function PdfExportDialog({
             {quality === "custom" ? " • " + customDpi + " DPI • JPEG " + Math.round(customJpegQuality * 100) + "%" : ""}
           </span>
           <span>Destination: {destination}</span>
+          <span>Color: {colorMode}</span>
+          <span>{cropMarks ? "Crop marks on" : "Crop marks off"}</span>
+          {batchSeparate && <span>Batch ZIP</span>}
         </div>
 
         {status && <p className="export-status">{status}</p>}
