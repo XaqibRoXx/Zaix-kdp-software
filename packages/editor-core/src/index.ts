@@ -122,7 +122,9 @@ export interface ProjectOverrides {
   featureBackgroundRemove?: boolean;
   featurePublicSharing?: boolean;
   featureProofComments?: boolean;
+  featureBatchProcessing?: boolean;
   defaultShareDownload?: boolean;
+  defaultShareProofMode?: boolean;
   namingExportPattern?: string;
 }
 
