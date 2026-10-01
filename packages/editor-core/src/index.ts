@@ -111,6 +111,21 @@ export interface ReusableStyle {
   properties: UpdateObjectInput;
 }
 
+export interface ReusableComponent {
+  id: string;
+  name: string;
+  objects: DesignObject[];
+  sourceArtboardName?: string;
+}
+
+export interface ProjectOverrides {
+  featureBackgroundRemove?: boolean;
+  featurePublicSharing?: boolean;
+  featureProofComments?: boolean;
+  defaultShareDownload?: boolean;
+  namingExportPattern?: string;
+}
+
 export interface TemplateOverlay {
   name: string;
   src: string;
@@ -142,6 +157,8 @@ export interface ZaxisProject {
   bookStructure?: BookStructure;
   masterPages?: MasterPage[];
   reusableStyles?: ReusableStyle[];
+  reusableComponents?: ReusableComponent[];
+  projectOverrides?: ProjectOverrides;
   artboards: Artboard[];
   createdAt: string;
   updatedAt: string;
@@ -244,6 +261,10 @@ export function normalizeProject(project: ZaxisProject): ZaxisProject {
         ? "character"
         : style.kind
     })) as ReusableStyle[],
+    reusableComponents: Array.isArray(project.reusableComponents)
+      ? project.reusableComponents
+      : [],
+    projectOverrides: project.projectOverrides ?? {},
     artboards: project.artboards.map((artboard) => ({
       ...artboard,
       role: artboard.role ?? "page",
@@ -311,6 +332,8 @@ export function createBlankProject(input: BlankProjectInput): ZaxisProject {
     bookStructure: mode === "kdp" ? createDefaultBookStructure() : undefined,
     masterPages: [],
     reusableStyles: [],
+    reusableComponents: [],
+    projectOverrides: {},
     createdAt: timestamp,
     updatedAt: timestamp,
     artboards: [
@@ -775,6 +798,134 @@ export function applyMasterPage(
       ...artboard.objects.filter((object) => !object.name.startsWith("[Master] "))
     ]
   }));
+}
+
+export function saveReusableComponent(
+  project: ZaxisProject,
+  artboardId: string,
+  objectIds: string[],
+  name: string
+): ZaxisProject {
+  const artboard = project.artboards.find((item) => item.id === artboardId);
+  if (!artboard) return project;
+
+  const ids = new Set(objectIds);
+  const objects = artboard.objects
+    .filter((object) => ids.has(object.id))
+    .map((object) => structuredClone(object));
+
+  if (objects.length === 0) return project;
+
+  const component: ReusableComponent = {
+    id: id("component"),
+    name: name.trim() || "Reusable Component",
+    sourceArtboardName: artboard.name,
+    objects
+  };
+
+  return {
+    ...project,
+    reusableComponents: [...(project.reusableComponents ?? []), component],
+    updatedAt: now()
+  };
+}
+
+export function saveArtboardAsTemplate(
+  project: ZaxisProject,
+  artboardId: string,
+  name: string
+): ZaxisProject {
+  const artboard = project.artboards.find((item) => item.id === artboardId);
+  if (!artboard || artboard.objects.length === 0) return project;
+
+  return saveReusableComponent(
+    project,
+    artboardId,
+    artboard.objects.map((object) => object.id),
+    name.trim() || artboard.name + " Template"
+  );
+}
+
+export function insertReusableComponent(
+  project: ZaxisProject,
+  artboardId: string,
+  componentId: string
+): ZaxisProject {
+  const component = (project.reusableComponents ?? []).find(
+    (item) => item.id === componentId
+  );
+  if (!component) return project;
+
+  return mapArtboard(project, artboardId, (artboard) => ({
+    ...artboard,
+    objects: [
+      ...artboard.objects,
+      ...component.objects.map((object) => cloneReusableObject(object))
+    ]
+  }));
+}
+
+export function deleteReusableComponent(
+  project: ZaxisProject,
+  componentId: string
+): ZaxisProject {
+  return {
+    ...project,
+    reusableComponents: (project.reusableComponents ?? []).filter(
+      (item) => item.id !== componentId
+    ),
+    updatedAt: now()
+  };
+}
+
+export function updateProjectOverrides(
+  project: ZaxisProject,
+  input: Partial<ProjectOverrides>
+): ZaxisProject {
+  return {
+    ...project,
+    projectOverrides: {
+      ...(project.projectOverrides ?? {}),
+      ...input
+    },
+    updatedAt: now()
+  };
+}
+
+function cloneReusableObject(object: DesignObject): DesignObject {
+  const cloned = structuredClone(object) as DesignObject;
+  const base = {
+    ...cloned,
+    id: id("object"),
+    name: cloned.name + " Instance",
+    x: Math.min(100 - cloned.width, cloned.x + 2),
+    y: Math.min(100 - cloned.height, cloned.y + 2),
+    locked: false
+  };
+
+  if (cloned.type === "path") {
+    return {
+      ...base,
+      type: "path",
+      points: cloned.points.map((point) => ({
+        ...point,
+        id: id("point")
+      }))
+    };
+  }
+
+  if (cloned.type === "image") {
+    return {
+      ...base,
+      type: "image",
+      maskPoints: cloned.maskPoints.map((point) => ({
+        ...point,
+        id: id("mask")
+      }))
+    };
+  }
+
+  return base as DesignObject;
 }
 
 export function saveReusableStyle(
