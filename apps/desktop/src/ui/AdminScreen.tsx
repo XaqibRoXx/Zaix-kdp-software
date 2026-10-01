@@ -28,6 +28,7 @@ const emptySettings: AdminSettings = {
   backup_interval_hours: 24,
   backup_retention_count: 14,
   backup_include_assets: false,
+  backup_secondary_provider: "none",
   backup_secondary_path: "",
   recycle_retention_days: 30,
   worker_url_override: ""
@@ -468,6 +469,18 @@ export function AdminScreen({
               value={settings.backup_retention_count}
               onChange={(event) => setSettings({ ...settings, backup_retention_count: Number(event.target.value) })}
             />
+          </label>
+          <label>Secondary Provider
+            <select
+              value={settings.backup_secondary_provider}
+              onChange={(event) => setSettings({
+                ...settings,
+                backup_secondary_provider: event.target.value as AdminSettings["backup_secondary_provider"]
+              })}
+            >
+              <option value="none">None</option>
+              <option value="local-path">Local / Mounted Path</option>
+            </select>
           </label>
           <label>Secondary Backup Path
             <input
