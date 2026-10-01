@@ -5,7 +5,7 @@ Last updated: 2026-10-01
 ## Overall
 - Phase 1: **BASELINE COMPLETE**
 - Phase 2: **100% COMPLETE**
-- Phase 3: **IN PROGRESS**
+- Phase 3: **100% COMPLETE**
 - Phase 4: **PENDING**
 
 Detailed Phase 2 exit checklist: `docs/PHASE2_EXIT.md`
@@ -16,6 +16,8 @@ Detailed Phase 2 exit checklist: `docs/PHASE2_EXIT.md`
 - [x] Latest install audit: **0 known npm vulnerabilities**
 - [x] PHP server syntax/CI: **SUCCESS**
 - [x] Latest Windows Tauri release/bundle: **SUCCESS**
+- [x] Phase 3 Python image-worker syntax gate: **SUCCESS**
+- [x] Phase 3 Windows artifact `zaxis-kdp-windows`: **VERIFIED**
 - [x] Earlier Windows installer artifact generation was already proven successfully in Phase 1.
 
 Phase 2 exit gates are all green. Latest Windows artifact `zaxis-kdp-windows` was generated successfully and verified.
@@ -148,51 +150,97 @@ The master plan marks these optional or “where supported”, so they are not P
 - Full ICC/CMYK conversion engine.
 - External heavy PDF worker (local desktop processing works without it).
 
-## Phase 3 — In Progress
-- [x] Optional Python image worker package added.
-- [x] Worker supports Fast / Quality / Hair-Fur background removal modes.
-- [x] BiRefNet-general default model with selectable alternatives.
-- [x] Edge decontamination and ViTMatte soft-edge refinement supported by worker.
-- [x] Background mask endpoint foundation for manual refine workflow.
-- [x] Batch background-removal ZIP endpoint.
-- [x] Secure PHP server-to-worker bridge; Windows app never receives worker secret.
-- [x] Authenticated cloud asset background-removal endpoint.
-- [x] Background removal creates a new transparent PNG cloud asset and preserves the original.
-- [x] Asset Library Remove Background action connected.
-- [x] Cloud assets now have stable version numbers and updated timestamps.
-- [x] Existing cloud asset binary can be replaced while keeping the same asset ID.
-- [x] Image proxies are regenerated after cloud asset replacement.
-- [x] Project image objects can persist linked cloud asset ID/version/SHA metadata.
-- [x] Link Selected Image workflow from Asset Library.
-- [x] Missing linked asset detection.
-- [x] Update Available detection when cloud asset version/SHA changes.
-- [x] Refresh All Linked Updates across the project.
-- [x] Batch Relink references from one cloud asset to another.
-- [x] Linked reference counts and current/outdated/missing status UI.
-- [x] Existing SHA-256 upload dedupe remains active to prevent duplicate cloud copies.
-- [x] Persistent public share-link database model.
-- [x] One stable random public slug per share.
-- [x] No-login browser preview page.
-- [x] Password-protected public links with time-limited signed access token.
-- [x] Link expiry enforcement.
-- [x] Download enable/disable enforcement.
-- [x] Link revoke support.
-- [x] Replace File, Keep Same Link backend.
-- [x] Privacy-preserving view/download analytics using HMAC-hashed IP/user-agent values.
-- [x] Proof mode public comments.
-- [x] Desktop Share Manager in Asset Library.
-- [x] Create/copy/open/revoke share links.
-- [x] Toggle download and proof mode.
-- [x] Set/change/remove share password and expiry.
-- [x] View/download/comment counters in desktop UI.
-- [x] Select a replacement asset and keep the existing public URL.
-- [x] Cloud/Both PDF export can automatically create a persistent public share link.
-- [x] Export result reports the new public URL immediately.
+## Phase 3 — 100% Complete
 
-## Remaining — Phase 3
-- [x] Advanced linked-asset/proxy lifecycle, update/missing detection, stable asset replacement and batch relink UI.
-- [ ] Manual restore/erase refine-brush UI remains. High-quality background removal, hair/fur mode and edge cleanup worker pipeline are connected.
-- [ ] Admin/storage/backups/quota management and deeper diagnostics.
+### Image AI & Processing
+- [x] Optional Python image worker package.
+- [x] Worker syntax/CI gate.
+- [x] One-click background removal.
+- [x] Fast / Quality / Hair-Fur modes.
+- [x] BiRefNet-general default model with selectable alternatives.
+- [x] Edge decontamination.
+- [x] ViTMatte soft-edge / hair-fur refinement.
+- [x] Transparent PNG output while preserving the original.
+- [x] Manual Restore / Erase / Soft Refine brush editor.
+- [x] Replace background with Transparent / Solid Color / Blur / Custom Image.
+- [x] Batch background removal workflow.
+- [x] Background mask endpoint foundation.
+- [x] Optional 2x / 4x upscale + cleanup worker pipeline.
+- [x] Secure PHP server-to-worker bridge; Windows never receives the worker secret.
+- [x] Worker URL override + worker health diagnostics.
+
+### Asset Library
+- [x] Cloud asset library.
+- [x] Original preservation.
+- [x] Lightweight editor proxies.
+- [x] Stable cloud asset IDs + version tracking.
+- [x] Linked image metadata: asset ID / version / SHA-256.
+- [x] Replace cloud binary while keeping the same asset ID.
+- [x] Proxy regeneration after replacement.
+- [x] Missing linked asset detection.
+- [x] Update Available detection.
+- [x] Refresh All Linked Updates.
+- [x] Batch Relink references.
+- [x] SHA-256 duplicate detection/dedupe.
+- [x] Processed asset → original source relationship.
+- [x] Optional upscale result saved as a new cloud asset.
+
+### Cloud Files & Sharing
+- [x] Persistent public PDF/image share links.
+- [x] Stable random public slug.
+- [x] No-login browser preview.
+- [x] Password protection.
+- [x] Expiry.
+- [x] Download on/off.
+- [x] Revoke.
+- [x] Replace File, Keep Same Link.
+- [x] View/download analytics.
+- [x] Privacy-preserving HMAC visitor hashing.
+- [x] Proof mode + public comments.
+- [x] Desktop Share Manager.
+- [x] Cloud/Both PDF export can automatically create a persistent public link.
+- [x] Public Sharing and Proof Comments Admin feature toggles are enforced server-side.
+- [x] Share defaults are configuration-driven.
+
+### Collaboration / Roles
+- [x] Owner / Admin / Editor / Reviewer roles.
+- [x] Reviewer role is server-enforced read-only.
+- [x] Owner/Admin-only administration APIs.
+- [x] Admin user creation + one-time desktop connection code.
+- [x] Role and quota management.
+
+### Admin / Server
+- [x] Production Admin screen in Windows app.
+- [x] Per-user storage quotas.
+- [x] Server-side quota enforcement.
+- [x] Global feature toggles.
+- [x] Global defaults with per-project overrides.
+- [x] Configurable project/export naming rules.
+- [x] Server/storage/worker diagnostics.
+- [x] Storage usage/free-space/quota visibility.
+- [x] Worker health/status.
+- [x] Repair tools.
+- [x] Scheduled backups.
+- [x] Manual backup.
+- [x] Backup retention.
+- [x] Optional asset-binary backup.
+- [x] Secondary backup provider selector + path copy.
+- [x] cPanel cron backup runner.
+- [x] Activity logs.
+- [x] Recycle Bin restore / permanent purge.
+- [x] Export queue with queued/running/completed/failed tracking.
+- [x] User Notifications screen + Admin notification creation.
+- [x] Effective server/project policy endpoint.
+
+### Phase 3 Exit Gates
+- [x] Desktop TypeScript/Vite: **SUCCESS** on current head `68ce2be1d8d9c207751f1e0b297993f322541a0d`.
+- [x] Python Worker Check: **SUCCESS** on current head `68ce2be1d8d9c207751f1e0b297993f322541a0d`.
+- [x] Latest server source commit `cfd5c636a6214e3c671df503e6fde94b2748a975`: **Server Check SUCCESS**.
+- [x] Latest Windows feature bundle commit `c1ea1a7f013620b95ffcb8d4868562df206e38bf`: **Windows Build SUCCESS**.
+- [x] Windows artifact `zaxis-kdp-windows` verified, 7,121,876 bytes, SHA-256 `8880964c3d880ac63920547ce5c25ad2c352ea2a8b2ffb6927dad6ffa7c01ddd`.
+- [x] Current head only adds the Worker CI workflow on top of the verified Windows feature source.
+
+Phase 3 exit condition is satisfied: cloud collaboration, high-quality image utilities and production-ready administration are functional.
 
 ## Pending — Phase 4
 - [ ] Large-book/performance stress QA.
