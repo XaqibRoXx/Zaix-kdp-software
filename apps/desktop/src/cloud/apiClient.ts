@@ -699,6 +699,26 @@ export class ZaxisCloudApi {
     });
   }
 
+  async upscaleAsset(
+    assetId: string,
+    scale: 2 | 4 = 2,
+    cleanup = true
+  ) {
+    return this.request<{
+      ok: boolean;
+      asset: CloudAsset;
+      source_asset_id: string;
+      scale: number;
+      cleanup: boolean;
+    }>(
+      "/api/v1/assets/" + encodeURIComponent(assetId) + "/upscale",
+      {
+        method: "POST",
+        body: { scale, cleanup }
+      }
+    );
+  }
+
   async removeAssetBackground(
     assetId: string,
     mode: "fast" | "quality" | "hair" = "quality",
