@@ -180,6 +180,18 @@ Last updated: 2026-09-30
 - [x] First Windows installer/test artifact verified: `zaxis-kdp-windows` GitHub Actions artifact generated successfully.
 
 ## Phase 2 — In Progress
+- [x] Batched PDF split supports semicolon groups such as 1-10;11-20;21-30.
+- [x] Blank split groups input produces one PDF per source page.
+- [x] Split outputs are packaged into one downloadable ZIP archive.
+- [x] Lossless PDF optimize pass rewrites with object streams.
+- [x] Lossless optimizer compares actual byte sizes and refuses to claim compression when output is not smaller.
+- [x] Optimize UI reports before/after MB and actual saved percentage.
+- [x] Project PDF quality presets now perform real image downsampling.
+- [x] High PDF preset targets 300 DPI.
+- [x] Standard PDF preset targets 200 DPI.
+- [x] Small PDF preset targets 144 DPI with stronger JPEG compression.
+- [x] Maximum PDF preset preserves original image bytes.
+- [x] PNG transparency is preserved during downsampling.
 - [x] Advanced paperback cover guide geometry centralized in KDP rules.
 - [x] Live back cover / spine / front cover regions.
 - [x] Top/bottom/left/right bleed trim guides.
@@ -325,10 +337,10 @@ Last updated: 2026-09-30
 
 ## Pending — Phase 2
 - [x] Initial cPanel connection wizard and secure pairing API.
-- [ ] Canva-style cloud autosave and offline sync.
+- [x] Canva-style cloud autosave and offline sync.
 - [x] Cloud revision history metadata, snapshot retrieval and restore-as-new workflow are working. Local named revisions remain separate.
 - [ ] Template import/background tooling remains. Advanced paperback cover layout now includes live back/spine/front, bleed, safe-area, spine-safe and barcode reservation guides plus cover-aware preflight.
-- [ ] Advanced compression, visual diff compare and full split batching remain. Real PDF export, Merge, Extract/Range, Rotate and structural Compare foundations are working.
+- [ ] Visual pixel-diff compare and standalone lossy image recompression remain. Real PDF export, Merge, Extract/Range, Rotate, structural Compare, batched Split ZIP, honest lossless optimization and DPI-based project-export image downsampling are working.
 - [x] PDF save destination supports Laptop / Cloud / Both.
 
 ## Pending — Phase 3
