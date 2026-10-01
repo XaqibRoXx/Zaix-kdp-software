@@ -96,7 +96,6 @@ jobs:
             release/SHA256SUMS.txt
           if-no-files-found: error
 
-
   backup-restore-integration:
     runs-on: ubuntu-latest
     services:
@@ -175,7 +174,8 @@ jobs:
             throw "MSI bundle is required for install/uninstall smoke testing."
           }
 
-          $installLog = Join-Path (Resolve-Path "release").Path "msi-install.log"
+          $releaseRoot = (Resolve-Path "release").Path
+          $installLog = Join-Path $releaseRoot "msi-install.log"
           $install = Start-Process "msiexec.exe" -ArgumentList @(
             "/i",
             ('"' + $msi.FullName + '"'),
@@ -203,54 +203,12 @@ jobs:
             throw "Zaxis KDP was not registered after MSI installation."
           }
 
-          $productCode = $product.PSChildName
-          if ($productCode -notmatch '^\{[0-9A-Fa-f-]+\}
-      - name: Stage portable package
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path release/portable/app-data | Out-Null
-          Copy-Item "apps/desktop/src-tauri/target/release/zaxis-kdp.exe" "release/portable/Zaxis-KDP-Portable.exe"
-          Set-Content -Path "release/portable/PORTABLE.txt" -Value "Keep this folder together. Tauri-managed app data is stored in ./app-data for this portable flavor."
-
-      - name: Portable startup smoke
-        shell: pwsh
-        run: |
-          $exe = Resolve-Path "release/portable/Zaxis-KDP-Portable.exe"
-          $process = Start-Process $exe.Path -PassThru
-          Start-Sleep -Seconds 8
-
-          if ($process.HasExited) {
-            throw "Portable executable exited during startup smoke with code $($process.ExitCode)."
-          }
-
-          Stop-Process -Id $process.Id -Force
-          "Portable startup smoke passed." | Set-Content "release/portable/STARTUP-SMOKE.txt"
-
-      - name: Generate Windows SHA-256 manifest
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem release -Recurse -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
-          $lines = foreach ($file in $files) {
-            $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
-            $relative = $file.FullName.Substring((Resolve-Path release).Path.Length + 1).Replace("\\", "/")
-            "$hash  $relative"
-          }
-          $lines | Set-Content release/SHA256SUMS.txt
-
-      - name: Upload Windows release candidate
-        uses: actions/upload-artifact@v4
-        with:
-          name: zaxis-kdp-windows-release-candidate
-          path: |
-            release/installed/**
-            release/portable/**
-            release/SHA256SUMS.txt
-          if-no-files-found: error
-) {
+          $productCode = [string]$product.PSChildName
+          if ([string]::IsNullOrWhiteSpace($productCode)) {
             throw "Could not resolve MSI ProductCode from uninstall registry."
           }
 
-          $uninstallLog = Join-Path (Resolve-Path "release").Path "msi-uninstall.log"
+          $uninstallLog = Join-Path $releaseRoot "msi-uninstall.log"
           $uninstall = Start-Process "msiexec.exe" -ArgumentList @(
             "/x",
             $productCode,
@@ -284,13 +242,27 @@ jobs:
           Copy-Item "apps/desktop/src-tauri/target/release/zaxis-kdp.exe" "release/portable/Zaxis-KDP-Portable.exe"
           Set-Content -Path "release/portable/PORTABLE.txt" -Value "Keep this folder together. Tauri-managed app data is stored in ./app-data for this portable flavor."
 
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "release/portable/Zaxis-KDP-Portable.exe"
+          $process = Start-Process $exe.Path -PassThru
+          Start-Sleep -Seconds 8
+
+          if ($process.HasExited) {
+            throw "Portable executable exited during startup smoke with code $($process.ExitCode)."
+          }
+
+          Stop-Process -Id $process.Id -Force
+          "Portable startup smoke passed." | Set-Content "release/portable/STARTUP-SMOKE.txt"
+
       - name: Generate Windows SHA-256 manifest
         shell: pwsh
         run: |
           $files = Get-ChildItem release -Recurse -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
           $lines = foreach ($file in $files) {
             $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
-            $relative = $file.FullName.Substring((Resolve-Path release).Path.Length + 1).Replace("\\", "/")
+            $relative = $file.FullName.Substring((Resolve-Path release).Path.Length + 1).Replace("\", "/")
             "$hash  $relative"
           }
           $lines | Set-Content release/SHA256SUMS.txt
@@ -302,5 +274,8 @@ jobs:
           path: |
             release/installed/**
             release/portable/**
+            release/msi-install.log
+            release/msi-uninstall.log
+            release/msi-smoke.txt
             release/SHA256SUMS.txt
           if-no-files-found: error
