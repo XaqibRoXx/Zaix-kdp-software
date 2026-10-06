@@ -199,9 +199,15 @@ Verify all of the following:
 3. Create an empty database.
 4. Configure a valid `.env` for the new host.
 5. Make the storage directory writable.
-6. Register the available backup archive in the restored installation or place it in configured backup storage.
-7. Use the restore workflow.
-8. Reconnect every desktop using new one-time pairing codes.
-9. Verify diagnostics and project/asset integrity.
+6. Copy the external backup ZIP to a private readable server path.
+7. From PHP CLI run:
+
+```bash
+php /home/ACCOUNT/zaxis-kdp-server/bin/restore-backup.php /private/path/zaxis-kdp-backup.zip --yes
+```
+
+8. The CLI registers the external archive, validates it through the normal restore engine, creates a pre-restore safety backup, restores database rows and asset binaries, clears stale locks, and invalidates old desktop credentials.
+9. Reconnect every desktop using new one-time pairing codes.
+10. Verify diagnostics and project/asset integrity.
 
 Always retain at least one secondary backup outside the primary server filesystem.
