@@ -199,6 +199,36 @@ export function AdminScreen({
     }
   }
 
+  async function restoreBackup(backup: AdminBackup) {
+    if (
+      !window.confirm(
+        "Restore " +
+          backup.file_name +
+          "? A fresh safety backup will be created first. Current cloud sessions will be invalidated and you will need to reconnect."
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setStatus("Restoring backup and creating safety snapshot...");
+
+    try {
+      const result = await api.restoreAdminBackup(backup.id);
+      setStatus(
+        "Restore complete: " +
+          result.result.file_name +
+          ". Safety backup: " +
+          result.result.safety_backup.file_name +
+          ". Cloud credentials were intentionally invalidated; reconnect Cloud & Server."
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Backup restore failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function repair(action: "purge-expired-locks" | "purge-expired-pairing-codes" | "ensure-storage" | "purge-old-recycle") {
     setStatus("Running repair: " + action + "...");
 
@@ -501,6 +531,13 @@ export function AdminScreen({
               <span>{(backup.size_bytes / (1024 * 1024)).toFixed(2)} MB</span>
               <span>{backup.secondary_path ? "Secondary copy ✓" : "Primary only"}</span>
               <span>{backup.status}</span>
+              <button
+                className="secondary danger"
+                disabled={busy || backup.status !== "completed"}
+                onClick={() => void restoreBackup(backup)}
+              >
+                Restore
+              </button>
             </div>
           ))}
         </div>

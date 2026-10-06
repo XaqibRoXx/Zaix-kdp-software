@@ -791,6 +791,31 @@ try {
             ], 201);
         }
 
+        if (
+            $method === 'POST' &&
+            preg_match('#^/api/v1/admin/backups/(\d+)/restore$#', $path, $matches)
+        ) {
+            try {
+                $result = BackupService::restore(
+                    $db,
+                    (int) $matches[1],
+                    (int) $user['id']
+                );
+            } catch (RuntimeException $error) {
+                Http::json([
+                    'ok' => false,
+                    'error' => $error->getMessage(),
+                    'request_id' => $requestId,
+                ], 422);
+            }
+
+            Http::json([
+                'ok' => true,
+                'result' => $result,
+                'request_id' => $requestId,
+            ]);
+        }
+
         if ($method === 'POST' && $path === '/api/v1/admin/repair') {
             $body = Http::body();
 

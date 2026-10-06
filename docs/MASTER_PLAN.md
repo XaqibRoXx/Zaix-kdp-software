@@ -187,6 +187,10 @@ Cloud collaboration, high-quality image utilities and production-ready administr
 
 ## Phase 4 — Release + QA
 
+**Status: IN PROGRESS — started 2026-10-01**
+
+Phase 4 foundation now includes a dedicated release/QA workflow, portable-build configuration, cPanel/server ZIP packaging, optional worker ZIP packaging, and SHA-256 release manifests. See `docs/PHASE4_RELEASE_QA.md` for the live exit checklist.
+
 - Performance profiling and memory reduction.
 - Large project and large-book testing.
 - Proxy loading and page virtualization.

@@ -1,0 +1,308 @@
+name: Phase 4 Release QA
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [phase4-release-qa, phase4-hardening-next, phase4-recovery-next]
+
+concurrency:
+  group: phase4-release-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: Build desktop frontend
+        run: npm run build:desktop
+
+      - name: Large-book stress smoke
+        run: npm run qa:large-book
+
+      - name: Sparse sync delta regression
+        run: npm run qa:sync-delta
+
+      - name: Offline queue and reconnect integration
+        run: npm run qa:offline-sync
+
+      - name: KDP preflight regression matrix
+        run: npm run qa:kdp-preflight
+
+      - name: PDF structural and lossless regression
+        run: npm run qa:pdf-structural
+
+  server-worker-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          coverage: none
+
+      - name: Validate PHP syntax
+        run: find apps/server -type f -name "*.php" -print0 | xargs -0 -n1 php -l
+
+      - name: Validate composer manifest
+        run: php -r 'json_decode(file_get_contents("apps/server/composer.json"), true, 512, JSON_THROW_ON_ERROR);'
+
+      - name: Generate deployable Composer autoload
+        run: composer dump-autoload --working-dir=apps/server --no-dev --optimize
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile image worker
+        run: python -m compileall -q apps/worker
+
+      - name: Install lightweight worker QA dependencies
+        run: python -m pip install "fastapi==0.142.2" "python-multipart>=0.0.20,<1" "Pillow>=11,<13"
+
+      - name: Image worker processing contract regression
+        run: python scripts/qa-worker-contract.py
+
+      - name: Package cPanel server
+        run: |
+          mkdir -p release
+          cd apps/server
+          zip -r ../../release/zaxis-kdp-server.zip . -x ".env" "storage/*" "*.log"
+
+      - name: Package optional image worker
+        run: |
+          cd apps/worker
+          zip -r ../../release/zaxis-kdp-worker.zip . -x "__pycache__/*" "*.pyc" ".venv/*"
+
+      - name: Generate package checksums
+        run: |
+          cd release
+          sha256sum zaxis-kdp-server.zip zaxis-kdp-worker.zip > SHA256SUMS.txt
+
+      - name: Upload server release packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: zaxis-kdp-server-worker
+          path: |
+            release/zaxis-kdp-server.zip
+            release/zaxis-kdp-worker.zip
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+
+  backup-restore-integration:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: zaxis_kdp_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: zaxis_kdp_test
+      DB_USER: root
+      DB_PASS: root
+      STORAGE_PATH: ${{ github.workspace }}/tmp-storage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: pdo_mysql, zip, mbstring
+          coverage: none
+
+      - name: Generate server autoload
+        run: composer dump-autoload --working-dir=apps/server --no-dev --optimize
+
+      - name: Load test schema
+        run: mysql -h127.0.0.1 -uroot -proot zaxis_kdp_test < apps/server/database/schema.sql
+
+      - name: Run backup restore integrity test
+        run: php scripts/qa-backup-restore.php
+
+      - name: Simulate total database and asset-storage loss
+        run: |
+          rm -rf "$STORAGE_PATH/assets" "$STORAGE_PATH/backups"
+          mysql -h127.0.0.1 -uroot -proot -e "DROP DATABASE zaxis_kdp_test; CREATE DATABASE zaxis_kdp_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h127.0.0.1 -uroot -proot zaxis_kdp_test < apps/server/database/schema.sql
+
+      - name: Restore external archive into clean installation
+        run: php apps/server/bin/restore-backup.php "$RUNNER_TEMP/zaxis-kdp-clean-recovery.zip" --yes
+
+      - name: Verify clean disaster recovery
+        run: php scripts/qa-clean-recovery-verify.php
+
+  windows-release-candidate:
+    needs: [desktop-check, server-worker-check, backup-restore-integration]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build installable Windows bundles
+        run: npm --workspace @zaxis-kdp/desktop run desktop:build
+
+      - name: Stage installer bundles
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release/installed | Out-Null
+          Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/msi" -Filter *.msi -ErrorAction SilentlyContinue | Copy-Item -Destination release/installed
+          Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis" -Filter *.exe -ErrorAction SilentlyContinue | Copy-Item -Destination release/installed
+          if (-not (Get-ChildItem release/installed -File -ErrorAction SilentlyContinue)) {
+            throw "No Windows installer bundle was produced."
+          }
+
+      - name: Silent MSI install and uninstall smoke
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem "release/installed" -Filter *.msi | Select-Object -First 1
+          if (-not $msi) {
+            throw "MSI bundle is required for install/uninstall smoke testing."
+          }
+
+          $releaseRoot = (Resolve-Path "release").Path
+          $installLog = Join-Path $releaseRoot "msi-install.log"
+          $install = Start-Process "msiexec.exe" -ArgumentList @(
+            "/i",
+            ('"' + $msi.FullName + '"'),
+            "/qn",
+            "/norestart",
+            "/L*v",
+            ('"' + $installLog + '"')
+          ) -Wait -PassThru
+
+          if ($install.ExitCode -ne 0) {
+            Get-Content $installLog -Tail 120 -ErrorAction SilentlyContinue
+            throw "MSI silent install failed with exit code $($install.ExitCode)."
+          }
+
+          $roots = @(
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+          )
+          $product = Get-ItemProperty $roots -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq "Zaxis KDP" } |
+            Select-Object -First 1
+
+          if (-not $product) {
+            throw "Zaxis KDP was not registered after MSI installation."
+          }
+
+          $productCode = [string]$product.PSChildName
+          if ([string]::IsNullOrWhiteSpace($productCode)) {
+            throw "Could not resolve MSI ProductCode from uninstall registry."
+          }
+
+          $uninstallLog = Join-Path $releaseRoot "msi-uninstall.log"
+          $uninstall = Start-Process "msiexec.exe" -ArgumentList @(
+            "/x",
+            $productCode,
+            "/qn",
+            "/norestart",
+            "/L*v",
+            ('"' + $uninstallLog + '"')
+          ) -Wait -PassThru
+
+          if ($uninstall.ExitCode -ne 0) {
+            Get-Content $uninstallLog -Tail 120 -ErrorAction SilentlyContinue
+            throw "MSI silent uninstall failed with exit code $($uninstall.ExitCode)."
+          }
+
+          $remaining = Get-ItemProperty $roots -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq "Zaxis KDP" } |
+            Select-Object -First 1
+          if ($remaining) {
+            throw "Zaxis KDP remained registered after MSI uninstall."
+          }
+
+          "MSI install/uninstall smoke passed." | Set-Content "release/msi-smoke.txt"
+
+      - name: Build portable Windows executable
+        run: npm --workspace @zaxis-kdp/desktop run tauri -- build --no-bundle --config src-tauri/tauri.portable.conf.json
+
+      - name: Stage portable package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release/portable/app-data | Out-Null
+          Copy-Item "apps/desktop/src-tauri/target/release/zaxis-kdp.exe" "release/portable/Zaxis-KDP-Portable.exe"
+          Set-Content -Path "release/portable/PORTABLE.txt" -Value "Keep this folder together. Tauri-managed app data is stored in ./app-data for this portable flavor."
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "release/portable/Zaxis-KDP-Portable.exe"
+          $process = Start-Process $exe.Path -PassThru
+          Start-Sleep -Seconds 8
+
+          if ($process.HasExited) {
+            throw "Portable executable exited during startup smoke with code $($process.ExitCode)."
+          }
+
+          Stop-Process -Id $process.Id -Force
+          "Portable startup smoke passed." | Set-Content "release/portable/STARTUP-SMOKE.txt"
+
+      - name: Generate Windows SHA-256 manifest
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem release -Recurse -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
+            $relative = $file.FullName.Substring((Resolve-Path release).Path.Length + 1).Replace("\", "/")
+            "$hash  $relative"
+          }
+          $lines | Set-Content release/SHA256SUMS.txt
+
+      - name: Upload Windows release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: zaxis-kdp-windows-release-candidate
+          path: |
+            release/installed/**
+            release/portable/**
+            release/msi-install.log
+            release/msi-uninstall.log
+            release/msi-smoke.txt
+            release/SHA256SUMS.txt
+          if-no-files-found: error

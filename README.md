@@ -31,4 +31,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - `packages/shared` — shared types/contracts.
 - `docs` — plan, feature matrix, architecture, progress and decisions.
 
-> Current status: Phase 1 has started. Foundation and editor architecture are being established first.
+> Current status: Phase 1 baseline complete, Phase 2 **100% complete**, Phase 3 **100% complete**, and Phase 4 **Release + QA is in progress**. See `docs/STATUS.md` and `docs/PHASE4_RELEASE_QA.md` for the live verified gates.
+
+
+## Phase 4 Release Guides
+- [Release + QA tracker](docs/PHASE4_RELEASE_QA.md)
+- [Final release checklist](docs/PHASE4_RELEASE_CHECKLIST.md)
+- [cPanel deployment & recovery](docs/CPANEL_DEPLOYMENT.md)
+- [Windows setup & recovery](docs/WINDOWS_SETUP.md)
+- [Signed updater release process](docs/UPDATER_RELEASE.md)

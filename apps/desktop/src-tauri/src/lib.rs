@@ -259,6 +259,16 @@ fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<u64, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            // Unsigned QA/portable builds intentionally omit updater configuration.
+            // Signed release builds opt in at compile time and provide a trusted
+            // public key + HTTPS endpoint through the generated Tauri config.
+            if option_env!("ZAXIS_ENABLE_UPDATER") == Some("1") {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             list_system_fonts,
             ensure_native_cache,
